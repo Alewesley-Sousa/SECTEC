@@ -1,1 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Poppins', sans-serif;
+  --color-sectec-50: #f0fdf4;
+  --color-sectec-100: #dcfce7;
+  --color-sectec-200: #a7f3d0;
+  --color-sectec-300: #6ee7b7;
+  --color-sectec-400: #34d399;
+  --color-sectec-500: #22c55e;
+  --color-sectec-600: #16a34a;
+  --color-sectec-700: #15803d;
+  --color-sectec-800: #166534;
+  --color-sectec-900: #14532d;
+}
+
+@keyframes spin-smooth {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+.spin-icon {
+  animation: spin-smooth 0.6s ease-in-out forwards;
+}
+
+.respin-icon {
+  animation: spin-reverse 0.6s ease-in-out forwards;
+}
