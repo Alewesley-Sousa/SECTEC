@@ -11,3 +11,17 @@ datasource db {
   provider = "mysql" 
 }
 
+model Projetos {
+  id             Int      @id @default(autoincrement())
+  evento_id      Int
+  aluno_autor_id Int
+  titulo         String   @db.VarChar(255)
+  tema           String?  @db.VarChar(100)
+  sub_tema       String?  @db.VarChar(100)
+
+  // Configuração das Relações (Foreign Keys)
+  evento      Eventos  @relation(fields: [evento_id], references: [id])
+  aluno_autor Usuarios @relation(fields: [aluno_autor_id], references: [id])
+
+  @@map("projetos") // Isso garante que o Prisma use o nome "projetos" no MySQL
+}
