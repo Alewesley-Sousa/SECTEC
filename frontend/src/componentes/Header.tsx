@@ -1,11 +1,9 @@
-
-import { ConfigButton } from './Button/ConfigButton'
+import { Button } from './Button/Button'
 const Header = () => {
   
-
   return (
     <header className="bg-sectec-900 text-white p-4 flex justify-between items-center shadow-lg">
-      <ConfigButton/>
+      <Button>Configurações</Button>
       <h1 className="text-2xl font-bold">SECTEC</h1>
         <nav>
           <ul className="flex space-x-4">

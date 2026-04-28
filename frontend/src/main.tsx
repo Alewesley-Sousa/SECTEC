@@ -2,11 +2,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
-
+import Login from './pages/login'
 import './index.css'
 
-
-const Login = () => <h1 className="p-10 text-2xl">Tela de Login</h1>
 
 function Router() {
   return (
