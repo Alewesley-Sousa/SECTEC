@@ -32,6 +32,7 @@ CREATE TABLE projetos (
     titulo VARCHAR(255) NOT NULL,
     tema VARCHAR(100),
     sub_tema VARCHAR(100),
+    descricao TEXT NOT NULL;
     FOREIGN KEY (evento_id) REFERENCES eventos(id),
     FOREIGN KEY (aluno_autor_id) REFERENCES usuarios(id)
 );
