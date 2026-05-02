@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react'
 import { Button } from './Button/Button'
 
+
 const Header = () => {
   return (
     <header className="bg-sectec-900 text-white p-4 flex justify-between items-center shadow-lg">
