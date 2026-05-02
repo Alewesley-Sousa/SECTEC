@@ -44,49 +44,30 @@ CREATE TABLE `logs_auditoria` (
   `feito_em` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci;
 
--- --------------------------------------------------------
+-- 3. TABELA DOS PROJETOS
+CREATE TABLE projetos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    evento_id INT NOT NULL,
+    aluno_autor_id INT NOT NULL,
+    titulo VARCHAR(255) NOT NULL,
+    tema VARCHAR(100),
+    sub_tema VARCHAR(100),
+    descrcao TEXT NOT NULL,
+    FOREIGN KEY (evento_id) REFERENCES eventos(id),
+    FOREIGN KEY (aluno_autor_id) REFERENCES usuarios(id)
+);
 
---
--- Estrutura da tabela `projetos`
---
-
-CREATE TABLE `projetos` (
-  `id` int(11) NOT NULL,
-  `evento_id` int(11) NOT NULL,
-  `aluno_autor_id` int(11) NOT NULL,
-  `titulo` varchar(255) NOT NULL,
-  `tema` varchar(100) DEFAULT NULL,
-  `sub_tema` varchar(100) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura da tabela `projeto_alunos`
---
-
-CREATE TABLE `projeto_alunos` (
-  `id` int(11) NOT NULL,
-  `projeto_id` int(11) NOT NULL,
-  `aluno_id` int(11) NOT NULL,
-  `criado_em` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura da tabela `projeto_materiais`
---
-
-CREATE TABLE `projeto_materiais` (
-  `id` int(11) NOT NULL,
-  `projeto_id` int(11) NOT NULL,
-  `tipo` enum('pdf','link') NOT NULL,
-  `status` enum('em_analise','aprovado','recusado') DEFAULT 'em_analise',
-  `conteudo` text NOT NULL,
-  `opiniao` text NOT NULL,
-  `criado_em` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=sjis COLLATE=sjis_japanese_ci;
+-- 4. TABELA DOS MATERIAIS DE UM PROJETO
+CREATE TABLE projeto_materiais (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    projeto_id INT NOT NULL,
+    tipo ENUM('pdf', 'link') NOT NULL,
+    status ENUM('em_analise', 'aprovado', 'recusado') DEFAULT 'em_analise',
+    conteudo TEXT NOT NULL, -- caminho do pdf ou do link do video
+    opiniao TEXT NOT NULL,
+    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (projeto_id) REFERENCES projetos(id) ON DELETE CASCADE
+);
 
 -- --------------------------------------------------------
 
