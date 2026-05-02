@@ -1,22 +1,32 @@
-// src/users/entities/user.entity.ts
+// user.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
-import { Exclude } from 'class-transformer';
 
-@Entity('users')
+export enum UserRole {
+  ALUNO = 'aluno',
+  ORIENTADOR = 'orientador',
+  COORDENACAO = 'coordenador', // 👈 igual ao enum do banco
+}
+
+@Entity('usuarios') // 👈 nome da tabela no banco
 export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  nome: string;
 
   @Column({ unique: true })
-  email: string;
+  email_institucional: string;
 
-  @Column({ unique: true })
-  username: string;
+  @Column({ type: 'enum', enum: UserRole })
+  role_cargo: UserRole;
 
-  @Column({ select: false }) // 🔒 NUNCA é retornado por padrão
-  @Exclude() // 🔒 Segurança extra para serialização
-  password: string;
+  @Column({ select: false })
+  senha: string;        // 👈 campo é 'senha' no seu banco
+
+  @Column({ default: true })
+  ativo: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  criado_em: Date;
 }

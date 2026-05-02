@@ -1,4 +1,3 @@
-// src/auth/auth.service.ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { HashingProvider } from '../common/providers/hashing.provider';
@@ -14,26 +13,32 @@ export class AuthService {
 
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findOneByEmail(email);
-    
+
     if (!user) {
       throw new UnauthorizedException('Email não encontrado');
     }
-    
-    const isPasswordValid = await this.hashingProvider.compare(pass, user.password);
-    
+
+    const isPasswordValid = await this.hashingProvider.compare(pass, user.senha);
+
     if (!isPasswordValid) {
       throw new UnauthorizedException('Senha inválida');
     }
-    
-    // Retorna o usuário sem a senha
-    const { password, ...result } = user;
+
+    const { senha, ...result } = user;
     return result;
   }
 
   async login(user: any) {
-    const payload = { email: user.email, sub: user.id };
+    const payload = { email: user.email_institucional, sub: user.id, role: user.role_cargo };
+
     return {
       access_token: this.jwtService.sign(payload),
+      role: user.role_cargo,
+      user: {
+        id: user.id,
+        email: user.email_institucional,
+        nome: user.nome,
+      },
     };
   }
-}
+} // 👈 esse fechava a classe, estava faltando

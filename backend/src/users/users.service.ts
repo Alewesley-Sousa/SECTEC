@@ -1,4 +1,3 @@
-// src/users/users.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,22 +12,11 @@ export class UsersService {
     private hashingProvider: HashingProvider,
   ) {}
 
-  async createUser(email: string, username: string, plainPassword: string): Promise<User> {
-    const hashedPassword = await this.hashingProvider.hash(plainPassword);
-    const newUser = this.usersRepository.create({
-      email,
-      username,
-      password: hashedPassword,
-    });
-    return this.usersRepository.save(newUser);
-  }
-
   async findOneByEmail(email: string): Promise<User | null> {
-    // Usamos addSelect porque o campo password está com select: false
     return this.usersRepository
       .createQueryBuilder('user')
-      .addSelect('user.password') // Busca a senha apenas aqui
-      .where('user.email = :email', { email })
+      .addSelect('user.senha')           // 👈 campo correto do seu banco
+      .where('user.email_institucional = :email', { email })  // 👈 campo correto
       .getOne();
   }
 }
