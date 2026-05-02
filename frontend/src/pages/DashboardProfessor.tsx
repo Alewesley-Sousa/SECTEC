@@ -49,7 +49,8 @@ function DashboardProfessor() {
           </div>
         </div>
       </div>
-
+      {/* Fim da Coluna de Atividade */}
+      
       {/* Coluna de Tarefas (Direita - 8 colunas) */}
       <div className="lg:col-span-8">
         <div className="flex items-center justify-between mb-6">
