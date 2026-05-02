@@ -18,7 +18,6 @@ function Login() {
   function switchMode(next: Mode) {
     setGoingToRegister(next === "register");
     setPhase("exit");
-
     setTimeout(() => {
       setMode(next);
       setPhase("enter");
@@ -26,9 +25,29 @@ function Login() {
     }, 320);
   }
 
-  function handleLogin(e: React.FormEvent) {
+  // 👇 handleLogin agora está DENTRO da função e acessa email/password
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    console.log("Fazendo login com:", { email, password });
+
+    const response = await fetch('http://localhost:3000/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert('Email ou senha inválidos');
+      return;
+    }
+
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('role', data.role);
+
+    if (data.role === 'aluno') window.location.href = '/dashboard/aluno';
+    if (data.role === 'orientador') window.location.href = '/dashboard/orientador';
+    if (data.role === 'coordenador') window.location.href = '/dashboard/coordenacao';
   }
 
   function handleRegister(e: React.FormEvent) {
