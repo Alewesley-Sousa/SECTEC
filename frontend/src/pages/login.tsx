@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { FormEvent } from "react";
 import loginImg from "../assets/img/Login.png";
 import registerImg from "../assets/img/login_esquerdo.png";
 
@@ -26,7 +27,7 @@ function Login() {
   }
 
   // 👇 handleLogin agora está DENTRO da função e acessa email/password
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     const response = await fetch('http://localhost:3000/auth/login', {
@@ -50,7 +51,7 @@ function Login() {
     if (data.role === 'coordenador') window.location.href = '/dashboard/coordenacao';
   }
 
-  function handleRegister(e: React.FormEvent) {
+  function handleRegister(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     console.log("Criando conta com:", { name, email, password, confirmPassword });
   }

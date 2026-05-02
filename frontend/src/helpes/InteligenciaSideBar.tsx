@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+
 // Definimos os níveis de acesso possíveis
 export type UserRole = "ADMIN" | "Professor" | "aluno";
 
@@ -9,7 +10,6 @@ export type NavItem = {
   icon?: React.ReactNode;
   href?: string;
   isActive?: boolean;
-  // Se 'roles' não existir, o item é público para todos
   roles?: UserRole[];
   subItems?: Omit<NavItem, "subItems" | "icon">[];
 };
@@ -35,7 +35,12 @@ export function Sidebar({ brandName, items, userRole }: SidebarProps) {
   }));
 
   return (
-    <aside className="fixed top-0 left-0 z-20 w-72 h-screen bg-sectec-900 text-white border-r border-sectec-800 flex flex-col shadow-xl">
+    /* MUDANÇA AQUI: 
+       - Trocado 'fixed' por 'sticky'
+       - Mantido 'top-0' para ela não sumir no scroll
+       - 'shrink-0' garante que ela não "esmague" se o conteúdo principal for grande
+    */
+    <aside className="sticky top-0 left-0 z-20 w-72 h-screen shrink-0 bg-sectec-900 text-white border-r border-sectec-800 flex flex-col shadow-xl">
       <div className="p-6 border-b border-sectec-800">
         <h1 className="text-3xl font-extrabold tracking-tight">{brandName}</h1>
       </div>
