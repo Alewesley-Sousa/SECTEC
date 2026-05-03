@@ -1,5 +1,6 @@
 // user.entity.ts
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { ProjetoAluno } from 'src/projetos/entities/projeto-aluno';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany } from 'typeorm';
 
 export enum UserRole {
   ALUNO = 'aluno',
@@ -29,4 +30,8 @@ export class User {
 
   @CreateDateColumn()
   criado_em: Date;
+
+  // relacionamento de alunos com seus projetos
+  @OneToMany(() => ProjetoAluno, (projetoAluno) => projetoAluno.aluno)
+  projetosParticipados!: ProjetoAluno[];
 }
