@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
 import { Projeto } from './src/projetos/entities/projeto.entity';
 import { Evento } from './src/evento/entities/evento.entity';
-import { Usuario } from './src/usuarios/entities/usuario.entity';
+import { User } from './src/users/entities/user.entity';
 
 // Carrega as variáveis do arquivo .env para o process.env
 dotenv.config();
@@ -15,6 +15,6 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME, // Agora não será mais undefined
-  entities: [Projeto, Evento, Usuario],
+  entities: [Projeto, Evento, User],
   migrations: ['src/migrations/*.ts'],
 });

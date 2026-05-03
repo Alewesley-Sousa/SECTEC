@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { UsersSeed } from './users/users.seed';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  const seedService = app.get(UsersSeed);
+  await seedService.run();
   // Permite que o frontend acesse a API
   app.enableCors();
 

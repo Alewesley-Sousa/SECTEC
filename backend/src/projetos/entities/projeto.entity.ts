@@ -1,30 +1,29 @@
 // projeto.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { Evento } from '../../evento/entities/evento.entity';
-import { Usuario } from '../../usuarios/entities/usuario.entity';
+import { User } from '../../users/entities/user.entity'; // 👈 Corrigido: era Usuario
 
 @Entity('projetos')
+@Unique(['alunoAutor', 'evento']) 
 export class Projeto {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @ManyToOne(() => Evento, (evento) => evento.projetos, { eager: true })
+  @ManyToOne(() => Evento)
   @JoinColumn({ name: 'evento_id' })
   evento!: Evento;
 
-  @ManyToOne(() => Usuario, (usuario) => usuario.projetos, { eager: true })
+  @ManyToOne(() => User) // 👈 Corrigido: era Usuario
   @JoinColumn({ name: 'aluno_autor_id' })
-  alunoAutor!: Usuario;
+  alunoAutor!: User;
 
   @Column({ type: 'varchar', length: 255 })
   titulo!: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  tema!: string;
-
-  @Column({ type: 'text' }) // Mapeia para TEXT no MySQL
+  @Column({ type: 'text' }) 
   descricao!: string;
-  
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  subTema!: string;
+
+  // Se você for usar a tabela de temas orientadores, o campo seria assim:
+  @Column({ name: 'tema_id' })
+  temaId!: number;
 }
