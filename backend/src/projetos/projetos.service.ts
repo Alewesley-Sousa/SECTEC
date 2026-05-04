@@ -309,7 +309,7 @@ export class ProjetosService {
     // Pega o projeto com a data de criação mais alta (mais recente)
     const projetoRecente = await this.projetoRepository.findOne({
       where: { alunoAutor: { id: userId } },
-      order: { criado_em: 'DESC' }, // 👈 Ordena pela data de criação real
+      order: { criadoEm: 'DESC' }, // 👈 Ordena pela data de criação real
       relations: ['evento'],
     });
 
