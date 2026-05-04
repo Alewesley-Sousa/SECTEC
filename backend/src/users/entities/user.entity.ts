@@ -1,5 +1,7 @@
 // user.entity.ts
-import { ProjetoAluno } from 'src/projetos/entities/projeto-aluno';
+import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
+import { ProjetoAluno } from 'src/projetos/entities/projeto-aluno.entity';
+import { ProjetoOrientador } from 'src/projetos/entities/projeto-orientador.entity';
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany } from 'typeorm';
 
 export enum UserRole {
@@ -34,4 +36,12 @@ export class User {
   // relacionamento de alunos com seus projetos
   @OneToMany(() => ProjetoAluno, (projetoAluno) => projetoAluno.aluno)
   projetosParticipados!: ProjetoAluno[];
+
+  // Relacionamento para Orientadores: Ver convites/orientações vinculadas a ele
+  @OneToMany(() => ProjetoOrientador, (projetoOrientador) => projetoOrientador.orientador)
+  solicitacoesOrientacao!: ProjetoOrientador[];
+
+  // Um professor pode criar vários temas para um evento
+  @OneToMany(() => TemaEvento, (tema) => tema.professor)
+  temasCriados!: TemaEvento[]; // 👈 Novo relacionamento
 }
