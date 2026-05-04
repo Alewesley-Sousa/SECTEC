@@ -1,30 +1,40 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, MinLength } from 'class-validator';
+import { 
+  IsString, 
+  IsNotEmpty, 
+  IsOptional, 
+  IsNumber, 
+  MinLength, 
+  IsArray, 
+  ArrayMinSize, 
+  ArrayMaxSize
+} from 'class-validator';
 
 export class CreateProjetoDto {
-@IsString()
-@IsNotEmpty()
-titulo: string;
+  @IsString()
+  @IsNotEmpty()
+  titulo: string;
 
-@IsString()
-@IsOptional()
-tema?: string;
+  @IsNumber()
+  @IsNotEmpty()
+  temaId: number; // Alterado para bater com a propriedade da Entity
 
-@IsString()
-@IsNotEmpty()
-@MinLength(30, { message: 'A descrição deve ter pelo menos 30 caracteres' })
-descricao: string;
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(30, { message: 'A descrição deve ter pelo menos 30 caracteres' })
+  descricao: string;
 
-@IsString()
-@IsOptional()
-subTema?: string;
+  @IsString()
+  @IsOptional()
+  subTema?: string;
 
-// Recebe o ID do evento ao qual o projeto pertence
-@IsNumber()
-@IsNotEmpty()
-evento: number;
+  @IsNumber()
+  @IsNotEmpty()
+  evento: number;
 
-// Recebe o ID do aluno autor
-@IsNumber()
-@IsNotEmpty()
-alunoAutor: number;
+  @IsArray()
+  @IsOptional() // Opcional caso o projeto possa ser individual inicialmente
+  @IsNumber({}, { each: true }) // Valida se cada item do array é um número
+  @ArrayMinSize(3, { message: 'O projeto deve ter pelo menos 3 alunos na sua equipe.' })
+  @ArrayMaxSize(6, { message: 'O projeto deve ter no máximo 6 alunos na sua equipe.' })
+  alunosIds?: number[];
 }
