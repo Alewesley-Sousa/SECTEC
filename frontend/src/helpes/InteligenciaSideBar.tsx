@@ -35,11 +35,7 @@ export function Sidebar({ brandName, items, userRole }: SidebarProps) {
   }));
 
   return (
-    /* MUDANÇA AQUI: 
-       - Trocado 'fixed' por 'sticky'
-       - Mantido 'top-0' para ela não sumir no scroll
-       - 'shrink-0' garante que ela não "esmague" se o conteúdo principal for grande
-    */
+
     <aside className="sticky top-0 left-0 z-20 w-72 h-screen shrink-0 bg-sectec-900 text-white border-r border-sectec-800 flex flex-col shadow-xl">
       <div className="p-6 border-b border-sectec-800">
         <h1 className="text-3xl font-extrabold tracking-tight">{brandName}</h1>
