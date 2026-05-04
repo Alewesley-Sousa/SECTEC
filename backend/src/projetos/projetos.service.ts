@@ -11,7 +11,8 @@ import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { ProjetoAluno } from './entities/projeto-aluno.entity';
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
-import { TemaEvento } from '../evento/entities/tema-evento.entity';
+import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
+import { Evento } from 'src/evento/entities/evento.entity';
 
 @Injectable()
 export class ProjetosService {
@@ -300,62 +301,4 @@ export class ProjetosService {
 
     await this.projetoRepository.remove(projeto);
   }
-
-
-  /**
- * Envia uma solicitação para um orientador específico baseado no projeto mais recente.
- */
-  async enviarSolicitacaoOrientador(userId: number, orientadorId: number): Promise<ProjetoOrientador> {
-    // Pega o projeto com a data de criação mais alta (mais recente)
-    const projetoRecente = await this.projetoRepository.findOne({
-      where: { alunoAutor: { id: userId } },
-      order: { criado_em: 'DESC' }, // 👈 Ordena pela data de criação real
-      relations: ['evento'],
-    });
-
-    if (!projetoRecente) {
-      throw new NotFoundException('Você ainda não possui nenhum projeto cadastrado.');
-    }
-
-    // 2. Validação: O tema do projeto existe no evento atual?
-    const temaValidoNoEvento = await this.temaEventoRepository.findOne({
-      where: {
-        id: projetoRecente.temaId,
-        evento: { id: projetoRecente.evento.id }
-      }
-    });
-
-    if (!temaValidoNoEvento) {
-      throw new BadRequestException(
-        `O tema (ID: ${projetoRecente.temaId}) não está disponível para o evento ${projetoRecente.evento.id}.`
-      );
-    }
-
-    // 3. Validação: Já existe uma solicitação pendente ou aceita para este projeto/orientador?
-    const solicitacaoExistente = await this.projetoOrientadorRepository.findOne({
-      where: {
-        projeto: { id: projetoRecente.id },
-        orientador: { id: orientadorId }
-      }
-    });
-
-    if (solicitacaoExistente) {
-      if (solicitacaoExistente.status === 'pendente') {
-        throw new BadRequestException('Já existe uma solicitação pendente para este orientador.');
-      }
-      if (solicitacaoExistente.status === 'aceito') {
-        throw new BadRequestException('Este orientador já aceitou orientar este projeto.');
-      }
-    }
-
-    // 4. Criação da solicitação
-    const novaSolicitacao = this.projetoOrientadorRepository.create({
-      projeto: { id: projetoRecente.id },
-      orientador: { id: orientadorId },
-      status: 'pendente'
-    });
-
-    return await this.projetoOrientadorRepository.save(novaSolicitacao);
-  }
-
 }
