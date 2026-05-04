@@ -3,11 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm'; // Importe o TypeOrmModule
 import { ProjetosService } from './projetos.service';
 import { ProjetosController } from './projetos.controller';
 import { Projeto } from './entities/projeto.entity'; // Importe a entidade
+import { ProjetoAluno } from './entities/projeto-aluno.entity'; // Importe a entidade
+import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 
 @Module({
   imports: [
     // Isso permite que o @InjectRepository(Projeto) funcione no Service
-    TypeOrmModule.forFeature([Projeto])
+    TypeOrmModule.forFeature([Projeto, ProjetoAluno, ProjetoOrientador])
   ],
   controllers: [ProjetosController],
   providers: [ProjetosService],
