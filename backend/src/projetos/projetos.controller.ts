@@ -11,8 +11,12 @@ import {
   ParseIntPipe
 } from '@nestjs/common';
 import { ProjetosService } from './projetos.service';
+
+// DTOs
 import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
+
+// Auth & Guards
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; 
 import { GetUser } from '../auth/decorators/get-user.decorator';
 
@@ -21,11 +25,16 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 export class ProjetosController {
   constructor(private readonly projetosService: ProjetosService) {}
 
+  // ===========================================================================
+  // ROTAS DE CRIAÇÃO E AÇÕES ESPECÍFICAS
+  // ===========================================================================
+
   /**
-   * Criação de projeto - Restrito a alunos
+   * Realiza a criação de um novo projeto.
+   * Acesso restrito a usuários com cargo de 'aluno'.
    */
   @Post()
-  create(
+  async create(
     @Body() createProjetoDto: CreateProjetoDto, 
     @GetUser('sub') userId: number,
     @GetUser('role_cargo') role: string
@@ -37,11 +46,33 @@ export class ProjetosController {
   }
 
   /**
-   * Listagem Inteligente:
-   * Chama o método específico baseado no cargo do usuário logado.
+   * Envia uma solicitação de orientação para um professor.
+   * O aluno autor solicita um orientador específico para seu projeto mais recente.
+   */
+  @Post('solicitar-orientador')
+  async solicitarOrientador(
+    @GetUser('sub') userId: number,
+    @GetUser('role_cargo') role: string,
+    @Body('orientadorId', ParseIntPipe) orientadorId: number
+  ) {
+    if (role !== 'aluno') {
+      throw new ForbiddenException('Apenas alunos autores podem solicitar orientação.');
+    }
+    return this.projetosService.enviarSolicitacaoOrientador(userId, orientadorId);
+  }
+
+  // ===========================================================================
+  // ROTAS DE CONSULTA (LISTAGEM E DETALHES)
+  // ===========================================================================
+
+  /**
+   * Listagem dinâmica baseada no cargo do usuário:
+   * - Aluno: Vê seus próprios projetos.
+   * - Orientador: Vê projetos que orienta (aceitos).
+   * - Coordenador: Vê todos os projetos agrupados por evento.
    */
   @Get()
-  findAll(
+  async findAll(
     @GetUser('sub') userId: number,
     @GetUser('role_cargo') role: string 
   ) {
@@ -58,7 +89,8 @@ export class ProjetosController {
   }
 
   /**
-   * Busca um projeto específico com regra de visibilidade
+   * Busca os detalhes de um projeto específico.
+   * Aplica regra de visibilidade: alunos só acessam seus próprios projetos.
    */
   @Get(':id')
   async findOne(
@@ -68,35 +100,24 @@ export class ProjetosController {
   ) {
     const projeto = await this.projetosService.findOne(id);
 
-    // Se for aluno, só vê se for o dono (autor)
+    // Validação de Propriedade: Aluno não autor não pode visualizar
     if (role === 'aluno' && projeto.alunoAutor.id !== userId) {
-      throw new ForbiddenException('Acesso negado: você não é o autor deste projeto.');
+      throw new ForbiddenException('Acesso negado: você não possui vínculo com este projeto.');
     }
 
     return projeto;
   }
 
-  /**
-   * Rota para solicitar orientador
-   * Recebe o ID do orientador no corpo da requisição
-   */
-  @Post('solicitar-orientador')
-  async solicitarOrientador(
-    @GetUser('sub') userId: number,
-    @GetUser('role_cargo') role: string,
-    @Body('orientadorId', ParseIntPipe) orientadorId: number
-  ) {
-    if (role !== 'aluno') {
-      throw new ForbiddenException('Apenas alunos autores podem solicitar orientação.');
-    }
-    return this.projetosService.enviarSolicitacaoOrientador(userId, orientadorId);
-  }
+  // ===========================================================================
+  // ROTAS DE ATUALIZAÇÃO E EXCLUSÃO
+  // ===========================================================================
 
   /**
-   * Atualização de projeto
+   * Atualiza informações do projeto.
+   * A lógica de quem pode editar o quê (Dono vs Coordenador) é tratada no Service.
    */
   @Patch(':id')
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number, 
     @Body() updateProjetoDto: UpdateProjetoDto,
     @GetUser('sub') userId: number,
@@ -106,10 +127,11 @@ export class ProjetosController {
   }
 
   /**
-   * Remoção de projeto
+   * Remove um projeto do sistema.
+   * Requer que o usuário seja o autor ou possua cargo de coordenador.
    */
   @Delete(':id')
-  remove(
+  async remove(
     @Param('id', ParseIntPipe) id: number, 
     @GetUser('sub') userId: number,
     @GetUser('role_cargo') role: string

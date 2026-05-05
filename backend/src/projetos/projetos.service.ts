@@ -5,118 +5,118 @@ import {
   BadRequestException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In } from 'typeorm'; // Corrigido imports
+import { Repository, DataSource, In, QueryRunner } from 'typeorm';
+
+// Entities
 import { Projeto } from './entities/projeto.entity';
-import { CreateProjetoDto } from './dto/create-projeto.dto';
-import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { ProjetoAluno } from './entities/projeto-aluno.entity';
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
 import { Evento } from 'src/evento/entities/evento.entity';
 
+// DTOs
+import { CreateProjetoDto } from './dto/create-projeto.dto';
+import { UpdateProjetoDto } from './dto/update-projeto.dto';
+
 @Injectable()
 export class ProjetosService {
-
-
   constructor(
     @InjectRepository(Projeto)
     private readonly projetoRepository: Repository<Projeto>,
+
     @InjectRepository(ProjetoAluno)
     private readonly projetoAlunoRepository: Repository<ProjetoAluno>,
+
     @InjectRepository(ProjetoOrientador)
     private readonly projetoOrientadorRepository: Repository<ProjetoOrientador>,
+
     @InjectRepository(TemaEvento)
     private readonly temaEventoRepository: Repository<TemaEvento>,
+
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
+
+  // ===========================================================================
+  // MÉTODOS DE CRIAÇÃO (ESCRITA)
+  // ===========================================================================
 
   /**
-   * Método para o aluno criar um projeto com validações de participação
+   * Cria um novo projeto e vincula automaticamente os integrantes e o autor.
+   * @param dto Dados de criação do projeto
+   * @param userId ID do aluno autor
+   * @throws BadRequestException Se o grupo for inválido ou alunos já estiverem ocupados
    */
   async create(dto: CreateProjetoDto, userId: number): Promise<Projeto> {
-    // 1. Validação de Quantidade (3 a 6 integrantes)
-    const totalAlunos = (dto.alunosIds?.length || 0);
-    if (totalAlunos < 3 || totalAlunos > 6) {
-      throw new BadRequestException(`O grupo deve ter entre 3 e 6 integrantes (enviado: ${totalAlunos}).`);
-    }
+    this.validateGroupSize(dto.alunosIds);
+    await this.ensureAlunosAreAvailable(dto.evento, [...(dto.alunosIds || []), userId]);
 
-    // 2. Validação: O autor já está em algum projeto NESTE evento?
-    const autorOcupado = await this.projetoAlunoRepository.findOne({
-      where: {
-        aluno: { id: userId },
-        projeto: { evento: { id: dto.evento } }
-      }
-    });
-
-    if (autorOcupado) {
-      throw new BadRequestException('Você já está participando de um projeto neste evento.');
-    }
-
-    // 3. Validação: Algum dos convidados já está em outro projeto neste evento?
-    if (dto.alunosIds && dto.alunosIds.length > 0) {
-      const convidadosOcupados = await this.projetoAlunoRepository.find({
-        where: {
-          aluno: In(dto.alunosIds),
-          projeto: { evento: { id: dto.evento } }
-        },
-        relations: ['aluno']
-      });
-
-      if (convidadosOcupados.length > 0) {
-        const nomes = convidadosOcupados.map(p => p.aluno.nome).join(', ');
-        throw new BadRequestException(`Os seguintes alunos já estão em outros projetos: ${nomes}`);
-      }
-    }
-
-    // 4. Início da Transação
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 5. Criação da Entidade Projeto
-      const novoProjeto = queryRunner.manager.create(Projeto, {
-        ...dto,
-        evento: { id: dto.evento } as any,
-        alunoAutor: { id: userId } as any,
-      });
-      const projetoSalvo = await queryRunner.manager.save(novoProjeto);
+      const projeto = await this.saveProjeto(queryRunner, dto, userId);
+      await this.saveParticipantes(queryRunner, projeto.id, dto.alunosIds, userId);
 
-      // 6. Preparação dos vínculos (Autor + Convidados)
-      const todosOsParticipantes = [...new Set([...(dto.alunosIds || []), userId])];
-
-      const vinculos = todosOsParticipantes.map((alunoId) =>
-        queryRunner.manager.create(ProjetoAluno, {
-          projeto: { id: projetoSalvo.id },
-          aluno: { id: alunoId },
-        })
-      );
-
-      // 7. Salvando vínculos na tabela projeto_alunos
-      await queryRunner.manager.save(vinculos);
-
-      // 8. Finalizando transação
       await queryRunner.commitTransaction();
-
-      // Retorna o projeto completo usando o findOne já existente
-      return this.findOne(projetoSalvo.id);
-
+      return this.findOne(projeto.id);
     } catch (err) {
-      // Em caso de erro, desfaz tudo que foi feito no banco
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
-      // Libera o query runner
       await queryRunner.release();
     }
   }
 
+  /**
+   * Envia uma solicitação para um orientador específico baseada no projeto mais recente do aluno.
+   * @param userId ID do autor do projeto
+   * @param orientadorId ID do professor orientador
+   */
+  async enviarSolicitacaoOrientador(userId: number, orientadorId: number): Promise<ProjetoOrientador> {
+    const projeto = await this.getUltimoProjetoDoAluno(userId);
+    
+    await this.validarTemaNoEvento(projeto.temaId, projeto.evento.id);
+    await this.validarSolicitacaoDuplicada(projeto.id, orientadorId);
+
+    const novaSolicitacao = this.projetoOrientadorRepository.create({
+      projeto: { id: projeto.id },
+      orientador: { id: orientadorId },
+      status: 'pendente'
+    });
+
+    return this.projetoOrientadorRepository.save(novaSolicitacao);
+  }
+
+  // ===========================================================================
+  // MÉTODOS DE CONSULTA (LEITURA)
+  // ===========================================================================
 
   /**
-   * Busca projetos vinculados ao aluno logado (onde ele é o autor).
+   * Retorna um projeto detalhado por ID.
+   */
+  async findOne(id: number): Promise<Projeto> {
+    const projeto = await this.projetoRepository.findOne({
+      where: { id },
+      relations: {
+        evento: true,
+        alunoAutor: true,
+        projetoAlunos: { aluno: true },
+      },
+      select: this.getProjetoSelectFields(),
+    });
+
+    if (!projeto) {
+      throw new NotFoundException(`Projeto #${id} não encontrado`);
+    }
+    return projeto;
+  }
+
+  /**
+   * Lista projetos onde o usuário é o autor principal.
    */
   async findAllAlunos(userId: number): Promise<Projeto[]> {
-    return await this.projetoRepository.find({
+    return this.projetoRepository.find({
       where: { alunoAutor: { id: userId } },
       relations: {
         evento: true,
@@ -128,15 +128,11 @@ export class ProjetosService {
   }
 
   /**
-   * Busca projetos onde o professor logado é o orientador (status 'aceito').
+   * Lista projetos onde o professor logado já aceitou a orientação.
    */
   async findAllOrientador(userId: number): Promise<Projeto[]> {
-    // Aqui buscamos na tabela projeto_orientador os projetos vinculados ao professor
     const projetosOrientados = await this.projetoOrientadorRepository.find({
-      where: {
-        orientador: { id: userId },
-        status: 'aceito' // Só listamos o que ele de fato orienta
-      },
+      where: { orientador: { id: userId }, status: 'aceito' },
       relations: {
         projeto: {
           evento: true,
@@ -146,17 +142,14 @@ export class ProjetosService {
       }
     });
 
-    // Mapeamos para retornar apenas o objeto do Projeto
     return projetosOrientados.map(solicitacao => solicitacao.projeto);
   }
 
   /**
-   * Busca todos os eventos e seus respectivos projetos (Visão Geral da Coordenação).
+   * Visão geral para coordenação: Retorna eventos com seus respectivos projetos agrupados.
    */
-  async findAllCoordenador(): Promise<any[]> {
-    // Injetar o eventoRepository para buscar a partir do evento
-    // Isso já agrupa naturalmente os projetos dentro de cada evento no JSON
-    return await this.dataSource.getRepository(Evento).find({
+  async findAllCoordenador(): Promise<Evento[]> {
+    return this.dataSource.getRepository(Evento).find({
       relations: {
         projetos: {
           alunoAutor: true,
@@ -167,81 +160,22 @@ export class ProjetosService {
     });
   }
 
-  /**
-   * Método privado para reutilizar a configuração de select e evitar repetição.
-   */
-  private getProjetoSelectFields() {
-    return {
-      id: true,
-      titulo: true,
-      descricao: true,
-      temaId: true,
-      alunoAutor: {
-        id: true,
-        nome: true,
-        role_cargo: true,
-      },
-      projetoAlunos: {
-        id: true,
-        aluno: {
-          id: true,
-          nome: true,
-        },
-      },
-    };
-  }
-
-
-  async findOne(id: number): Promise<Projeto> {
-    const projeto = await this.projetoRepository.findOne({
-      where: { id },
-      relations: {
-        evento: true,
-        alunoAutor: true,
-        projetoAlunos: {
-          aluno: true,
-        },
-      },
-      select: {
-        id: true,
-        titulo: true,
-        descricao: true,
-        temaId: true,
-        alunoAutor: {
-          id: true,
-          nome: true,
-        },
-        projetoAlunos: {
-          id: true,
-          aluno: {
-            id: true,
-            nome: true,
-          },
-        },
-      },
-    });
-
-    if (!projeto) {
-      throw new NotFoundException(`Projeto #${id} não encontrado`);
-    }
-    return projeto;
-  }
-
+  // ===========================================================================
+  // MÉTODOS DE ATUALIZAÇÃO E REMOÇÃO
+  // ===========================================================================
 
   /**
-   * - Apenas dono ou coordenador editam.
+   * Atualiza dados do projeto. Regras de permissão variam por Role.
    */
   async update(id: number, dto: UpdateProjetoDto, userId: number, role: string): Promise<Projeto> {
     const projeto = await this.findOne(id);
 
-    // 1. Verificação de permissão básica (Dono ou Coordenador)
     if (role !== 'coordenador' && projeto.alunoAutor.id !== userId) {
       throw new ForbiddenException('Sem permissão para editar este projeto.');
     }
 
-    // 2. Regra de Negócio: Apenas coordenador mexe nos alunos
     if (dto.alunosIds && role !== 'coordenador') {
-      throw new ForbiddenException('Apenas coordenadores podem alterar os alunos de um projeto.');
+      throw new ForbiddenException('Apenas coordenadores alteram integrantes.');
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -249,7 +183,6 @@ export class ProjetosService {
     await queryRunner.startTransaction();
 
     try {
-      // 3. Atualiza os dados básicos do Projeto
       const dadosAtualizados = {
         ...dto,
         ...(dto.evento && { evento: { id: dto.evento } as any }),
@@ -259,27 +192,13 @@ export class ProjetosService {
       this.projetoRepository.merge(projeto, dadosAtualizados);
       await queryRunner.manager.save(projeto);
 
-      // 4. Se for coordenador e enviou novos alunos, atualiza a tabela de junção
       if (dto.alunosIds && role === 'coordenador') {
-        // Remove todos os vínculos antigos
         await queryRunner.manager.delete(ProjetoAluno, { projeto: { id: projeto.id } });
-
-        // Adiciona o autor + novos alunos (evitando duplicatas)
-        const todosOsParticipantes = [...new Set([...dto.alunosIds, projeto.alunoAutor.id])];
-
-        const novosVinculos = todosOsParticipantes.map((alunoId) =>
-          queryRunner.manager.create(ProjetoAluno, {
-            projeto: { id: projeto.id },
-            aluno: { id: alunoId },
-          })
-        );
-
-        await queryRunner.manager.save(novosVinculos);
+        await this.saveParticipantes(queryRunner, projeto.id, dto.alunosIds, projeto.alunoAutor.id);
       }
 
       await queryRunner.commitTransaction();
       return this.findOne(id);
-
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
@@ -288,9 +207,8 @@ export class ProjetosService {
     }
   }
 
-
   /**
-   * - Apenas dono ou coordenador removem.
+   * Remove um projeto do sistema.
    */
   async remove(id: number, userId: number, role: string): Promise<void> {
     const projeto = await this.findOne(id);
@@ -302,61 +220,99 @@ export class ProjetosService {
     await this.projetoRepository.remove(projeto);
   }
 
-    /**
- * Envia uma solicitação para um orientador específico baseado no projeto mais recente.
- */
-  async enviarSolicitacaoOrientador(userId: number, orientadorId: number): Promise<ProjetoOrientador> {
-    // Pega o projeto com a data de criação mais alta (mais recente)
-    const projetoRecente = await this.projetoRepository.findOne({
+  // ===========================================================================
+  // MÉTODOS PRIVADOS AUXILIARES (LÓGICA INTERNA)
+  // ===========================================================================
+
+  private validateGroupSize(alunosIds: number[] = []) {
+    const total = alunosIds.length + 1;
+    if (total < 3 || total > 6) {
+      throw new BadRequestException(`O grupo deve ter entre 3 e 6 integrantes.`);
+    }
+  }
+
+  private async ensureAlunosAreAvailable(eventoId: number, todosIds: number[]) {
+    const ocupados = await this.projetoAlunoRepository.find({
+      where: {
+        aluno: { id: In(todosIds) },
+        projeto: { evento: { id: eventoId } }
+      },
+      relations: ['aluno']
+    });
+
+    if (ocupados.length > 0) {
+      const nomes = ocupados.map(p => p.aluno.nome).join(', ');
+      throw new BadRequestException(`Alunos já vinculados a este evento: ${nomes}`);
+    }
+  }
+
+  private async saveProjeto(qr: QueryRunner, dto: CreateProjetoDto, autorId: number): Promise<Projeto> {
+    const projeto = qr.manager.create(Projeto, {
+      ...dto,
+      evento: { id: dto.evento } as any,
+      alunoAutor: { id: autorId } as any,
+    });
+    return qr.manager.save(projeto);
+  }
+
+  private async saveParticipantes(qr: QueryRunner, projetoId: number, convidadosIds: number[] = [], autorId: number) {
+    const idsUnicos = [...new Set([...convidadosIds, autorId])];
+    const vinculos = idsUnicos.map(id =>
+      qr.manager.create(ProjetoAluno, {
+        projeto: { id: projetoId },
+        aluno: { id: id }
+      })
+    );
+    return qr.manager.save(vinculos);
+  }
+
+  private async getUltimoProjetoDoAluno(userId: number): Promise<Projeto> {
+    const projeto = await this.projetoRepository.findOne({
       where: { alunoAutor: { id: userId } },
-      order: { criadoEm: 'DESC' }, // 👈 Ordena pela data de criação real
+      order: { criadoEm: 'DESC' },
       relations: ['evento'],
     });
 
-    if (!projetoRecente) {
+    if (!projeto) {
       throw new NotFoundException('Você ainda não possui nenhum projeto cadastrado.');
     }
-
-    // 2. Validação: O tema do projeto existe no evento atual?
-    const temaValidoNoEvento = await this.temaEventoRepository.findOne({
-      where: {
-        id: projetoRecente.temaId,
-        evento: { id: projetoRecente.evento.id }
-      }
-    });
-
-    if (!temaValidoNoEvento) {
-      throw new BadRequestException(
-        `O tema (ID: ${projetoRecente.temaId}) não está disponível para o evento ${projetoRecente.evento.id}.`
-      );
-    }
-
-    // 3. Validação: Já existe uma solicitação pendente ou aceita para este projeto/orientador?
-    const solicitacaoExistente = await this.projetoOrientadorRepository.findOne({
-      where: {
-        projeto: { id: projetoRecente.id },
-        orientador: { id: orientadorId }
-      }
-    });
-
-    if (solicitacaoExistente) {
-      if (solicitacaoExistente.status === 'pendente') {
-        throw new BadRequestException('Já existe uma solicitação pendente para este orientador.');
-      }
-      if (solicitacaoExistente.status === 'aceito') {
-        throw new BadRequestException('Este orientador já aceitou orientar este projeto.');
-      }
-    }
-
-    // 4. Criação da solicitação
-    const novaSolicitacao = this.projetoOrientadorRepository.create({
-      projeto: { id: projetoRecente.id },
-      orientador: { id: orientadorId },
-      status: 'pendente'
-    });
-
-    return await this.projetoOrientadorRepository.save(novaSolicitacao);
+    return projeto;
   }
 
-}
+  private async validarTemaNoEvento(temaId: number, eventoId: number) {
+    const existe = await this.temaEventoRepository.exists({
+      where: { id: temaId, evento: { id: eventoId } }
+    });
 
+    if (!existe) {
+      throw new BadRequestException('O tema do projeto não está disponível para este evento.');
+    }
+  }
+
+  private async validarSolicitacaoDuplicada(projetoId: number, orientadorId: number) {
+    const solicitacao = await this.projetoOrientadorRepository.findOne({
+      where: { projeto: { id: projetoId }, orientador: { id: orientadorId } }
+    });
+
+    if (!solicitacao) return;
+
+    const mensagensErro = {
+      pendente: 'Já existe uma solicitação pendente para este orientador.',
+      aceito: 'Este orientador já aceitou orientar este projeto.',
+    };
+
+    const erro = mensagensErro[solicitacao.status];
+    if (erro) throw new BadRequestException(erro);
+  }
+
+  private getProjetoSelectFields() {
+    return {
+      id: true,
+      titulo: true,
+      descricao: true,
+      temaId: true,
+      alunoAutor: { id: true, nome: true, role_cargo: true },
+      projetoAlunos: { id: true, aluno: { id: true, nome: true } },
+    };
+  }
+}
