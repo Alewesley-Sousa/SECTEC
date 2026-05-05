@@ -5,11 +5,12 @@ import { ProjetosController } from './projetos.controller';
 import { Projeto } from './entities/projeto.entity'; // Importe a entidade
 import { ProjetoAluno } from './entities/projeto-aluno.entity'; // Importe a entidade
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
+import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
 
 @Module({
   imports: [
     // Isso permite que o @InjectRepository(Projeto) funcione no Service
-    TypeOrmModule.forFeature([Projeto, ProjetoAluno, ProjetoOrientador])
+    TypeOrmModule.forFeature([Projeto, ProjetoAluno, ProjetoOrientador, TemaEvento])
   ],
   controllers: [ProjetosController],
   providers: [ProjetosService],
