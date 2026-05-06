@@ -12,26 +12,26 @@ import { User } from '../../users/entities/user.entity';
 @Entity('projeto_orientador')
 export class ProjetoOrientador {
     @PrimaryGeneratedColumn()
-    id: number;
+    id!: number;
 
     @ManyToOne(() => Projeto, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'projeto_id' })
-    projeto: Projeto;
+    projeto!: Projeto;
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'orientador_id' })
-    orientador: User;
+    orientador!: User;
 
     @Column({
         type: 'enum',
         enum: ['pendente', 'aceito', 'recusado'],
         default: 'pendente',
     })
-    status: 'pendente' | 'aceito' | 'recusado';
+    status!: 'pendente' | 'aceito' | 'recusado';
 
     @Column({ name: 'respondido_em', type: 'datetime', nullable: true })
-    respondidoEm: Date;
+    respondidoEm!: Date;
 
     @CreateDateColumn({ name: 'criado_em' })
-    criadoEm: Date;
+    criadoEm!: Date;
 }

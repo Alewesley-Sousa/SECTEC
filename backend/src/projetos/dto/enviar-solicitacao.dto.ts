@@ -8,5 +8,5 @@ export class EnviarSolicitacaoDto {
   })
   @IsInt({ message: 'O ID do orientador deve ser um número inteiro.' })
   @IsNotEmpty({ message: 'O ID do orientador é obrigatório.' })
-  orientadorId: number;
+  orientadorId!: number;
 }
