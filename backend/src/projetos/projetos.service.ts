@@ -33,8 +33,12 @@ export class ProjetosService {
     @InjectRepository(TemaEvento)
     private readonly temaEventoRepository: Repository<TemaEvento>,
 
+    @InjectRepository(Evento)
+    private readonly eventoRepository: Repository<Evento>,
+
+
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   // ===========================================================================
   // MÉTODOS DE CRIAÇÃO (ESCRITA)
@@ -47,6 +51,7 @@ export class ProjetosService {
    * @throws BadRequestException Se o grupo for inválido ou alunos já estiverem ocupados
    */
   async create(dto: CreateProjetoDto, userId: number): Promise<Projeto> {
+    await this.validarEventoETema(dto.evento, dto.temaId); // 👈 Nova validação
     this.validateGroupSize(dto.alunosIds);
     await this.ensureAlunosAreAvailable(dto.evento, [...(dto.alunosIds || []), userId]);
 
@@ -75,7 +80,7 @@ export class ProjetosService {
    */
   async enviarSolicitacaoOrientador(userId: number, orientadorId: number): Promise<ProjetoOrientador> {
     const projeto = await this.getUltimoProjetoDoAluno(userId);
-    
+
     await this.validarTemaNoEvento(projeto.temaId, projeto.evento.id);
     await this.validarSolicitacaoDuplicada(projeto.id, orientadorId);
 
@@ -315,4 +320,28 @@ export class ProjetosService {
       projetoAlunos: { id: true, aluno: { id: true, nome: true } },
     };
   }
+
+  /**
+ * Valida se o evento existe e se o tema pertence a ele.
+ */
+  private async validarEventoETema(eventoId: number, temaId: number) {
+    // Verifica se o evento existe
+    const evento = await this.eventoRepository.findOne({ where: { id: eventoId } });
+    if (!evento) {
+      throw new NotFoundException(`O evento #${eventoId} não existe.`);
+    }
+
+    // Verifica se o tema existe e está vinculado a esse evento
+    const temaValido = await this.temaEventoRepository.findOne({
+      where: {
+        id: temaId,
+        evento: { id: eventoId }
+      }
+    });
+
+    if (!temaValido) {
+      throw new BadRequestException('O tema selecionado não pertence a este evento ou não existe.');
+    }
+  }
+
 }

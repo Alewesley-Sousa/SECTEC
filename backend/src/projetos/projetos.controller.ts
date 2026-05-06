@@ -19,7 +19,9 @@ import { UpdateProjetoDto } from './dto/update-projeto.dto';
 // Auth & Guards
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; 
 import { GetUser } from '../auth/decorators/get-user.decorator';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('projetos')
 export class ProjetosController {
@@ -37,7 +39,7 @@ export class ProjetosController {
   async create(
     @Body() createProjetoDto: CreateProjetoDto, 
     @GetUser('sub') userId: number,
-    @GetUser('role_cargo') role: string
+    @GetUser('role') role: string
   ) {
     if (role !== 'aluno') {
       throw new ForbiddenException('Apenas alunos podem criar projetos.');
@@ -52,7 +54,7 @@ export class ProjetosController {
   @Post('solicitar-orientador')
   async solicitarOrientador(
     @GetUser('sub') userId: number,
-    @GetUser('role_cargo') role: string,
+    @GetUser('role') role: string,
     @Body('orientadorId', ParseIntPipe) orientadorId: number
   ) {
     if (role !== 'aluno') {
@@ -74,7 +76,7 @@ export class ProjetosController {
   @Get()
   async findAll(
     @GetUser('sub') userId: number,
-    @GetUser('role_cargo') role: string 
+    @GetUser('role') role: string 
   ) {
     switch (role) {
       case 'aluno':
@@ -96,7 +98,7 @@ export class ProjetosController {
   async findOne(
     @Param('id', ParseIntPipe) id: number, 
     @GetUser('sub') userId: number,
-    @GetUser('role_cargo') role: string
+    @GetUser('role') role: string
   ) {
     const projeto = await this.projetosService.findOne(id);
 
@@ -121,7 +123,7 @@ export class ProjetosController {
     @Param('id', ParseIntPipe) id: number, 
     @Body() updateProjetoDto: UpdateProjetoDto,
     @GetUser('sub') userId: number,
-    @GetUser('role_cargo') role: string
+    @GetUser('role') role: string
   ) {
     return this.projetosService.update(id, updateProjetoDto, userId, role);
   }
@@ -134,7 +136,7 @@ export class ProjetosController {
   async remove(
     @Param('id', ParseIntPipe) id: number, 
     @GetUser('sub') userId: number,
-    @GetUser('role_cargo') role: string
+    @GetUser('role') role: string
   ) {
     return this.projetosService.remove(id, userId, role);
   }
