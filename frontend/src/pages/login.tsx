@@ -37,6 +37,7 @@ function Login() {
     });
 
     const data = await response.json();
+    console.log('Resposta do backend:', data); // 👈 adiciona isso
 
     if (!response.ok) {
       alert('Email ou senha inválidos');
@@ -45,6 +46,8 @@ function Login() {
 
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('role', data.role);
+    localStorage.setItem('nome', data.user.nome);
+    localStorage.setItem('userId', data.user.id); 
 
     if (data.role === 'aluno') window.location.href = '/dashboard/aluno';
     if (data.role === 'orientador') window.location.href = '/dashboard/orientador';

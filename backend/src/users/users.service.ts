@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { HashingProvider } from '../common/providers/hashing.provider';
+import { UserRole } from './entities/user.entity'; // 👈 adiciona essa linha
 
 @Injectable()
 export class UsersService {
@@ -10,7 +11,7 @@ export class UsersService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private hashingProvider: HashingProvider,
-  ) {}
+  ) { }
 
   async findOneByEmail(email: string): Promise<User | null> {
     return this.usersRepository
@@ -18,5 +19,18 @@ export class UsersService {
       .addSelect('user.senha')           // 👈 campo correto do seu banco
       .where('user.email_institucional = :email', { email })  // 👈 campo correto
       .getOne();
+  }
+  async findAllAlunos() {
+    return this.usersRepository.find({
+      where: { role_cargo: UserRole.ALUNO, ativo: true },
+      select: ['id', 'nome', 'email_institucional'],
+    });
+  }
+
+  async findAllOrientadores() {
+    return this.usersRepository.find({
+      where: { role_cargo: UserRole.ORIENTADOR, ativo: true },
+      select: ['id', 'nome', 'email_institucional'],
+    });
   }
 }
