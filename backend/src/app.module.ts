@@ -13,6 +13,7 @@ import { User } from './users/entities/user.entity'; // CORRIGIDO: Era Users
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AuditoriaModule } from './auditoria/auditoria.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     DashboardModule,
     ProjetosModule,
     EventoModule,
+    AuditoriaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

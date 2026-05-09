@@ -1,0 +1,39 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
+import { AuditoriaService } from './auditoria.service';
+import { CreateAuditoriaDto } from './dto/create-auditoria.dto';
+import { FilterAuditoriaDto } from './dto/filter-auditoria.dto';
+
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.COORDENACAO)
+@Controller('auditoria')
+export class AuditoriaController {
+  constructor(private readonly auditoriaService: AuditoriaService) {}
+
+  @Post()
+  create(@Body() createAuditoriaDto: CreateAuditoriaDto) {
+    return this.auditoriaService.create(createAuditoriaDto);
+  }
+  @Get()
+  findAll(@Query() filtros: FilterAuditoriaDto) {
+    return this.auditoriaService.findAll(filtros);
+  }
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.auditoriaService.findOne(id);
+  }
+}

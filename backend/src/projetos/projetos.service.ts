@@ -17,6 +17,7 @@ import { Evento } from 'src/evento/entities/evento.entity';
 // DTOs
 import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
+import { AuditoriaService } from 'src/auditoria/auditoria.service';
 
 @Injectable()
 export class ProjetosService {
@@ -38,6 +39,7 @@ export class ProjetosService {
 
 
     private readonly dataSource: DataSource,
+    private readonly auditoriaService: AuditoriaService,
   ) { }
 
   // ===========================================================================
@@ -64,6 +66,12 @@ export class ProjetosService {
       await this.saveParticipantes(queryRunner, projeto.id, dto.alunosIds, userId);
 
       await queryRunner.commitTransaction();
+      await this.auditoriaService.registrar(
+        userId,
+        'PROJETO_CRIADO',
+        `Projeto "${projeto.titulo}" criado pelo aluno #${userId}.`,
+        projeto.id,
+      );
       return this.findOne(projeto.id);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -90,7 +98,16 @@ export class ProjetosService {
       status: 'pendente'
     });
 
-    return this.projetoOrientadorRepository.save(novaSolicitacao);
+    const solicitacao = await this.projetoOrientadorRepository.save(novaSolicitacao);
+
+    await this.auditoriaService.registrar(
+      userId,
+      'ORIENTADOR_SOLICITADO',
+      `Solicitacao enviada ao orientador #${orientadorId} para o projeto #${projeto.id}.`,
+      projeto.id,
+    );
+
+    return solicitacao;
   }
 
   // ===========================================================================
@@ -203,6 +220,12 @@ export class ProjetosService {
       }
 
       await queryRunner.commitTransaction();
+      await this.auditoriaService.registrar(
+        userId,
+        'PROJETO_ATUALIZADO',
+        `Projeto #${id} atualizado por usuario com cargo "${role}".`,
+        id,
+      );
       return this.findOne(id);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -223,6 +246,12 @@ export class ProjetosService {
     }
 
     await this.projetoRepository.remove(projeto);
+
+    await this.auditoriaService.registrar(
+      userId,
+      'PROJETO_REMOVIDO',
+      `Projeto #${id} removido por usuario com cargo "${role}". Titulo: "${projeto.titulo}".`,
+    );
   }
 
   // ===========================================================================
