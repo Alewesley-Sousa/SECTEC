@@ -1,12 +1,31 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { Mail, User } from "lucide-react";
 import Swal from "sweetalert2";
 import { MainLayout } from "../SideBarUniversal";
+
+function getEmailFromToken() {
+  const token = localStorage.getItem("token");
+
+  if (!token) return "";
+
+  try {
+    const tokenPayload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(tokenPayload));
+    return payload.email ?? "";
+  } catch {
+    return "";
+  }
+}
 
 function Config() {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const nomeAluno = localStorage.getItem("nome") ?? "Aluno";
+  const emailAluno =
+    localStorage.getItem("email") || getEmailFromToken() || "E-mail não informado";
+  const inicialAluno = nomeAluno.trim().charAt(0).toUpperCase() || "A";
 
   async function handleChangePassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,10 +80,63 @@ function Config() {
     <MainLayout userRole="aluno">
       <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8 sm:py-8">
         {/* Wrapper centralizado */}
-        <div className="mx-auto w-full max-w-xl">
+        <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
 
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="bg-[#0b4d2c] px-6 py-6 text-white sm:px-8">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-3xl font-black shadow-inner">
+                  {inicialAluno}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">
+                    Perfil do aluno
+                  </p>
+                  <h1 className="mt-1 truncate text-2xl font-black text-white sm:text-3xl">
+                    {nomeAluno}
+                  </h1>
+                  <p className="mt-1 text-sm font-medium text-white/60">
+                    SECTEC · Projeto Escolar
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-4 sm:p-5">
+              <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sectec-100 text-sectec-700">
+                  <User size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Nome
+                  </p>
+                  <p className="truncate text-sm font-semibold text-slate-800">
+                    {nomeAluno}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sectec-100 text-sectec-700">
+                  <Mail size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    E-mail institucional
+                  </p>
+                  <p className="truncate text-sm font-semibold text-slate-800">
+                    {emailAluno}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="space-y-6">
           {/* Banner de segurança */}
-          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 sm:px-5">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 sm:px-5">
             <h2 className="text-base font-bold text-amber-900 sm:text-lg">
               Recomendação de segurança
             </h2>
@@ -138,6 +210,7 @@ function Config() {
               </button>
             </form>
           </section>
+          </div>
         </div>
       </main>
     </MainLayout>

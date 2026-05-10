@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Plus, FlaskConical, Users, ChevronRight, X, Search, UserPlus, UserMinus,
   ChevronDown, Upload, Video, FileText, CheckCircle, Lock, TriangleAlert,
-  Calendar, ShieldAlert, Pencil, LogOut, RefreshCw, Clock
+  Calendar, ShieldAlert, Pencil, LogOut, RefreshCw, Clock, BookOpen
 } from "lucide-react";
 import { MainLayout } from "../componentes/SideBarUniversal";
 import { Link } from "react-router-dom";
@@ -14,7 +14,17 @@ type Membro = { id: string; nome: string; sala: string };
 type Orientador = { id: string; nome: string; disciplina: string; eixos?: string[] };
 type Projeto = {
   id: string; titulo: string; descricao: string; eixo: string;
+  temaId?: number; eventoId?: number;
   membros: Membro[]; orientadorId: string; status: StatusProjeto; linkYoutube?: string;
+};
+type ProjetoApi = {
+  id: number;
+  titulo: string;
+  descricao: string;
+  temaId?: number;
+  evento?: { id: number };
+  alunoAutor?: { id: number; nome: string };
+  projetoAlunos?: Array<{ aluno?: { id: number; nome: string } }>;
 };
 
 
@@ -32,9 +42,14 @@ const STATUS_STYLE: Record<StatusProjeto, string> = {
   "Submetido": "bg-purple-100 text-purple-700",
   "Avaliado": "bg-orange-100 text-orange-700",
 };
+const EVENTO_PADRAO_ID = 1;
 const EIXOS = [
-  "Tecnologia e Inovação", "Sustentabilidade Ambiental", "Saúde e Qualidade de Vida",
-  "Sociedade e Cultura", "Energia e Recursos Naturais", "Educação e Comunicação",
+  { id: 1, nome: "Tecnologia e Inovação" },
+  { id: 2, nome: "Sustentabilidade Ambiental" },
+  { id: 3, nome: "Saúde e Qualidade de Vida" },
+  { id: 4, nome: "Sociedade e Cultura" },
+  { id: 5, nome: "Energia e Recursos Naturais" },
+  { id: 6, nome: "Educação e Comunicação" },
 ];
 const FASES_FEIRA = [
   { fase: 1 as FaseAtual, label: "Inscrição", data: "01/05 – 15/05", descricao: "Cadastro do projeto e da equipe" },
@@ -60,6 +75,55 @@ function getUsuarioLogado(): Membro {
   return { id, nome, sala: "" };
 }
 const ALUNO_LOGADO = getUsuarioLogado();
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+async function parseApiError(response: Response) {
+  try {
+    const data = await response.json();
+    return data.message || "Não foi possível concluir a operação.";
+  } catch {
+    return "Não foi possível concluir a operação.";
+  }
+}
+
+function mapProjetoApi(apiProjeto: ProjetoApi, orientadorId = ""): Projeto {
+  const membrosApi =
+    apiProjeto.projetoAlunos
+      ?.map((vinculo) => vinculo.aluno)
+      .filter(Boolean)
+      .map((aluno) => ({
+        id: String(aluno!.id),
+        nome: aluno!.nome,
+        sala: "",
+      })) ?? [];
+
+  const autor = apiProjeto.alunoAutor
+    ? { id: String(apiProjeto.alunoAutor.id), nome: apiProjeto.alunoAutor.nome, sala: "" }
+    : ALUNO_LOGADO;
+
+  const membros = membrosApi.some((m) => m.id === autor.id)
+    ? membrosApi
+    : [autor, ...membrosApi];
+
+  return {
+    id: String(apiProjeto.id),
+    titulo: apiProjeto.titulo,
+    descricao: apiProjeto.descricao,
+    temaId: apiProjeto.temaId,
+    eventoId: apiProjeto.evento?.id,
+    eixo: EIXOS.find((eixo) => eixo.id === apiProjeto.temaId)?.nome ?? "Tema não informado",
+    membros,
+    orientadorId,
+    status: "Aguardando Aprovação",
+  };
+}
 
 // ─── Tooltip ───────────────────────────────────────────────────────────────
 function Tooltip({ children, text }: { children: React.ReactNode; text: string }) {
@@ -254,12 +318,15 @@ function Dashboard() {
   const [linkYoutube, setLinkYoutube] = useState("");
   const [arquivoPdf, setArquivoPdf] = useState<File | null>(null);
   const inputPdfRef = useRef<HTMLInputElement>(null);
+  const [carregandoProjeto, setCarregandoProjeto] = useState(true);
   const [criando, setCriando] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const [showPasswordBanner, setShowPasswordBanner] = useState(
     () => localStorage.getItem("passwordChanged") !== "true"
   );
+  // ── NOVO: bloqueia criação de projeto se aluno já tem relatório individual
+  const [possuiRelatorio, setPossuiRelatorio] = useState(false);
 
   const [alunosDisponiveis, setAlunosDisponiveis] = useState<Membro[]>([]);
   const [orientadoresDisponiveis, setOrientadoresDisponiveis] = useState<Orientador[]>([]);
@@ -274,6 +341,18 @@ function Dashboard() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` } as HeadersInit;
+
+    fetch("http://localhost:3000/projetos", { headers })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(await parseApiError(r));
+        return r.json();
+      })
+      .then((data: ProjetoApi[]) => {
+        const projetoAluno = data[0];
+        setProjeto(projetoAluno ? mapProjetoApi(projetoAluno) : null);
+      })
+      .catch(() => setProjeto(null))
+      .finally(() => setCarregandoProjeto(false));
 
     fetch("http://localhost:3000/users/alunos", { headers })
       .then((r) => r.json())
@@ -297,6 +376,16 @@ function Dashboard() {
           }))
         )
       ).catch(() => {});
+
+    // ── NOVO: verifica se o aluno já possui relatório individual
+    fetch("http://localhost:3000/relatorios/meu", { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rel) => {
+        if (rel && (rel.status === "Rascunho" || rel.status === "Submetido" || rel.status === "Avaliado")) {
+          setPossuiRelatorio(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const salas = ["todas", ...Array.from(new Set(alunosDisponiveis.map((a) => a.sala))).filter(Boolean).sort()];
@@ -322,7 +411,7 @@ function Dashboard() {
     if (!projeto) return;
     setTitulo(projeto.titulo);
     setDescricao(projeto.descricao);
-    setEixo(projeto.eixo);
+    setEixo(String(projeto.temaId ?? ""));
     setOrientadorId(projeto.orientadorId);
     setMembros([...projeto.membros]);
     setBuscaAluno(""); setFiltrSala("todas");
@@ -334,7 +423,7 @@ function Dashboard() {
     setBuscaAluno(""); setFiltrSala("todas");
   }
 
-  function handleCriarProjeto(e: React.FormEvent) {
+  async function handleCriarProjeto(e: React.FormEvent) {
     e.preventDefault();
     if (membros.length < MIN_MEMBROS) {
       Swal.fire({
@@ -361,26 +450,86 @@ function Dashboard() {
       return;
     }
     setCriando(true);
-    setTimeout(() => {
-      setProjeto({ id: "proj-001", titulo, descricao, eixo, membros, orientadorId, status: "Aguardando Aprovação" });
+    try {
+      const response = await fetch("http://localhost:3000/projetos", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          titulo,
+          descricao,
+          temaId: Number(eixo),
+          evento: EVENTO_PADRAO_ID,
+          alunosIds: membros
+            .filter((m) => m.id !== ALUNO_LOGADO.id)
+            .map((m) => Number(m.id)),
+        }),
+      });
+
+      if (!response.ok) throw new Error(await parseApiError(response));
+
+      const projetoCriado: ProjetoApi = await response.json();
+
+      if (orientadorId) {
+        const orientadorResponse = await fetch("http://localhost:3000/projetos/solicitar-orientador", {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ orientadorId: Number(orientadorId) }),
+        });
+
+        if (!orientadorResponse.ok) throw new Error(await parseApiError(orientadorResponse));
+      }
+
+      setProjeto(mapProjetoApi(projetoCriado, orientadorId));
       setCriando(false);
       fecharModal();
-    }, 1200);
+      Swal.fire({ icon: "success", title: "Projeto criado!", showConfirmButton: false, timer: 1200, timerProgressBar: true });
+    } catch (error) {
+      setCriando(false);
+      Swal.fire({
+        icon: "error",
+        title: "Erro ao criar projeto",
+        text: error instanceof Error ? error.message : "Tente novamente.",
+        confirmButtonColor: "#15803d",
+      });
+    }
   }
 
-  function handleSalvarEdicao(e: React.FormEvent) {
+  async function handleSalvarEdicao(e: React.FormEvent) {
     e.preventDefault();
+    if (!projeto) return;
     if (membros.length < MIN_MEMBROS) {
       Swal.fire({ icon: "warning", title: "Equipe incompleta", text: `Mínimo de ${MIN_MEMBROS} membros.`, confirmButtonColor: "#15803d" });
       return;
     }
     setSalvando(true);
-    setTimeout(() => {
-      setProjeto((p) => p ? { ...p, titulo, descricao, eixo, membros, orientadorId } : p);
+    try {
+      const response = await fetch(`http://localhost:3000/projetos/${projeto.id}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          titulo,
+          descricao,
+          temaId: Number(eixo),
+          evento: EVENTO_PADRAO_ID,
+        }),
+      });
+
+      if (!response.ok) throw new Error(await parseApiError(response));
+
+      const projetoAtualizado: ProjetoApi = await response.json();
+      setProjeto(mapProjetoApi(projetoAtualizado, orientadorId || projeto.orientadorId));
       setSalvando(false);
       fecharEdicao();
       Swal.fire({ icon: "success", title: "Projeto atualizado!", showConfirmButton: false, timer: 1200, timerProgressBar: true });
-    }, 1000);
+    } catch (error) {
+      setSalvando(false);
+      Swal.fire({
+        icon: "error",
+        title: "Erro ao atualizar projeto",
+        text: error instanceof Error ? error.message : "Tente novamente.",
+        confirmButtonColor: "#15803d",
+      });
+    }
   }
 
   function handleSairEquipe() {
@@ -401,10 +550,27 @@ function Dashboard() {
     });
   }
 
-  function handleTrocaOrientador(novoId: string) {
-    setProjeto((p) => p ? { ...p, orientadorId: novoId, status: "Aguardando Aprovação" } : p);
-    setModalTrocaOrientador(false);
-    Swal.fire({ icon: "success", title: "Orientador alterado!", text: "O novo orientador foi notificado.", showConfirmButton: false, timer: 1400, timerProgressBar: true });
+  async function handleTrocaOrientador(novoId: string) {
+    try {
+      const response = await fetch("http://localhost:3000/projetos/solicitar-orientador", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ orientadorId: Number(novoId) }),
+      });
+
+      if (!response.ok) throw new Error(await parseApiError(response));
+
+      setProjeto((p) => p ? { ...p, orientadorId: novoId, status: "Aguardando Aprovação" } : p);
+      setModalTrocaOrientador(false);
+      Swal.fire({ icon: "success", title: "Orientador alterado!", text: "O novo orientador foi notificado.", showConfirmButton: false, timer: 1400, timerProgressBar: true });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Erro ao solicitar orientador",
+        text: error instanceof Error ? error.message : "Tente novamente.",
+        confirmButtonColor: "#15803d",
+      });
+    }
   }
 
   function handleSubmeter(e: React.FormEvent) {
@@ -482,6 +648,23 @@ function Dashboard() {
           <PasswordBanner onDismiss={() => setShowPasswordBanner(false)} />
         )}
 
+        {/* Banner: aluno já tem relatório individual */}
+        {possuiRelatorio && !projeto && (
+          <div className="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3 mb-4">
+            <BookOpen size={16} className="text-purple-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-purple-900">Modalidade Relatório Individual</p>
+              <p className="text-xs text-purple-700 mt-0.5">
+                Você está inscrito na modalidade de relatório individual e não pode participar
+                de equipes da feira.{" "}
+                <Link to="/dashboard/aluno/relatorios" className="font-semibold underline underline-offset-2">
+                  Ver meu relatório →
+                </Link>
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Cabeçalho */}
         <div className="flex items-start justify-between mb-6 gap-3">
           <div className="min-w-0">
@@ -495,7 +678,8 @@ function Dashboard() {
               {projeto ? "Acompanhe o andamento do seu projeto abaixo." : "Você ainda não possui um projeto."}
             </p>
           </div>
-          {FASE_ATUAL === 1 && !projeto && !PRAZO_ENCERRADO && (
+          {/* ── MODIFICADO: adicionado !possuiRelatorio na guard do botão */}
+          {FASE_ATUAL === 1 && !projeto && !PRAZO_ENCERRADO && !possuiRelatorio && (
             <button onClick={() => setModalAberto(true)}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-sectec-700 text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-sectec-800 active:scale-[0.98] transition-all shadow-md shrink-0">
               <Plus size={14} /><span>Novo Projeto</span>
@@ -505,7 +689,14 @@ function Dashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="lg:col-span-2 min-w-0">
-            {!projeto && (
+            {carregandoProjeto && (
+              <div className="flex flex-col items-center justify-center py-14 sm:py-20 border border-slate-200 rounded-2xl bg-white text-center px-4">
+                <RefreshCw size={22} className="animate-spin text-sectec-600 mb-3" />
+                <p className="text-sm font-medium text-slate-500">Carregando projeto...</p>
+              </div>
+            )}
+
+            {!carregandoProjeto && !projeto && (
               <div className="flex flex-col items-center justify-center py-14 sm:py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-white text-center px-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-sectec-50 flex items-center justify-center mb-4">
                   <FlaskConical size={22} className="text-sectec-600" />
@@ -517,7 +708,7 @@ function Dashboard() {
               </div>
             )}
 
-            {projeto && (
+            {!carregandoProjeto && projeto && (
               <div className="space-y-4">
                 {/* Tabs */}
                 <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
@@ -745,7 +936,7 @@ function Dashboard() {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Eixo Temático *</label>
                     <select required value={eixo} onChange={(e) => setEixo(e.target.value)} className="w-full appearance-none px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100 transition">
                       <option value="">Selecione um eixo</option>
-                      {EIXOS.map((e) => <option key={e} value={e}>{e}</option>)}
+                      {EIXOS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
                     </select>
                     <ChevronDown size={13} className="absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
                   </div>
@@ -801,13 +992,15 @@ function Dashboard() {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Eixo Temático *</label>
                     <select required value={eixo} onChange={(e) => setEixo(e.target.value)} className="w-full appearance-none px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100 transition">
                       <option value="">Selecione um eixo</option>
-                      {EIXOS.map((e) => <option key={e} value={e}>{e}</option>)}
+                      {EIXOS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
                     </select>
                     <ChevronDown size={13} className="absolute right-3 bottom-3 text-slate-400 pointer-events-none" />
                   </div>
                 </div>
               </section>
-              <FormMembros membrosAtuais={membros} setMembrosAtuais={setMembros} />
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                A alteração de integrantes ainda não está disponível para alunos no endpoint atual.
+              </div>
             </form>
             <div className="flex justify-end gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
               <button type="button" onClick={fecharEdicao} className="px-4 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">Cancelar</button>

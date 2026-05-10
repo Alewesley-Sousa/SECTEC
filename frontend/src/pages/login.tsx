@@ -1,11 +1,13 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import loginImg from "../assets/img/Login.png";
 import Swal from "sweetalert2";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleForgotPassword() {
     const { value: emailValue } = await Swal.fire({
@@ -120,6 +122,7 @@ function Login() {
     localStorage.setItem("token", data.access_token);
     localStorage.setItem("role", data.role);
     localStorage.setItem("nome", data.user.nome);
+    localStorage.setItem("email", data.user.email ?? email);
     localStorage.setItem("userId", data.user.id);
 
     await Swal.fire({
@@ -211,17 +214,28 @@ function Login() {
                   <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
                     Senha
                   </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
-                  />
+                  <div className="relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-3 pr-12 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-sectec-700 focus:outline-none focus:text-sectec-700"
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                      title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    >
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center">

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { FiChevronLeft, FiMenu } from "react-icons/fi";
-import { LayoutDashboard, FileText, Settings, School, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, School, LogOut, BookOpen} from "lucide-react";
 import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
+
 
 export type SidebarProps = {
   items: NavItem[];
@@ -64,8 +65,7 @@ export function Sidebar({ items, userRole }: SidebarProps) {
       <nav className="flex-1 px-4 py-8 overflow-y-auto space-y-1 overflow-x-hidden">
         {filteredItems.map((item) => {
           const hasSubItems = item.subItems && item.subItems.length > 0;
-          const isActive =
-            !isConfigActive && location.pathname.startsWith(item.href || "");
+          const isActive = !isConfigActive && Boolean(item.isActive);
 
           if (hasSubItems && isExpanded) {
             return (
@@ -257,6 +257,14 @@ export function MainLayout({
       href: `${dashboardPrefix}/notas`,
       isActive: location.pathname === `${dashboardPrefix}/notas`,
     },
+    {
+      id: "4",
+      label: "Relatórios",
+      icon: <BookOpen size={20} />,
+      href: `${dashboardPrefix}/relatorios`,
+      isActive: location.pathname === `${dashboardPrefix}/relatorios`,
+      roles: ["aluno"], // apenas alunos veem esta aba
+     },
   ];
 
   return (

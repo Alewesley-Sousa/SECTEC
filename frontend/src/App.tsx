@@ -7,6 +7,7 @@ import DashboardOrientador from "./pages/DashboardOrientador";
 import ProtectedRoute from "./componentes/ProtectedRoute";
 import NotasAluno from "./pages/Notas";
 import Config from "./componentes/configurações/config";
+import RelatoriosAluno from "./pages/Relatoriosaluno";
 
 function App() {
   return (
@@ -59,6 +60,7 @@ function App() {
           />
 
           <Route path="/dashboard/aluno/notas" element={<NotasAluno />} />
+          <Route path="/dashboard/aluno/relatorios" element={<RelatoriosAluno />} />
 
       </Routes>
        
