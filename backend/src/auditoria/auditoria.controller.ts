@@ -19,20 +19,22 @@ import { FilterAuditoriaDto } from './dto/filter-auditoria.dto';
 
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.COORDENACAO)
 @Controller('auditoria')
 export class AuditoriaController {
   constructor(private readonly auditoriaService: AuditoriaService) {}
 
   @Post()
+  @Roles(UserRole.COORDENACAO)
   create(@Body() createAuditoriaDto: CreateAuditoriaDto) {
     return this.auditoriaService.create(createAuditoriaDto);
   }
   @Get()
+  @Roles(UserRole.COORDENACAO)
   findAll(@Query() filtros: FilterAuditoriaDto) {
     return this.auditoriaService.findAll(filtros);
   }
   @Get(':id')
+  @Roles(UserRole.COORDENACAO)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.auditoriaService.findOne(id);
   }
