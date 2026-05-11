@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule'; // 👈 ADICIONADO
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ProjetosModule } from './projetos/projetos.module';
@@ -13,7 +14,7 @@ import { User } from './users/entities/user.entity'; // CORRIGIDO: Era Users
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { AuditoriaModule } from './auditoria/auditoria.module';
+import { PdfModule } from './pdf/pdf.module'; // 👈 ADICIONADO
 
 @Module({
   imports: [
@@ -28,13 +29,14 @@ import { AuditoriaModule } from './auditoria/auditoria.module';
       autoLoadEntities: true,
       synchronize: false,
     }),
+    ScheduleModule.forRoot(), // 👈 ADICIONADO — habilita o cron job de integridade dos PDFs
     CommonModule,
-    UsersModule, // REMOVA A DUPLICATA DAQUI TAMBÉM NO ARRAY
+    UsersModule,
     AuthModule,
     DashboardModule,
     ProjetosModule,
     EventoModule,
-    AuditoriaModule,
+    PdfModule, // 👈 ADICIONADO
   ],
   controllers: [AppController],
   providers: [AppService],
