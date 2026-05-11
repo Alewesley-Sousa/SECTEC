@@ -13,7 +13,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
+import type { Response } from 'express'; // MODIFICADO DEVIDO AOS ERROS GERADOS
 import * as fs from 'fs';
 import {
   ApiTags,

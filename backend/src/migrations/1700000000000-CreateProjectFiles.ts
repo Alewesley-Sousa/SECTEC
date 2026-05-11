@@ -119,8 +119,6 @@ export class CreateProjectFiles1700000000000 implements MigrationInterface {
         ],
         // Engine InnoDB obrigatório para suportar FK (padrão do banco)
         engine: 'InnoDB',
-        charset: 'utf8mb4',
-        collation: 'utf8mb4_unicode_ci',
       }),
       true, // ifNotExists
     );

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit'); // toquei o import devido aos erros.
 import * as path from 'path';
 import * as fs from 'fs';
 import { GenerateReportDto } from './dto/pdf.dto';
@@ -277,308 +277,312 @@ export class PdfReportService {
     return map[status] ?? '#555555';
   }
 }
+// ================================
+// CODIGO COM ERRO!!!
+// ===============================
 
-/**
- * Serviço responsável pela geração de PDFs de relatório do sistema SECTEC.
- * Usa PDFKit (nativo para Node.js/NestJS) para renderização.
- *
- * Instalar: npm install pdfkit @types/pdfkit
- */
-@Injectable()
-export class PdfReportService {
-  private readonly logger = new Logger(PdfReportService.name);
 
-  private get reportsDir(): string {
-    const dir = path.join(process.cwd(), 'uploads', 'reports');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    return dir;
-  }
+// /**
+//  * Serviço responsável pela geração de PDFs de relatório do sistema SECTEC.
+//  * Usa PDFKit (nativo para Node.js/NestJS) para renderização.
+//  *
+//  * Instalar: npm install pdfkit @types/pdfkit
+//  */
+// @Injectable()
+// export class PdfReportService {
+//   private readonly logger = new Logger(PdfReportService.name);
 
-  /**
-   * Gera o relatório consolidado de projetos aptos para avaliação.
-   * Serviço de Relatórios (RF - Consolidação de Dados).
-   */
-  async generateApprovedProjectsReport(
-    projects: ProjectReportData[],
-    dto: GenerateReportDto,
-    generatedBy: string,
-  ): Promise<string> {
-    const filtered = dto.approvedOnly
-      ? projects.filter((p) => p.status === 'APROVADO_PARA_AVALIACAO' || p.status === 'AVALIADO')
-      : projects;
+//   private get reportsDir(): string {
+//     const dir = path.join(process.cwd(), 'uploads', 'reports');
+//     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+//     return dir;
+//   }
 
-    const byAxis = dto.thematicAxis
-      ? filtered.filter((p) => p.thematicAxis === dto.thematicAxis)
-      : filtered;
+//   /**
+//    * Gera o relatório consolidado de projetos aptos para avaliação.
+//    * Serviço de Relatórios (RF - Consolidação de Dados).
+//    */
+//   async generateApprovedProjectsReport(
+//     projects: ProjectReportData[],
+//     dto: GenerateReportDto,
+//     generatedBy: string,
+//   ): Promise<string> {
+//     const filtered = dto.approvedOnly
+//       ? projects.filter((p) => p.status === 'APROVADO_PARA_AVALIACAO' || p.status === 'AVALIADO')
+//       : projects;
 
-    const fileName = `relatorio_${Date.now()}.pdf`;
-    const filePath = path.join(this.reportsDir, fileName);
+//     const byAxis = dto.thematicAxis
+//       ? filtered.filter((p) => p.thematicAxis === dto.thematicAxis)
+//       : filtered;
 
-    await this.buildReportPdf(filePath, byAxis, generatedBy, dto);
+//     const fileName = `relatorio_${Date.now()}.pdf`;
+//     const filePath = path.join(this.reportsDir, fileName);
 
-    this.logger.log(`Relatório gerado: ${filePath} | ${byAxis.length} projetos`);
-    return filePath;
-  }
+//     await this.buildReportPdf(filePath, byAxis, generatedBy, dto);
 
-  /**
-   * Constrói o PDF usando PDFKit com formatação institucional.
-   */
-  private buildReportPdf(
-    outputPath: string,
-    projects: ProjectReportData[],
-    generatedBy: string,
-    dto: GenerateReportDto,
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
-      const stream = fs.createWriteStream(outputPath);
+//     this.logger.log(`Relatório gerado: ${filePath} | ${byAxis.length} projetos`);
+//     return filePath;
+//   }
 
-      doc.pipe(stream);
+//   /**
+//    * Constrói o PDF usando PDFKit com formatação institucional.
+//    */
+//   private buildReportPdf(
+//     outputPath: string,
+//     projects: ProjectReportData[],
+//     generatedBy: string,
+//     dto: GenerateReportDto,
+//   ): Promise<void> {
+//     return new Promise((resolve, reject) => {
+//       const doc = new PDFDocument({ size: 'A4', margin: 50 });
+//       const stream = fs.createWriteStream(outputPath);
 
-      // ── CABEÇALHO ─────────────────────────────────────────────
-      this.drawHeader(doc, dto);
+//       doc.pipe(stream);
 
-      // ── METADADOS DO RELATÓRIO ────────────────────────────────
-      doc
-        .font('Helvetica')
-        .fontSize(10)
-        .fillColor('#555555')
-        .text(`Gerado por: ${generatedBy}`, { align: 'right' })
-        .text(`Data: ${new Date().toLocaleDateString('pt-BR', {
-          day: '2-digit', month: 'long', year: 'numeric',
-        })}`, { align: 'right' })
-        .text(`Total de projetos: ${projects.length}`, { align: 'right' });
+//       // ── CABEÇALHO ─────────────────────────────────────────────
+//       this.drawHeader(doc, dto);
 
-      doc.moveDown(1.5);
+//       // ── METADADOS DO RELATÓRIO ────────────────────────────────
+//       doc
+//         .font('Helvetica')
+//         .fontSize(10)
+//         .fillColor('#555555')
+//         .text(`Gerado por: ${generatedBy}`, { align: 'right' })
+//         .text(`Data: ${new Date().toLocaleDateString('pt-BR', {
+//           day: '2-digit', month: 'long', year: 'numeric',
+//         })}`, { align: 'right' })
+//         .text(`Total de projetos: ${projects.length}`, { align: 'right' });
 
-      // ── LINHA DIVISÓRIA ───────────────────────────────────────
-      doc
-        .moveTo(50, doc.y)
-        .lineTo(545, doc.y)
-        .strokeColor('#002b6e')
-        .lineWidth(2)
-        .stroke();
+//       doc.moveDown(1.5);
 
-      doc.moveDown(1);
+//       // ── LINHA DIVISÓRIA ───────────────────────────────────────
+//       doc
+//         .moveTo(50, doc.y)
+//         .lineTo(545, doc.y)
+//         .strokeColor('#002b6e')
+//         .lineWidth(2)
+//         .stroke();
 
-      // ── SUMÁRIO ───────────────────────────────────────────────
-      this.drawSummary(doc, projects);
+//       doc.moveDown(1);
 
-      doc.moveDown(1.5);
+//       // ── SUMÁRIO ───────────────────────────────────────────────
+//       this.drawSummary(doc, projects);
 
-      // ── LISTA DE PROJETOS ─────────────────────────────────────
-      if (projects.length === 0) {
-        doc
-          .font('Helvetica-Oblique')
-          .fontSize(12)
-          .fillColor('#999999')
-          .text('Nenhum projeto encontrado com os filtros aplicados.', { align: 'center' });
-      } else {
-        projects.forEach((project, index) => {
-          this.drawProjectCard(doc, project, index + 1);
-        });
-      }
+//       doc.moveDown(1.5);
 
-      // ── RODAPÉ ────────────────────────────────────────────────
-      this.drawFooter(doc);
+//       // ── LISTA DE PROJETOS ─────────────────────────────────────
+//       if (projects.length === 0) {
+//         doc
+//           .font('Helvetica-Oblique')
+//           .fontSize(12)
+//           .fillColor('#999999')
+//           .text('Nenhum projeto encontrado com os filtros aplicados.', { align: 'center' });
+//       } else {
+//         projects.forEach((project, index) => {
+//           this.drawProjectCard(doc, project, index + 1);
+//         });
+//       }
 
-      doc.end();
+//       // ── RODAPÉ ────────────────────────────────────────────────
+//       this.drawFooter(doc);
 
-      stream.on('finish', resolve);
-      stream.on('error', reject);
-    });
-  }
+//       doc.end();
 
-  private drawHeader(doc: PDFKit.PDFDocument, dto: GenerateReportDto): void {
-    // Fundo azul institucional
-    doc
-      .rect(0, 0, 595, 100)
-      .fill('#002b6e');
+//       stream.on('finish', resolve);
+//       stream.on('error', reject);
+//     });
+//   }
 
-    doc
-      .fillColor('#ffffff')
-      .font('Helvetica-Bold')
-      .fontSize(20)
-      .text('SECTEC', 50, 25)
-      .fontSize(11)
-      .font('Helvetica')
-      .text('Sistema de Gestão de Projetos Técnicos', 50, 50)
-      .fontSize(14)
-      .font('Helvetica-Bold')
-      .text(
-        dto.approvedOnly
-          ? 'Relatório de Projetos Aprovados para Avaliação'
-          : 'Relatório Consolidado de Projetos',
-        50,
-        70,
-      );
+//   private drawHeader(doc: PDFKit.PDFDocument, dto: GenerateReportDto): void {
+//     // Fundo azul institucional
+//     doc
+//       .rect(0, 0, 595, 100)
+//       .fill('#002b6e');
 
-    if (dto.thematicAxis) {
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text(`Eixo temático: ${dto.thematicAxis}`, 50, 87);
-    }
+//     doc
+//       .fillColor('#ffffff')
+//       .font('Helvetica-Bold')
+//       .fontSize(20)
+//       .text('SECTEC', 50, 25)
+//       .fontSize(11)
+//       .font('Helvetica')
+//       .text('Sistema de Gestão de Projetos Técnicos', 50, 50)
+//       .fontSize(14)
+//       .font('Helvetica-Bold')
+//       .text(
+//         dto.approvedOnly
+//           ? 'Relatório de Projetos Aprovados para Avaliação'
+//           : 'Relatório Consolidado de Projetos',
+//         50,
+//         70,
+//       );
 
-    doc.y = 120;
-  }
+//     if (dto.thematicAxis) {
+//       doc
+//         .fontSize(10)
+//         .font('Helvetica')
+//         .text(`Eixo temático: ${dto.thematicAxis}`, 50, 87);
+//     }
 
-  private drawSummary(doc: PDFKit.PDFDocument, projects: ProjectReportData[]): void {
-    const total         = projects.length;
-    const withPdf       = projects.filter((p) => p.hasPdf).length;
-    const withYoutube   = projects.filter((p) => p.hasYoutubeLink).length;
-    const complete      = projects.filter((p) => p.hasPdf && p.hasYoutubeLink).length;
+//     doc.y = 120;
+//   }
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(13)
-      .fillColor('#002b6e')
-      .text('Resumo Estatístico', { underline: true });
+//   private drawSummary(doc: PDFKit.PDFDocument, projects: ProjectReportData[]): void {
+//     const total         = projects.length;
+//     const withPdf       = projects.filter((p) => p.hasPdf).length;
+//     const withYoutube   = projects.filter((p) => p.hasYoutubeLink).length;
+//     const complete      = projects.filter((p) => p.hasPdf && p.hasYoutubeLink).length;
 
-    doc.moveDown(0.5);
+//     doc
+//       .font('Helvetica-Bold')
+//       .fontSize(13)
+//       .fillColor('#002b6e')
+//       .text('Resumo Estatístico', { underline: true });
 
-    const cols = [
-      { label: 'Total de Projetos', value: String(total) },
-      { label: 'Com PDF',           value: `${withPdf} (${this.pct(withPdf, total)})` },
-      { label: 'Com Vídeo',         value: `${withYoutube} (${this.pct(withYoutube, total)})` },
-      { label: 'Completos',         value: `${complete} (${this.pct(complete, total)})` },
-    ];
+//     doc.moveDown(0.5);
 
-    const boxW = 115;
-    const boxH = 55;
-    const startX = 50;
-    const startY = doc.y;
-    const gap = 10;
+//     const cols = [
+//       { label: 'Total de Projetos', value: String(total) },
+//       { label: 'Com PDF',           value: `${withPdf} (${this.pct(withPdf, total)})` },
+//       { label: 'Com Vídeo',         value: `${withYoutube} (${this.pct(withYoutube, total)})` },
+//       { label: 'Completos',         value: `${complete} (${this.pct(complete, total)})` },
+//     ];
 
-    cols.forEach((col, i) => {
-      const x = startX + i * (boxW + gap);
-      doc
-        .rect(x, startY, boxW, boxH)
-        .fillAndStroke('#f0f4ff', '#002b6e');
+//     const boxW = 115;
+//     const boxH = 55;
+//     const startX = 50;
+//     const startY = doc.y;
+//     const gap = 10;
 
-      doc
-        .fillColor('#002b6e')
-        .font('Helvetica-Bold')
-        .fontSize(18)
-        .text(col.value, x, startY + 8, { width: boxW, align: 'center' });
+//     cols.forEach((col, i) => {
+//       const x = startX + i * (boxW + gap);
+//       doc
+//         .rect(x, startY, boxW, boxH)
+//         .fillAndStroke('#f0f4ff', '#002b6e');
 
-      doc
-        .fillColor('#444444')
-        .font('Helvetica')
-        .fontSize(9)
-        .text(col.label, x, startY + 33, { width: boxW, align: 'center' });
-    });
+//       doc
+//         .fillColor('#002b6e')
+//         .font('Helvetica-Bold')
+//         .fontSize(18)
+//         .text(col.value, x, startY + 8, { width: boxW, align: 'center' });
 
-    doc.y = startY + boxH + 10;
-  }
+//       doc
+//         .fillColor('#444444')
+//         .font('Helvetica')
+//         .fontSize(9)
+//         .text(col.label, x, startY + 33, { width: boxW, align: 'center' });
+//     });
 
-  private drawProjectCard(
-    doc: PDFKit.PDFDocument,
-    project: ProjectReportData,
-    index: number,
-  ): void {
-    // Quebra de página se necessário
-    if (doc.y > 700) doc.addPage();
+//     doc.y = startY + boxH + 10;
+//   }
 
-    const cardY = doc.y;
-    const bgColor = index % 2 === 0 ? '#f8f9ff' : '#ffffff';
+//   private drawProjectCard(
+//     doc: PDFKit.PDFDocument,
+//     project: ProjectReportData,
+//     index: number,
+//   ): void {
+//     // Quebra de página se necessário
+//     if (doc.y > 700) doc.addPage();
 
-    doc
-      .rect(50, cardY, 495, 70)
-      .fillAndStroke(bgColor, '#dde3f0');
+//     const cardY = doc.y;
+//     const bgColor = index % 2 === 0 ? '#f8f9ff' : '#ffffff';
 
-    // Número e título
-    doc
-      .fillColor('#002b6e')
-      .font('Helvetica-Bold')
-      .fontSize(11)
-      .text(`${index}. ${project.title}`, 60, cardY + 8, { width: 400 });
+//     doc
+//       .rect(50, cardY, 495, 70)
+//       .fillAndStroke(bgColor, '#dde3f0');
 
-    // Status badge
-    const statusColor = this.statusColor(project.status);
-    doc
-      .fillColor(statusColor)
-      .fontSize(9)
-      .text(this.statusLabel(project.status), 420, cardY + 10, { width: 115, align: 'right' });
+//     // Número e título
+//     doc
+//       .fillColor('#002b6e')
+//       .font('Helvetica-Bold')
+//       .fontSize(11)
+//       .text(`${index}. ${project.title}`, 60, cardY + 8, { width: 400 });
 
-    // Detalhes
-    doc
-      .fillColor('#555555')
-      .font('Helvetica')
-      .fontSize(9)
-      .text(
-        `Eixo: ${project.thematicAxis}  |  Orientador: ${project.orientatorName}  |  Equipe: ${project.teamSize} integrantes`,
-        60,
-        cardY + 28,
-      )
-      .text(
-        `PDF: ${project.hasPdf ? '✓ Enviado' : '✗ Pendente'}  |  Vídeo: ${project.hasYoutubeLink ? '✓ Enviado' : '✗ Pendente'}${
-          project.approvedAt
-            ? `  |  Aprovado em: ${new Date(project.approvedAt).toLocaleDateString('pt-BR')}`
-            : ''
-        }`,
-        60,
-        cardY + 44,
-      );
+//     // Status badge
+//     const statusColor = this.statusColor(project.status);
+//     doc
+//       .fillColor(statusColor)
+//       .fontSize(9)
+//       .text(this.statusLabel(project.status), 420, cardY + 10, { width: 115, align: 'right' });
 
-    doc.y = cardY + 80;
-  }
+//     // Detalhes
+//     doc
+//       .fillColor('#555555')
+//       .font('Helvetica')
+//       .fontSize(9)
+//       .text(
+//         `Eixo: ${project.thematicAxis}  |  Orientador: ${project.orientatorName}  |  Equipe: ${project.teamSize} integrantes`,
+//         60,
+//         cardY + 28,
+//       )
+//       .text(
+//         `PDF: ${project.hasPdf ? '✓ Enviado' : '✗ Pendente'}  |  Vídeo: ${project.hasYoutubeLink ? '✓ Enviado' : '✗ Pendente'}${
+//           project.approvedAt
+//             ? `  |  Aprovado em: ${new Date(project.approvedAt).toLocaleDateString('pt-BR')}`
+//             : ''
+//         }`,
+//         60,
+//         cardY + 44,
+//       );
 
-  private drawFooter(doc: PDFKit.PDFDocument): void {
-    const pages = doc.bufferedPageRange();
-    for (let i = 0; i < pages.count; i++) {
-      doc.switchToPage(i);
+//     doc.y = cardY + 80;
+//   }
 
-      doc
-        .moveTo(50, 800)
-        .lineTo(545, 800)
-        .strokeColor('#cccccc')
-        .lineWidth(0.5)
-        .stroke();
+//   private drawFooter(doc: PDFKit.PDFDocument): void {
+//     const pages = doc.bufferedPageRange();
+//     for (let i = 0; i < pages.count; i++) {
+//       doc.switchToPage(i);
 
-      doc
-        .font('Helvetica')
-        .fontSize(8)
-        .fillColor('#999999')
-        .text(
-          `SECTEC — Sistema de Gestão de Projetos  |  Página ${i + 1} de ${pages.count}`,
-          50,
-          808,
-          { align: 'center' },
-        );
-    }
-  }
+//       doc
+//         .moveTo(50, 800)
+//         .lineTo(545, 800)
+//         .strokeColor('#cccccc')
+//         .lineWidth(0.5)
+//         .stroke();
 
-  // ── HELPERS ───────────────────────────────────────────────────
+//       doc
+//         .font('Helvetica')
+//         .fontSize(8)
+//         .fillColor('#999999')
+//         .text(
+//           `SECTEC — Sistema de Gestão de Projetos  |  Página ${i + 1} de ${pages.count}`,
+//           50,
+//           808,
+//           { align: 'center' },
+//         );
+//     }
+//   }
 
-  private pct(part: number, total: number): string {
-    if (total === 0) return '0%';
-    return `${Math.round((part / total) * 100)}%`;
-  }
+//   // ── HELPERS ───────────────────────────────────────────────────
 
-  private statusLabel(status: string): string {
-    const map: Record<string, string> = {
-      RASCUNHO:                 'Rascunho',
-      PENDENTE_ORIENTACAO:      'Pend. Orientação',
-      ACEITO:                   'Aceito',
-      EM_DESENVOLVIMENTO:       'Em Desenvolvimento',
-      SOB_REVISAO:              'Sob Revisão',
-      APROVADO_PARA_AVALIACAO:  'Aprovado p/ Avaliação',
-      AVALIADO:                 'Avaliado',
-    };
-    return map[status] ?? status;
-  }
+//   private pct(part: number, total: number): string {
+//     if (total === 0) return '0%';
+//     return `${Math.round((part / total) * 100)}%`;
+//   }
 
-  private statusColor(status: string): string {
-    const map: Record<string, string> = {
-      RASCUNHO:                '#888888',
-      PENDENTE_ORIENTACAO:     '#e67e00',
-      ACEITO:                  '#0077cc',
-      EM_DESENVOLVIMENTO:      '#0077cc',
-      SOB_REVISAO:             '#9900cc',
-      APROVADO_PARA_AVALIACAO: '#007700',
-      AVALIADO:                '#004400',
-    };
-    return map[status] ?? '#333333';
-  }
-}
+//   private statusLabel(status: string): string {
+//     const map: Record<string, string> = {
+//       RASCUNHO:                 'Rascunho',
+//       PENDENTE_ORIENTACAO:      'Pend. Orientação',
+//       ACEITO:                   'Aceito',
+//       EM_DESENVOLVIMENTO:       'Em Desenvolvimento',
+//       SOB_REVISAO:              'Sob Revisão',
+//       APROVADO_PARA_AVALIACAO:  'Aprovado p/ Avaliação',
+//       AVALIADO:                 'Avaliado',
+//     };
+//     return map[status] ?? status;
+//   }
+
+//   private statusColor(status: string): string {
+//     const map: Record<string, string> = {
+//       RASCUNHO:                '#888888',
+//       PENDENTE_ORIENTACAO:     '#e67e00',
+//       ACEITO:                  '#0077cc',
+//       EM_DESENVOLVIMENTO:      '#0077cc',
+//       SOB_REVISAO:             '#9900cc',
+//       APROVADO_PARA_AVALIACAO: '#007700',
+//       AVALIADO:                '#004400',
+//     };
+//     return map[status] ?? '#333333';
+//   }
+// }
