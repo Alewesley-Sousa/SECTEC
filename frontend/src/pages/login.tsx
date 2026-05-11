@@ -1,180 +1,125 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import loginImg from "../assets/img/Login.png";
-import Swal from "sweetalert2";
+import registerImg from "../assets/img/login_esquerdo.png";
+import {
+  apiRequest,
+  getRoleRedirect,
+  saveSession,
+  type LoginResponse,
+} from "../lib/api";
+
+type Mode = "login" | "register";
+type Phase = "idle" | "exit" | "enter";
 
 function Login() {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<Mode>("login");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [goingToRegister, setGoingToRegister] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState("");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [name, setName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  async function handleForgotPassword() {
-    const { value: emailValue } = await Swal.fire({
-      title: "Recuperar senha",
-      html: `
-        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
-          <div style="width:64px;height:64px;border-radius:20px;background:#f0fdf4;border:1px solid #dcfce7;display:flex;align-items:center;justify-content:center;margin-bottom:6px;">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M7 10V7a5 5 0 0110 0v3" stroke="#15803d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <rect x="5" y="10" width="14" height="10" rx="3" stroke="#15803d" stroke-width="2"/>
-              <circle cx="12" cy="15" r="1.5" fill="#15803d"/>
-            </svg>
-          </div>
-          <p style="margin:0;color:#64748b;font-size:15px;line-height:1.5;">
-            Informe seu e-mail institucional para receber as instruções de recuperação.
-          </p>
-        </div>
-      `,
-      input: "email",
-      inputPlaceholder: "seu@aluno.ce.gov.br",
-      showCancelButton: true,
-      confirmButtonText: "Enviar instruções",
-      cancelButtonText: "Cancelar",
-      confirmButtonColor: "#15803d",
-      cancelButtonColor: "#64748b",
-      background: "#ffffff",
-      color: "#0f172a",
-      width: 460,
-      padding: "2.2rem",
-      customClass: {
-        popup: "sectec-modal",
-        title: "sectec-modal-title",
-        input: "sectec-modal-input",
-        confirmButton: "sectec-modal-confirm",
-        cancelButton: "sectec-modal-cancel",
-      },
-    });
-
-    if (!emailValue) return;
-
-    Swal.fire({
-      title: "Instruções enviadas",
-      html: `
-        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
-          <div style="width:64px;height:64px;border-radius:20px;background:#f0fdf4;border:1px solid #dcfce7;display:flex;align-items:center;justify-content:center;margin-bottom:6px;">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 6L9 17L4 12" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <p style="margin:0;color:#64748b;font-size:15px;line-height:1.5;">
-            Verifique sua caixa de entrada para redefinir sua senha.
-          </p>
-        </div>
-      `,
-      confirmButtonText: "Entendi",
-      confirmButtonColor: "#15803d",
-      background: "#ffffff",
-      color: "#0f172a",
-      width: 430,
-      padding: "2rem",
-      customClass: {
-        popup: "sectec-modal",
-        title: "sectec-modal-title",
-        confirmButton: "sectec-modal-confirm",
-      },
-    });
+  function switchMode(next: Mode) {
+    setFormError("");
+    setGoingToRegister(next === "register");
+    setPhase("exit");
+    setTimeout(() => {
+      setMode(next);
+      setPhase("enter");
+      setTimeout(() => setPhase("idle"), 400);
+    }, 320);
   }
 
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setFormError("");
+    setLoading(true);
 
-    const response = await fetch("http://localhost:3000/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      Swal.fire({
-        title: "Não foi possível entrar",
-        html: `
-          <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
-            <div style="width:64px;height:64px;border-radius:20px;background:#fef2f2;border:1px solid #fecaca;display:flex;align-items:center;justify-content:center;margin-bottom:6px;">
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 8V12" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>
-                <circle cx="12" cy="16" r="1" fill="#dc2626"/>
-                <path d="M10.29 3.86L1.82 18A2 2 0 003.53 21H20.47A2 2 0 0022.18 18L13.71 3.86A2 2 0 0010.29 3.86Z" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <p style="margin:0;color:#64748b;font-size:15px;line-height:1.5;">
-              Verifique seu e-mail e senha e tente novamente.
-            </p>
-          </div>
-        `,
-        confirmButtonText: "Tentar novamente",
-        confirmButtonColor: "#15803d",
-        background: "#ffffff",
-        color: "#0f172a",
-        width: 460,
-        padding: "2.2rem",
-        customClass: {
-          popup: "sectec-modal",
-          title: "sectec-modal-title",
-          confirmButton: "sectec-modal-confirm",
-        },
+    try {
+      const data = await apiRequest<LoginResponse>("/auth/login", {
+        method: "POST",
+        auth: false,
+        body: { email, password },
       });
+
+      saveSession(data);
+      navigate(getRoleRedirect(data.role), { replace: true });
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Email ou senha inválidos."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleRegister(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setFormError("");
+
+    if (!email.endsWith("@aluno.ce.gov.br")) {
+      setFormError("Use seu e-mail institucional @aluno.ce.gov.br.");
       return;
     }
 
-    localStorage.setItem("token", data.access_token);
-    localStorage.setItem("role", data.role);
-    localStorage.setItem("nome", data.user.nome);
-    localStorage.setItem("email", data.user.email ?? email);
-    localStorage.setItem("userId", data.user.id);
+    if (password !== confirmPassword) {
+      setFormError("As senhas precisam ser iguais.");
+      return;
+    }
 
-    await Swal.fire({
-      title: "Login realizado",
-      html: `
-        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
-          <div style="width:64px;height:64px;border-radius:20px;background:#f0fdf4;border:1px solid #dcfce7;display:flex;align-items:center;justify-content:center;margin-bottom:6px;">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 6L9 17L4 12" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <p style="margin:0;color:#64748b;font-size:15px;line-height:1.5;">
-            Bem-vindo ao sistema SECTEC.
-          </p>
-        </div>
-      `,
-      confirmButtonText: "Continuar",
-      confirmButtonColor: "#15803d",
-      background: "#ffffff",
-      color: "#0f172a",
-      width: 460,
-      padding: "2.2rem",
-      timer: 1400,
-      timerProgressBar: true,
-      showConfirmButton: false,
-      customClass: {
-        popup: "sectec-modal",
-        title: "sectec-modal-title",
-        confirmButton: "sectec-modal-confirm",
-      },
-    });
+    if (password.length < 6) {
+      setFormError("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
 
-    if (data.role === "aluno") window.location.href = "/dashboard/aluno";
-    if (data.role === "orientador") window.location.href = "/dashboard/orientador";
-    if (data.role === "coordenador") window.location.href = "/dashboard/coordenacao";
+    setFormError("Cadastro ainda não foi disponibilizado pelo backend.");
+  }
+
+  function getFormAnimation(): string {
+    if (phase === "exit") {
+      return goingToRegister ? "slideOutToLeft 0.32s ease forwards" : "slideOutToRight 0.32s ease forwards";
+    }
+    if (phase === "enter") {
+      return goingToRegister ? "slideInFromRight 0.38s ease forwards" : "slideInFromLeft 0.38s ease forwards";
+    }
+    return "none";
+  }
+
+  function getImageAnimation(): string {
+    if (phase !== "idle") return "imagePulse 0.6s ease forwards";
+    return "none";
   }
 
   return (
-    <main className="flex min-h-screen font-[Poppins] overflow-hidden">
-      <section className="flex w-full flex-row">
+    <main className="flex min-h-dvh overflow-x-hidden bg-white font-[Poppins]">
+      <section
+        className={`flex min-h-dvh w-full ${
+          mode === "register" ? "flex-row-reverse" : "flex-row"
+        }`}
+      >
         <div className="hidden bg-sectec-50 lg:block w-1/2 overflow-hidden">
           <img
-            src={loginImg}
+            src={mode === "login" ? loginImg : registerImg}
             alt="Ilustração de estudos"
             className="h-full w-full object-cover"
+            style={{ animation: getImageAnimation() }}
           />
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-8 py-12 bg-white">
-          <div className="w-full max-w-md">
+        <div className="flex-1 flex items-center justify-center bg-white px-4 py-8 sm:px-8 sm:py-12">
+          <div
+            className="w-full max-w-md"
+            style={{ animation: getFormAnimation() }}
+          >
             <div className="mb-10 flex justify-center">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
                 <div className="grid grid-cols-2 gap-1">
                   <span className="h-7 w-7 rounded-lg bg-sectec-700" />
                   <span className="h-7 w-7 rounded-lg bg-sectec-100" />
@@ -182,90 +127,180 @@ function Login() {
                   <span className="h-7 w-7 rounded-lg bg-sectec-700" />
                 </div>
                 <div className="text-left">
-                  <h1 className="text-3xl font-extrabold text-green-900">SECTEC</h1>
+                  <h1 className="text-2xl font-extrabold text-green-900 sm:text-3xl">SECTEC</h1>
                   <p className="text-sm text-green-600">Projeto Escolar</p>
                 </div>
               </div>
             </div>
 
-            <div>
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-extrabold text-slate-900">Entrar</h2>
-                <p className="text-slate-500 mt-2">Acesse sua conta para continuar.</p>
-              </div>
-
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-                    E-mail institucional
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seu@usuario"
-                    className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
-                  />
+            {mode === "login" ? (
+              <div>
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Entrar</h2>
+                  <p className="text-slate-500 mt-2">Acesse sua conta para continuar.</p>
                 </div>
 
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
-                    Senha
-                  </label>
-                  <div className="relative">
+                <form onSubmit={handleLogin} className="space-y-5">
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+                      E-mail institucional
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seu@aluno.ce.gov.br"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+                        Senha
+                      </label>
+                      <button type="button" className="text-xs text-sectec-600 hover:underline">
+                        Esqueceu a senha?
+                      </button>
+                    </div>
                     <input
                       id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
+                      type="password"
                       required
-                      autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full rounded-lg border border-slate-200 px-4 py-3 pr-12 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((current) => !current)}
-                      className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-sectec-700 focus:outline-none focus:text-sectec-700"
-                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                      title={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                    >
-                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
                   </div>
-                </div>
 
-                <div className="flex items-center">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-sectec-700 focus:ring-sectec-500"
-                    />
-                    <span className="text-sm text-slate-600">Lembrar usuário</span>
-                  </label>
-                </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full rounded-lg bg-sectec-700 py-3 px-4 text-white font-semibold text-base hover:bg-sectec-800 active:scale-[0.98] transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {loading ? "Entrando..." : "Entrar"}
+                  </button>
+                </form>
 
-                <button
-                  type="submit"
-                  className="w-full rounded-lg bg-sectec-700 py-3 px-4 text-white font-semibold text-base hover:bg-sectec-800 active:scale-[0.98] transition-all duration-150"
-                >
-                  Entrar
-                </button>
-
-                <div className="text-center">
+                <p className="mt-6 text-center text-sm text-slate-500">
+                  Ainda não tem conta?{" "}
                   <button
                     type="button"
-                    onClick={handleForgotPassword}
-                    className="text-sm text-sectec-600 hover:text-sectec-700 hover:underline transition"
+                    onClick={() => switchMode("register")}
+                    className="font-semibold text-sectec-600 hover:underline"
                   >
-                    Esqueceu a senha?
+                    Criar conta
                   </button>
+                </p>
+              </div>
+
+            ) : (
+              <div>
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Criar conta</h2>
+                  <p className="text-slate-500 mt-2">Preencha os dados para se registrar.</p>
                 </div>
-              </form>
-            </div>
+
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
+                      Nome completo
+                    </label>
+                    <input
+                      id="name"
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Seu Nome Completo"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="reg-email" className="block text-sm font-medium text-slate-700 mb-1">
+                      E-mail institucional
+                    </label>
+                    <input
+                      id="reg-email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seu@aluno.ce.gov.br"
+                      className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="reg-password" className="block text-sm font-medium text-slate-700 mb-1">
+                        Senha
+                      </label>
+                      <input
+                        id="reg-password"
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="confirm" className="block text-sm font-medium text-slate-700 mb-1">
+                        Confirmar
+                      </label>
+                      <input
+                        id="confirm"
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:border-transparent transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 items-start bg-sectec-50 border border-sectec-200 rounded-lg p-3">
+                    <div className="w-4 h-4 rounded-full bg-sectec-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </div>
+                    <p className="text-xs text-sectec-700">
+                      Use apenas seu e-mail <strong>@aluno.ce.gov.br</strong>
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full rounded-lg bg-sectec-700 py-3 px-4 text-white font-semibold text-base hover:bg-sectec-800 active:scale-[0.98] transition-all duration-150"
+                  >
+                    Criar conta
+                  </button>
+                </form>
+
+                <p className="mt-6 text-center text-sm text-slate-500">
+                  Já tem uma conta?{" "}
+                  <button
+                    type="button"
+                    onClick={() => switchMode("login")}
+                    className="font-semibold text-sectec-600 hover:underline"
+                  >
+                    Entrar
+                  </button>
+                </p>
+              </div>
+            )}
+
+            {formError && (
+              <p className="mt-5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-center text-sm font-medium text-red-600">
+                {formError}
+              </p>
+            )}
 
             <p className="mt-8 text-xs text-slate-400 text-center">
               © 2026 SECTEC · Projeto Escolar · Ceará

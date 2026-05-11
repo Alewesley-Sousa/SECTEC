@@ -1,18 +1,47 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { FiChevronLeft, FiMenu } from "react-icons/fi";
-import { LayoutDashboard, FileText, Settings, School, LogOut, BookOpen} from "lucide-react";
-import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  ChevronLeft,
+  Menu,
+  X,
+  LayoutDashboard,
+  School,
+  FileSpreadsheet,
+  Settings,
+  ChevronDown,
+  CalendarDays,
+  ClipboardList,
+} from "lucide-react";
 
+import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
 
 export type SidebarProps = {
   items: NavItem[];
   userRole: UserRole;
+  mobile?: boolean;
+  onClose?: () => void;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 };
 
-export function Sidebar({ items, userRole }: SidebarProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const location = useLocation();
+export function Sidebar({
+  items,
+  userRole,
+  mobile = false,
+  onClose,
+  expanded: expandedProp,
+  onExpandedChange,
+}: SidebarProps) {
+  const [internalExpanded, setInternalExpanded] = useState(true);
+  const controlledExpanded = expandedProp ?? internalExpanded;
+  const expanded = mobile ? true : controlledExpanded;
+
+  function toggleExpanded() {
+    const next = !controlledExpanded;
+    setInternalExpanded(next);
+    onExpandedChange?.(next);
+  }
 
   const canAccess = (item: NavItem) => {
     if (!item.roles) return true;
@@ -26,178 +55,204 @@ export function Sidebar({ items, userRole }: SidebarProps) {
     ),
   }));
 
-  const isConfigActive = location.pathname.includes("/configuracoes");
-
   return (
-    <aside
-      className={`sticky top-0 left-0 z-20 h-screen shrink-0 bg-[#0b4d2c] text-white border-r border-white/5 flex flex-col shadow-2xl transition-all duration-300 ease-in-out ${
-        isExpanded ? "w-64" : "w-20"
-      }`}
+    <motion.aside
+      initial={mobile ? { x: -320 } : false}
+      animate={mobile ? { x: 0 } : { width: expanded ? 256 : 80 }}
+      exit={mobile ? { x: -320 } : undefined}
+      transition={{ type: "spring", stiffness: 260, damping: 28 }}
+      className={`${
+        mobile
+          ? "fixed inset-y-0 left-0 z-50 w-72 flex"
+          : "fixed inset-y-0 left-0 z-20 hidden h-dvh min-h-dvh shrink-0 lg:flex"
+      } bg-[#0b4d2c] text-white border-r border-white/5 flex-col shadow-2xl overflow-hidden`}
     >
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="absolute -right-3 top-10 bg-white text-[#0b4d2c] rounded-full p-1 border border-slate-200 shadow-md hover:scale-110 transition-transform z-30"
-      >
-        {isExpanded ? <FiChevronLeft size={14} /> : <FiMenu size={14} />}
-      </button>
+      {!mobile && (
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={toggleExpanded}
+          className="absolute -right-3 top-20 bg-white text-[#0b4d2c] rounded-full p-1 border border-slate-200 shadow-md z-30"
+          type="button"
+        >
+          {expanded ? <ChevronLeft size={14} /> : <Menu size={14} />}
+        </motion.button>
+      )}
 
-      <div className="p-6 border-b border-white/5 overflow-hidden">
-        <div className="flex items-center gap-3">
-          <div className="grid grid-cols-2 gap-1 shrink-0">
+      {mobile && (
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-lg bg-white/10 p-2 text-white hover:bg-white/15 transition"
+          type="button"
+          aria-label="Fechar menu"
+        >
+          <X size={18} />
+        </motion.button>
+      )}
+
+      <div className="p-5 sm:p-6 border-b border-white/5 overflow-hidden">
+        <motion.div
+          layout
+          className={`flex items-center gap-3 ${
+            expanded ? "justify-start" : "justify-center"
+          }`}
+        >
+          <motion.div
+            layout
+            whileHover={{ rotate: 3, scale: 1.04 }}
+            className="grid grid-cols-2 gap-1 shrink-0"
+          >
             <span className="h-5 w-5 rounded-md bg-sectec-700" />
             <span className="h-5 w-5 rounded-md bg-sectec-100" />
             <span className="h-5 w-5 rounded-md bg-sectec-600" />
             <span className="h-5 w-5 rounded-md bg-sectec-700" />
-          </div>
-          {isExpanded && (
-            <div className="text-left animate-in fade-in duration-500">
-              <h1 className="text-xl font-black leading-none text-white tracking-tighter uppercase">
-                SECTEC
-              </h1>
-              <p className="text-[10px] font-bold text-white/40 tracking-widest uppercase mt-0.5">
-                Projeto Escolar
-              </p>
-            </div>
-          )}
-        </div>
+          </motion.div>
+
+          <AnimatePresence>
+            {expanded && (
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.18 }}
+                className="text-left"
+              >
+                <h1 className="text-xl font-black leading-none text-white tracking-tighter uppercase">
+                  SECTEC
+                </h1>
+                <p className="text-[10px] font-bold text-white/40 tracking-widest uppercase mt-0.5">
+                  Projeto Escolar
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </div>
 
-      <nav className="flex-1 px-4 py-8 overflow-y-auto space-y-1 overflow-x-hidden">
-        {filteredItems.map((item) => {
+      <nav className="flex-1 px-3 sm:px-4 py-6 sm:py-8 overflow-y-auto space-y-1 overflow-x-hidden">
+        {filteredItems.map((item, index) => {
           const hasSubItems = item.subItems && item.subItems.length > 0;
-          const isActive = !isConfigActive && Boolean(item.isActive);
+          const isActive = Boolean(item.isActive);
 
-          if (hasSubItems && isExpanded) {
+          if (hasSubItems && expanded) {
             return (
-              <details key={item.id} className="group" open={item.isActive}>
-                <summary
-                  className={`flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm font-semibold transition cursor-pointer list-none hover:bg-white/10 ${
-                    isActive ? "bg-white/15 text-white" : "text-white/70"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="opacity-90 shrink-0">{item.icon}</span>
-                    <span>{item.label}</span>
-                  </div>
-                  <span className="text-[10px] opacity-40 transition-transform group-open:rotate-180">
-                    ▼
-                  </span>
-                </summary>
-                <div className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1">
-                  {item.subItems!.map((sub) => (
-                    <Link
-                      key={sub.id}
-                      to={sub.href || "#"}
-                      className="block py-2 px-3 text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 rounded-lg transition"
-                    >
-                      {sub.label}
-                    </Link>
-                  ))}
-                </div>
-              </details>
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.04, duration: 0.2 }}
+              >
+                <details className="group" open={item.isActive}>
+                  <summary
+                    className={`flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm font-semibold transition cursor-pointer list-none hover:bg-white/10 ${
+                      isActive ? "bg-white/15 text-white" : "text-white/70"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="opacity-80 shrink-0">{item.icon}</span>
+                      <span className="truncate">{item.label}</span>
+                    </div>
+
+                    <ChevronDown
+                      size={14}
+                      className="opacity-40 transition-transform group-open:rotate-180 shrink-0"
+                    />
+                  </summary>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1"
+                  >
+                    {item.subItems!.map((sub) => (
+                      <Link
+                        key={sub.id}
+                        to={sub.href || "#"}
+                        onClick={onClose}
+                        className="block py-2 px-3 text-xs font-medium text-white/55 hover:text-white hover:bg-white/5 rounded-lg transition"
+                      >
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </motion.div>
+                </details>
+              </motion.div>
             );
           }
 
           return (
-            <Link
+            <motion.div
               key={item.id}
-              to={item.href || "#"}
-              className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                isActive
-                  ? "bg-white/15 text-white shadow-inner"
-                  : "text-white/70 hover:bg-white/10 hover:text-white"
-              }`}
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.04, duration: 0.2 }}
+              whileTap={{ scale: 0.97 }}
             >
-              <span className="opacity-90 shrink-0">{item.icon}</span>
-              {isExpanded && (
-                <span className="whitespace-nowrap animate-in slide-in-from-left-2 duration-300">
-                  {item.label}
-                </span>
-              )}
-            </Link>
+              <Link
+                to={item.href || "#"}
+                onClick={onClose}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-semibold transition ${
+                  isActive
+                    ? "bg-white/15 text-white shadow-inner"
+                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span className="opacity-80 shrink-0">{item.icon}</span>
+
+                <AnimatePresence>
+                  {expanded && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -6 }}
+                      transition={{ duration: 0.16 }}
+                      className="whitespace-nowrap truncate"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Link>
+            </motion.div>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/5 overflow-hidden">
-        <Link
-          to="/dashboard/aluno/configuracoes"
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition ${
-            isConfigActive
-              ? "bg-white/15 text-white"
-              : "text-white/50 hover:text-white hover:bg-white/10"
+      <div className="p-4 sm:p-6 border-t border-white/5 overflow-hidden">
+        <motion.div
+          whileHover={{ x: expanded ? 3 : 0 }}
+          whileTap={{ scale: 0.97 }}
+          className={`flex items-center gap-3 text-white/65 transition ${
+            !expanded && "justify-center"
           }`}
         >
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-            <Settings size={16} />
+          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold shrink-0">
+            {userRole[0]}
           </div>
-          {isExpanded && (
-            <span className="text-xs font-bold animate-in fade-in">
-              Configurações
-            </span>
-          )}
-        </Link>
+
+          <AnimatePresence>
+            {expanded && (
+              <motion.span
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.16 }}
+                className="min-w-0"
+              >
+                <span className="block truncate text-xs font-bold text-white">
+                  Usuário conectado
+                </span>
+                <span className="block truncate text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                  {userRole}
+                </span>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </div>
-    </aside>
-  );
-}
-
-
-function UserMenu({ nomeUsuario, userRole }: { nomeUsuario: string; userRole: UserRole }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const inicialNome = nomeUsuario[0].toUpperCase();
-
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  function handleLogout() {
-    localStorage.clear();
-    window.location.href = "/Login";
-  }
-
-  return (
-    <div className="relative flex items-center gap-4" ref={ref}>
-      <div className="text-right">
-        <p className="text-[10px] font-black text-slate-400 uppercase">{userRole}</p>
-        <p className="text-xs font-bold text-slate-700">{nomeUsuario}</p>
-      </div>
-
-      {/* Avatar clicável */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 bg-[#15803d] rounded-lg flex items-center justify-center text-white text-xs font-bold hover:bg-[#166534] transition-colors focus:outline-none focus:ring-2 focus:ring-sectec-500 focus:ring-offset-2"
-      >
-        {inicialNome}
-      </button>
-
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl border border-slate-200 shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-          {/* Info do usuário */}
-          <div className="px-4 py-3 border-b border-slate-100">
-            <p className="text-xs font-semibold text-slate-800 truncate">{nomeUsuario}</p>
-            <p className="text-[11px] text-slate-400 uppercase mt-0.5">{userRole}</p>
-          </div>
-         
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-slate-100"
-          >
-            <LogOut size={14} />
-            Sair da conta
-          </button>
-        </div>
-      )}
-    </div>
+    </motion.aside>
   );
 }
 
@@ -208,9 +263,9 @@ export function MainLayout({
   children: React.ReactNode;
   userRole: UserRole;
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const location = useLocation();
-
-  const nomeUsuario = localStorage.getItem("nome") ?? "Usuário";
 
   const rolePath =
     userRole === "ADMIN"
@@ -221,67 +276,188 @@ export function MainLayout({
 
   const dashboardPrefix = `/dashboard/${rolePath}`;
 
-  const menuConfig: NavItem[] = [
+  const pageLabels: Record<string, string> = {
+    [dashboardPrefix]: "Painel",
+    [`${dashboardPrefix}/turmas`]: "Turmas",
+    [`${dashboardPrefix}/entregas`]: "Entregas",
+    [`${dashboardPrefix}/agenda`]: "Agenda",
+    [`${dashboardPrefix}/notas`]: "Avaliações",
+    [`${dashboardPrefix}/configuracoes`]: "Configurações",
+  };
+
+  const currentPage =
+    pageLabels[location.pathname] ||
+    location.pathname.split("/").pop()?.replace(/-/g, " ") ||
+    "painel";
+
+  const professorMenu: NavItem[] = [
     {
-      id: "1",
+      id: "orientador-painel",
       label: "Painel",
       icon: <LayoutDashboard size={20} />,
       href: dashboardPrefix,
       isActive: location.pathname === dashboardPrefix,
+      roles: ["Professor"],
     },
     {
-      id: "2",
+      id: "orientador-turmas",
       label: "Turmas",
       icon: <School size={20} />,
       href: `${dashboardPrefix}/turmas`,
-      isActive: location.pathname.startsWith(`${dashboardPrefix}/turmas`),
-      roles: ["ADMIN", "Professor"],
-      subItems: [
-        {
-          id: "2-1",
-          label: "Minhas Turmas",
-          href: `${dashboardPrefix}/turmas`,
-        },
-        {
-          id: "2-2",
-          label: "Frequência",
-          href: `${dashboardPrefix}/frequencia`,
-          roles: ["ADMIN"],
-        },
-      ],
+      isActive: location.pathname === `${dashboardPrefix}/turmas`,
+      roles: ["Professor"],
     },
     {
-      id: "3",
-      label: "Notas",
-      icon: <FileText size={20} />,
+      id: "orientador-entregas",
+      label: "Entregas",
+      icon: <ClipboardList size={20} />,
+      href: `${dashboardPrefix}/entregas`,
+      isActive: location.pathname === `${dashboardPrefix}/entregas`,
+      roles: ["Professor"],
+    },
+    {
+      id: "orientador-agenda",
+      label: "Agenda",
+      icon: <CalendarDays size={20} />,
+      href: `${dashboardPrefix}/agenda`,
+      isActive: location.pathname === `${dashboardPrefix}/agenda`,
+      roles: ["Professor"],
+    },
+    {
+      id: "orientador-notas",
+      label: "Avaliações",
+      icon: <FileSpreadsheet size={20} />,
       href: `${dashboardPrefix}/notas`,
       isActive: location.pathname === `${dashboardPrefix}/notas`,
+      roles: ["Professor"],
     },
     {
-      id: "4",
-      label: "Relatórios",
-      icon: <BookOpen size={20} />,
-      href: `${dashboardPrefix}/relatorios`,
-      isActive: location.pathname === `${dashboardPrefix}/relatorios`,
-      roles: ["aluno"], // apenas alunos veem esta aba
-     },
+      id: "orientador-config",
+      label: "Configurações",
+      icon: <Settings size={20} />,
+      href: `${dashboardPrefix}/configuracoes`,
+      isActive: location.pathname === `${dashboardPrefix}/configuracoes`,
+      roles: ["Professor"],
+    },
   ];
 
-  return (
-    <div className="flex min-h-screen bg-[#f4f9f6] w-full font-sans antialiased">
-      <Sidebar items={menuConfig} userRole={userRole} />
+  const alunoMenu: NavItem[] = [
+    {
+      id: "painel",
+      label: "Painel",
+      icon: <LayoutDashboard size={20} />,
+      href: dashboardPrefix,
+      isActive: location.pathname === dashboardPrefix,
+      roles: ["aluno"],
+    },
+  ];
 
-      <main className="flex-1 flex flex-col min-h-screen">
-        <header className="h-16 border-b border-slate-200 bg-white/50 backdrop-blur-md flex items-center justify-between px-10 shrink-0">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-            {location.pathname.split("/").pop()?.replace(/-/g, " ")}
+  const adminMenu: NavItem[] = [
+    {
+      id: "coordenacao-painel",
+      label: "Painel",
+      icon: <LayoutDashboard size={20} />,
+      href: dashboardPrefix,
+      isActive: location.pathname === dashboardPrefix,
+      roles: ["ADMIN"],
+    },
+  ];
+
+  const menuConfig =
+    userRole === "Professor"
+      ? professorMenu
+      : userRole === "ADMIN"
+      ? adminMenu
+      : alunoMenu;
+
+  return (
+    <div className="flex min-h-screen bg-[#f4f9f6] w-full font-sans antialiased overflow-x-hidden">
+      <Sidebar
+        items={menuConfig}
+        userRole={userRole}
+        expanded={sidebarExpanded}
+        onExpandedChange={setSidebarExpanded}
+      />
+
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.button
+              type="button"
+              aria-label="Fechar menu"
+              onClick={() => setMobileMenuOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+            />
+
+            <Sidebar
+              items={menuConfig}
+              userRole={userRole}
+              mobile
+              onClose={() => setMobileMenuOpen(false)}
+            />
+          </>
+        )}
+      </AnimatePresence>
+
+      <main
+        className={`flex-1 flex flex-col min-h-screen min-w-0 transition-[padding] duration-300 ${
+          sidebarExpanded ? "lg:pl-64" : "lg:pl-20"
+        }`}
+      >
+        <motion.header
+          initial={{ y: -18, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="h-16 border-b border-slate-200 bg-white/70 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-10 shrink-0 sticky top-0 z-30"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.92 }}
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden w-9 h-9 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-[#0b4d2c] shadow-sm"
+              aria-label="Abrir menu"
+            >
+              <Menu size={18} />
+            </motion.button>
+
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">
+              {currentPage}
+            </div>
           </div>
 
-        
-          <UserMenu nomeUsuario={nomeUsuario} userRole={userRole} />
-        </header>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-right hidden sm:block">
+              <p className="text-[10px] font-black text-slate-400 uppercase">
+                {userRole}
+              </p>
+              <p className="text-xs font-bold text-slate-700">
+                Usuário conectado
+              </p>
+            </div>
 
-        <div className="flex-1 overflow-y-auto">{children}</div>
+            <motion.div
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              className="w-8 h-8 bg-[#15803d] rounded-lg flex items-center justify-center text-white text-xs font-bold"
+            >
+              {userRole[0]}
+            </motion.div>
+          </div>
+        </motion.header>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.25 }}
+          className="flex-1 overflow-y-auto min-w-0"
+        >
+          {children}
+        </motion.div>
       </main>
     </div>
   );

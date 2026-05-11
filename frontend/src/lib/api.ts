@@ -1,0 +1,102 @@
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:3000";
+
+type ApiRequestOptions = Omit<RequestInit, "body"> & {
+  body?: unknown;
+  auth?: boolean;
+};
+
+export type BackendRole = "aluno" | "orientador" | "coordenador";
+
+export type AuthUser = {
+  id: string | number;
+  email: string;
+  nome: string;
+};
+
+export type LoginResponse = {
+  access_token: string;
+  role: BackendRole;
+  user: AuthUser;
+};
+
+export type UsuarioApi = {
+  id: string | number;
+  nome: string;
+  email_institucional?: string;
+};
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+function getToken() {
+  return localStorage.getItem("token");
+}
+
+async function readError(response: Response) {
+  try {
+    const data = await response.json();
+    if (typeof data?.message === "string") return data.message;
+    if (Array.isArray(data?.message)) return data.message.join(" ");
+  } catch {
+    // Some backend errors may not be JSON.
+  }
+
+  return "Não foi possível concluir a solicitação.";
+}
+
+export async function apiRequest<T>(
+  path: string,
+  { body, auth = true, headers, ...options }: ApiRequestOptions = {}
+): Promise<T> {
+  const token = getToken();
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await readError(response), response.status);
+  }
+
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+export function saveSession(data: LoginResponse) {
+  localStorage.setItem("token", data.access_token);
+  localStorage.setItem("role", data.role);
+  localStorage.setItem("nome", data.user.nome);
+  localStorage.setItem("userId", String(data.user.id));
+}
+
+export function clearSession() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+  localStorage.removeItem("nome");
+  localStorage.removeItem("userId");
+}
+
+export function getRoleRedirect(role: BackendRole) {
+  const routes: Record<BackendRole, string> = {
+    aluno: "/dashboard/aluno",
+    orientador: "/dashboard/orientador",
+    coordenador: "/dashboard/coordenacao",
+  };
+
+  return routes[role];
+}

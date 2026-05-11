@@ -1,7 +1,5 @@
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 import { Filter, ChevronDown, Cpu, Leaf, Users, Zap, BookOpen, Heart } from 'lucide-react'
-
-// ─── Tipos exportados ─────────────────────────────────────────────────────────
 
 export type EixoTematico =
   | 'todos'
@@ -14,7 +12,7 @@ export type EixoTematico =
 
 type EixoConfig = {
   label: string
-  icon: React.FC<{ size?: number; className?: string }>
+  icon: ComponentType<{ size?: number; className?: string }>
   ativoBg: string
   ativoTexto: string
   tagBg: string
@@ -23,9 +21,7 @@ type EixoConfig = {
   iconeTexto: string
 }
 
-// ─── Config dos eixos ─────────────────────────────────────────────────────────
-
-export const EIXOS_CONFIG: Record<EixoTematico, EixoConfig> = {
+const EIXOS_CONFIG: Record<EixoTematico, EixoConfig> = {
   todos: {
     label: 'Todos',
     icon: Filter,
@@ -98,101 +94,119 @@ export const EIXOS_CONFIG: Record<EixoTematico, EixoConfig> = {
   },
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+export const EIXOS_LIST: EixoTematico[] = [
+  'todos',
+  'tecnologia',
+  'sustentabilidade',
+  'sociedade',
+  'energia',
+  'educacao',
+  'saude',
+]
 
 type EixoDropdownProps = {
   eixoAtivo: EixoTematico
-  eixosList: EixoTematico[]
+  eixosList?: EixoTematico[]
   contagemPorEixo: (e: EixoTematico) => number
   onChange: (e: EixoTematico) => void
+  className?: string
 }
 
-// ─── Componente ───────────────────────────────────────────────────────────────
-
-const EixoDropdown: React.FC<EixoDropdownProps> = ({
+const EixoDropdown = ({
   eixoAtivo,
-  eixosList,
+  eixosList = EIXOS_LIST,
   contagemPorEixo,
   onChange,
-}) => {
+  className = '',
+}: EixoDropdownProps) => {
   const [aberto, setAberto] = useState(false)
-  const cfg = EIXOS_CONFIG[eixoAtivo]
+  const cfg = EIXOS_CONFIG[eixoAtivo] ?? EIXOS_CONFIG.todos
   const IconAtivo = cfg.icon
 
   return (
-    <div className="relative">
-      {/* Botão trigger — cor muda conforme o eixo ativo */}
+    <div className={`relative ${className}`}>
       <button
-        onClick={() => setAberto(v => !v)}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={aberto}
+        onClick={() => setAberto((valorAtual) => !valorAtual)}
         className={`
-          flex items-center gap-2.5 pl-3.5 pr-3 py-2.5 rounded-xl text-sm font-medium
-          border-2 transition-all duration-200 cursor-pointer select-none min-w-56
-          ${eixoAtivo === 'todos'
-            ? 'bg-white border-slate-200 text-slate-700 hover:border-sectec-300'
-            : `${cfg.ativoBg} ${cfg.ativoTexto} border-transparent shadow-md`
+          flex min-h-11 w-full min-w-56 items-center gap-2.5 rounded-xl border-2 py-2.5 pl-3.5 pr-3
+          text-sm font-semibold transition-all duration-200 sm:w-auto
+          ${
+            eixoAtivo === 'todos'
+              ? 'border-slate-200 bg-white text-slate-700 hover:border-sectec-300'
+              : `${cfg.ativoBg} ${cfg.ativoTexto} border-transparent shadow-md`
           }
         `}
       >
-        <IconAtivo size={15} />
+        <IconAtivo size={15} className="shrink-0" />
         <span className="flex-1 text-left">{cfg.label}</span>
-        <span className={`
-          px-1.5 py-0.5 rounded-full text-xs font-semibold mr-1
-          ${eixoAtivo === 'todos' ? 'bg-slate-100 text-slate-500' : 'bg-white/25 text-white'}
-        `}>
+        <span
+          className={`mr-1 rounded-full px-1.5 py-0.5 text-xs font-bold ${
+            eixoAtivo === 'todos' ? 'bg-slate-100 text-slate-500' : 'bg-white/25 text-white'
+          }`}
+        >
           {contagemPorEixo(eixoAtivo)}
         </span>
         <ChevronDown
           size={14}
-          className={`transition-transform duration-200 flex-shrink-0 ${aberto ? 'rotate-180' : ''}`}
+          className={`shrink-0 transition-transform duration-200 ${aberto ? 'rotate-180' : ''}`}
         />
       </button>
 
-      {/* Painel do dropdown */}
       {aberto && (
         <>
-          {/* Overlay invisível para fechar ao clicar fora */}
-          <div className="fixed inset-0 z-10" onClick={() => setAberto(false)} />
+          <button
+            type="button"
+            aria-label="Fechar filtro de eixo"
+            className="fixed inset-0 z-10 cursor-default bg-transparent"
+            onClick={() => setAberto(false)}
+          />
 
-          <div className="absolute left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 min-w-56 overflow-hidden py-1">
-            {eixosList.map(eixo => {
-              const c = EIXOS_CONFIG[eixo]
+          <div
+            role="listbox"
+            className="absolute left-0 top-full z-20 mt-1.5 min-w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-xl"
+          >
+            {eixosList.map((eixo) => {
+              const c = EIXOS_CONFIG[eixo] ?? EIXOS_CONFIG.todos
               const Icon = c.icon
               const ativo = eixoAtivo === eixo
 
               return (
                 <button
                   key={eixo}
-                  onClick={() => { onChange(eixo); setAberto(false) }}
+                  type="button"
+                  role="option"
+                  aria-selected={ativo}
+                  onClick={() => {
+                    onChange(eixo)
+                    setAberto(false)
+                  }}
                   className={`
-                    w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer
-                    ${ativo
-                      ? `${c.tagBg} ${c.tagTexto} font-semibold`
-                      : 'text-slate-600 hover:bg-slate-50'
-                    }
+                    flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors
+                    ${ativo ? `${c.tagBg} ${c.tagTexto} font-bold` : 'text-slate-600 hover:bg-slate-50'}
                   `}
                 >
-                  {/* Ícone colorido por eixo */}
-                  <span className={`
-                    w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0
-                    ${ativo ? c.ativoBg : c.iconeBg}
-                  `}>
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                      ativo ? c.ativoBg : c.iconeBg
+                    }`}
+                  >
                     <Icon size={14} className={ativo ? 'text-white' : c.iconeTexto} />
                   </span>
 
                   <span className="flex-1 text-left">{c.label}</span>
 
-                  {/* Contador */}
-                  <span className={`
-                    px-1.5 py-0.5 rounded-full text-xs font-semibold
-                    ${ativo ? `${c.ativoBg} text-white` : 'bg-slate-100 text-slate-500'}
-                  `}>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                      ativo ? `${c.ativoBg} text-white` : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
                     {contagemPorEixo(eixo)}
                   </span>
 
-                  {/* Indicador de selecionado */}
-                  {ativo && (
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.ativoBg}`} />
-                  )}
+                  {ativo && <span className={`h-2 w-2 shrink-0 rounded-full ${c.ativoBg}`} />}
                 </button>
               )
             })}
