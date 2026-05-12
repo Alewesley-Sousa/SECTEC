@@ -33,8 +33,10 @@ import { PdfModule } from './pdf/pdf.module';
     
     // ── CONFIGURAÇÃO PARA SERVIR O REACT ──
     ServeStaticModule.forRoot({
-  rootPath: join(__dirname, '..', '..', '..', 'frontend', 'dist'), 
-  exclude: [/^\/api/],
+  // Usamos o caminho absoluto para evitar o erro de "backend/frontend/dist"
+  rootPath: '/app/frontend/dist', 
+  // Usamos o asterisco simples que é compatível com strings do TS
+  exclude: ['/api'], 
 }),
 
 
