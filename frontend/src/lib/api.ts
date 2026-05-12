@@ -42,6 +42,11 @@ export class ApiError extends Error {
   }
 }
 
+function notifyAuthChange() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("auth-change"));
+}
+
 function getToken() {
   return localStorage.getItem("token");
 }
@@ -88,6 +93,7 @@ export function saveSession(data: LoginResponse) {
   localStorage.setItem("role", data.role);
   localStorage.setItem("nome", data.user.nome);
   localStorage.setItem("userId", String(data.user.id));
+  notifyAuthChange();
 }
 
 export function clearSession() {
@@ -95,6 +101,7 @@ export function clearSession() {
   localStorage.removeItem("role");
   localStorage.removeItem("nome");
   localStorage.removeItem("userId");
+  notifyAuthChange();
 }
 
 export function getRoleRedirect(role: BackendRole) {
