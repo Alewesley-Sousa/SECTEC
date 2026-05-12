@@ -35,6 +35,7 @@ import { AuditoriaModule } from 'src/auditoria/auditoria.module';
       Evento,
       AuditoriaModule,
     ]),
+    AuditoriaModule,
   ],
   controllers: [ProjetosController],
   providers: [ProjetosService],
