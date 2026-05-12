@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
+import { clearSession } from "../lib/api";
 import {
   ChevronLeft,
   Menu,
@@ -12,6 +13,7 @@ import {
   ChevronDown,
   CalendarDays,
   ClipboardList,
+  LogOut,
 } from "lucide-react";
 
 import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
@@ -33,6 +35,7 @@ export function Sidebar({
   expanded: expandedProp,
   onExpandedChange,
 }: SidebarProps) {
+  const navigate = useNavigate();
   const [internalExpanded, setInternalExpanded] = useState(true);
   const controlledExpanded = expandedProp ?? internalExpanded;
   const expanded = mobile ? true : controlledExpanded;
@@ -41,6 +44,11 @@ export function Sidebar({
     const next = !controlledExpanded;
     setInternalExpanded(next);
     onExpandedChange?.(next);
+  }
+
+  function handleLogout() {
+    clearSession();
+    navigate("/login", { replace: true });
   }
 
   const canAccess = (item: NavItem) => {
@@ -220,11 +228,36 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="p-4 sm:p-6 border-t border-white/5 overflow-hidden">
+      <div className="p-3 sm:p-4 border-t border-white/5 overflow-hidden space-y-2">
+        <motion.button
+          whileHover={{ scale: expanded ? 1.02 : 1.1 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleLogout}
+          className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 ${
+            !expanded ? "justify-center p-3" : "py-3 px-4"
+          }`}
+          title="Sair do sistema"
+        >
+          <span className="shrink-0"><LogOut size={20} /></span>
+          <AnimatePresence>
+            {expanded && (
+              <motion.span
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.16 }}
+                className="whitespace-nowrap truncate"
+              >
+                Sair
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
+
         <motion.div
           whileHover={{ x: expanded ? 3 : 0 }}
           whileTap={{ scale: 0.97 }}
-          className={`flex items-center gap-3 text-white/65 transition ${
+          className={`flex items-center gap-3 px-2 py-1 text-white/65 transition ${
             !expanded && "justify-center"
           }`}
         >
@@ -239,7 +272,7 @@ export function Sidebar({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -6 }}
                 transition={{ duration: 0.16 }}
-                className="min-w-0"
+                className="min-w-0 flex-1"
               >
                 <span className="block truncate text-xs font-bold text-white">
                   Usuário conectado
