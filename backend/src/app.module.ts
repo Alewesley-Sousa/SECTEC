@@ -35,7 +35,7 @@ import { PdfModule } from './pdf/pdf.module';
     ServeStaticModule.forRoot({
       // Caminho sobe do backend para a raiz e entra no build do frontend
       rootPath: join(__dirname, '..', '..', 'frontend', 'dist'), 
-      exclude: ['/api'], // Garante que as rotas da API não sejam confundidas com o front
+      exclude: [/^\/api/], // Garante que as rotas da API não sejam confundidas com o front
     }),
 
     CommonModule,
