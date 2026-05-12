@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/login';
 import Dashboard from './pages/DashboardAluno';
+import Administrador from './pages/Administrador';
+import ProtectedRoute from './componentes/ProtectedRoute';
 import DashboardOrientador, {
   AgendaOrientador,
   AvaliacoesOrientador,
@@ -22,7 +24,14 @@ function App() {
         <Route path="/dashboard/orientador/agenda" element={<AgendaOrientador />} />
         <Route path="/dashboard/orientador/notas" element={<AvaliacoesOrientador />} />
         <Route path="/dashboard/orientador/configuracoes" element={<ConfigOrientador />} />
-        <Route path="/dashboard/coordenacao" element={<div>Coordenação</div>} />
+        <Route
+          path="/dashboard/coordenacao/*"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador"]}>
+              <Administrador />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

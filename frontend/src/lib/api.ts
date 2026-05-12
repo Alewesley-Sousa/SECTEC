@@ -1,5 +1,11 @@
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:3000";
+const DEFAULT_API_URL = "http://localhost:3000/api";
+
+function normalizeApiBaseUrl(rawUrl?: string) {
+  const baseUrl = (rawUrl?.trim() || DEFAULT_API_URL).replace(/\/+$/, "");
+  return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
+}
+
+export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
