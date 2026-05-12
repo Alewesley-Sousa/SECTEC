@@ -2,19 +2,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ScheduleModule } from '@nestjs/schedule'; // 👈 ADICIONADO
+import { ScheduleModule } from '@nestjs/schedule';
+import { ServeStaticModule } from '@nestjs/serve-static'; // 👈 ADICIONADO
+import { join } from 'path'; // 👈 ADICIONADO
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ProjetosModule } from './projetos/projetos.module';
 import { EventoModule } from './evento/evento.module';
-import { UsersModule } from './users/users.module'; // APENAS UMA VEZ
-import { Projeto } from './projetos/entities/projeto.entity';
-import { Evento } from './evento/entities/evento.entity';
-import { User } from './users/entities/user.entity'; // CORRIGIDO: Era Users
+import { UsersModule } from './users/users.module';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { PdfModule } from './pdf/pdf.module'; // 👈 ADICIONADO
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
@@ -29,14 +29,22 @@ import { PdfModule } from './pdf/pdf.module'; // 👈 ADICIONADO
       autoLoadEntities: true,
       synchronize: false,
     }),
-    ScheduleModule.forRoot(), // 👈 ADICIONADO — habilita o cron job de integridade dos PDFs
+    ScheduleModule.forRoot(),
+    
+    // ── CONFIGURAÇÃO PARA SERVIR O REACT ──
+    ServeStaticModule.forRoot({
+      // Caminho sobe do backend para a raiz e entra no build do frontend
+      rootPath: join(__dirname, '..', '..', 'frontend', 'dist'), 
+      exclude: ['/api*'], // Garante que as rotas da API não sejam confundidas com o front
+    }),
+
     CommonModule,
     UsersModule,
     AuthModule,
     DashboardModule,
     ProjetosModule,
     EventoModule,
-    PdfModule, // 👈 ADICIONADO
+    PdfModule,
   ],
   controllers: [AppController],
   providers: [AppService],
