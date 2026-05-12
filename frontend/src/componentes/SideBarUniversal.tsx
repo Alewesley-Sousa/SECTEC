@@ -233,7 +233,7 @@ export function Sidebar({
           whileHover={{ scale: expanded ? 1.02 : 1.1 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleLogout}
-          className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 ${
+          className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition cursor-pointer text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 ${
             !expanded ? "justify-center p-3" : "py-3 px-4"
           }`}
           title="Sair do sistema"
