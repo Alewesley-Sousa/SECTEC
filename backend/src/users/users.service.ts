@@ -4,7 +4,15 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { HashingProvider } from '../common/providers/hashing.provider';
 import { UserRole } from './entities/user.entity'; // 👈 adiciona essa linha
-
+import { parse } from 'csv-parse/sync';
+interface ICsvUser {
+  Turma: string;
+  ano: string;
+  nome: string;
+  email: string;
+  senha: string;
+  role: string;
+}
 @Injectable()
 export class UsersService {
   constructor(
@@ -32,5 +40,32 @@ export class UsersService {
       where: { role_cargo: UserRole.ORIENTADOR, ativo: true },
       select: ['id', 'nome', 'email_institucional'],
     });
+  }
+
+processarCsv(file: Express.Multer.File) {
+    const csvString = file.buffer.toString('utf-8');
+
+    // 2. Informe ao parse que o retorno será um array de ICsvUser
+    const registros = parse(csvString, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    }) as ICsvUser[]; // <--- O "cast" aqui resolve o erro de 'desconhecido'
+
+    // Agora o TS sabe exatamente o que existe dentro de 'reg'
+    const dadosFormatados = registros.map((reg) => ({
+      turma: reg.Turma,
+      ano: Number(reg.ano),
+      nome: reg.nome,
+      email_institucional: reg.email,
+      senha: reg.senha,
+      role_cargo: reg.role,
+    }));
+
+    return {
+      filename: file.originalname,
+      total: dadosFormatados.length,
+      data: dadosFormatados,
+    };
   }
 }

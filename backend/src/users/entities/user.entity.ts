@@ -10,6 +10,11 @@ export enum UserRole {
   COORDENACAO = 'coordenador',
   COMISSAO = 'comissao', // 👈 igual ao enum do banco
 }
+export enum UserTurma {
+  INFORMATICA = 'informatica',
+  ENFERMAGEM = 'enfermagem',
+  CONTABILIDADE = 'contabilidade',
+}
 
 @Entity('usuarios') // 👈 nome da tabela no banco
 export class User {
@@ -34,6 +39,9 @@ export class User {
   @Column({ default: 1})
   ano!: number;
 
+  @Column({type: 'enum', enum: UserTurma})
+  turma!: string;
+  
   @CreateDateColumn()
   criado_em!: Date;
 
