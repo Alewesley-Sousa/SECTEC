@@ -1,7 +1,13 @@
 const DEFAULT_API_URL = "http://localhost:3000/api";
 
 function normalizeApiBaseUrl(rawUrl?: string) {
-  const baseUrl = (rawUrl?.trim() || DEFAULT_API_URL).replace(/\/+$/, "");
+  const configuredUrl = rawUrl?.trim();
+
+  if (!configuredUrl && import.meta.env.PROD) {
+    throw new Error("VITE_API_URL não configurada no frontend.");
+  }
+
+  const baseUrl = (configuredUrl || DEFAULT_API_URL).replace(/\/+$/, "");
   return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
 }
 
