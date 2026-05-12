@@ -13,25 +13,25 @@ export enum UserRole {
 @Entity('usuarios') // 👈 nome da tabela no banco
 export class User {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  nome: string;
+  nome!: string;
 
   @Column({ unique: true })
-  email_institucional: string;
+  email_institucional!: string;
 
   @Column({ type: 'enum', enum: UserRole })
-  role_cargo: UserRole;
+  role_cargo!: UserRole;
 
   @Column({ select: false })
-  senha: string;        // 👈 campo é 'senha' no seu banco
+  senha!: string;        // 👈 campo é 'senha' no seu banco
 
   @Column({ default: true })
-  ativo: boolean;
+  ativo!: boolean;
 
   @CreateDateColumn()
-  criado_em: Date;
+  criado_em!: Date;
 
   // relacionamento de alunos com seus projetos
   @OneToMany(() => ProjetoAluno, (projetoAluno) => projetoAluno.aluno)

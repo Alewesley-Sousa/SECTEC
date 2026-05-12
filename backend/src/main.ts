@@ -19,6 +19,17 @@ async function bootstrap() {
     .setDescription('Sistema de Gerenciamento de Projetos - SECTEC')
     .setVersion('1.0')
     .addTag('projetos')
+    .addBearerAuth( // 👈 Adicione isso aqui
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Insira o token JWT',
+        in: 'header',
+      },
+      'access-token', // Este nome deve coincidir com o que você usa no @ApiBearerAuth()
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
