@@ -5,25 +5,35 @@ import { UsersSeed } from './users/users.seed';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // 1. Defina um prefixo global para todas as rotas da API (ex: /api)
+  app.setGlobalPrefix('api'); 
+
   const seedService = app.get(UsersSeed);
   await seedService.run();
-  // Permite que o frontend acesse a API
   app.enableCors();
 
-  // --- CONFIGURAÇÃO DO SWAGGER ---
+  // 2. CONFIGURAÇÃO DO SWAGGER
   const config = new DocumentBuilder()
     .setTitle('API SECTEC')
     .setDescription('Sistema de Gerenciamento de Projetos - SECTEC')
     .setVersion('1.0')
-    .addTag('projetos') // Organiza as rotas por tag
+    .addTag('projetos')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document); 
-  // O link será: http://localhost:3000/api
-  // -------------------------------
+  
+  // 3. Mude o endpoint do Swagger para /docs ou algo diferente de /api
+  // Se o Swagger ficar em /api, ele "atropela" as rotas reais da sua API
+  SwaggerModule.setup('docs', app, document); 
 
   await app.listen(process.env.PORT ?? 3000);
-  console.log(`🚀 Servidor rodando em: http://localhost:3000/api`);
+  
+  // Agora você terá:
+  // API em: http://localhost:3000/api/...
+  // Swagger em: http://localhost:3000/docs
+  console.log(`🚀 API rodando em: http://localhost:3000/api`);
+  console.log(`📑 Swagger rodando em: http://localhost:3000/docs`);
 }
+
 bootstrap();
