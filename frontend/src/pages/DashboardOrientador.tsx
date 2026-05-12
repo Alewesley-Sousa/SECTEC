@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
@@ -27,6 +27,7 @@ import EixoDropdown, {
   EIXOS_LIST,
   type EixoTematico,
 } from "../componentes/EixoDropdown";
+import { apiRequest } from "../lib/api";
 
 type EixoProjeto = Exclude<EixoTematico, "todos">;
 type Risco = "alto" | "medio" | "baixo";
@@ -64,6 +65,7 @@ type Entrega = RegistroComEixo & {
 
 type Projeto = RegistroComEixo & {
   id: string;
+  orientacaoId?: number;
   titulo: string;
   equipe: string;
   turma: string;
@@ -454,6 +456,33 @@ const alertasIniciais: AlertaConfig[] = [
   },
 ];
 
+type UsuarioProjetoApi = {
+  id: number | string;
+  nome: string;
+  ano?: number;
+};
+
+type ProjetoApi = {
+  id: number;
+  titulo: string;
+  descricao?: string;
+  temaId?: number;
+  criadoEm?: string;
+  alunoAutor?: UsuarioProjetoApi;
+  projetoAlunos?: Array<{
+    id?: number | string;
+    aluno?: UsuarioProjetoApi;
+  }>;
+};
+
+type OrientacaoApi = {
+  id: number;
+  status: "pendente" | "aceito" | "recusado";
+  criadoEm?: string;
+  respondidoEm?: string | null;
+  projeto?: ProjetoApi;
+};
+
 const rubrica = [
   ["Pesquisa", "Problema, objetivo, justificativa, fontes e metodologia."],
   ["Protótipo", "Funcionamento, teste, aplicação prática e evidências."],
@@ -462,9 +491,166 @@ const rubrica = [
 ];
 
 const diasAgenda = ["Seg", "Ter", "Qua", "Qui", "Sex"];
+const eixosProjeto = EIXOS_LIST.filter((eixo): eixo is EixoProjeto => eixo !== "todos");
+const eixoLabels: Record<EixoProjeto, string> = {
+  tecnologia: "Tecnologia e Inovação",
+  sustentabilidade: "Sustentabilidade Ambiental",
+  sociedade: "Sociedade e Cidadania",
+  energia: "Energia e Recursos Naturais",
+  educacao: "Educação",
+  saude: "Saúde e Bem-estar",
+};
 
 function cx(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function eixoFromTemaId(temaId?: number): EixoProjeto {
+  if (!temaId || temaId < 1) return "tecnologia";
+  return eixosProjeto[(temaId - 1) % eixosProjeto.length];
+}
+
+function formatBackendDate(value?: string | null) {
+  if (!value) return "Sem data";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sem data";
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function turmaFromProjeto(projeto?: ProjetoApi) {
+  const ano = projeto?.alunoAutor?.ano ?? projeto?.projetoAlunos?.find((item) => item.aluno?.ano)?.aluno?.ano;
+  return ano ? `${ano}º ano` : "Turma não informada";
+}
+
+function liderFromProjeto(projeto?: ProjetoApi) {
+  return projeto?.alunoAutor?.nome ?? projeto?.projetoAlunos?.[0]?.aluno?.nome ?? "Aluno não informado";
+}
+
+function integrantesFromProjeto(projeto?: ProjetoApi) {
+  const ids = new Set<number | string>();
+
+  if (projeto?.alunoAutor?.id) ids.add(projeto.alunoAutor.id);
+  projeto?.projetoAlunos?.forEach((item) => {
+    if (item.aluno?.id) ids.add(item.aluno.id);
+  });
+
+  return Math.max(ids.size, 1);
+}
+
+function statusProjetoFromOrientacao(status: OrientacaoApi["status"]): StatusProjeto {
+  if (status === "aceito") return "aprovado";
+  if (status === "recusado") return "ajustes";
+  return "aguardando";
+}
+
+function riscoFromOrientacao(status: OrientacaoApi["status"]): Risco {
+  if (status === "pendente") return "alto";
+  if (status === "recusado") return "medio";
+  return "baixo";
+}
+
+function progressoFromOrientacao(status: OrientacaoApi["status"]) {
+  if (status === "aceito") return 75;
+  if (status === "recusado") return 35;
+  return 45;
+}
+
+function mapOrientacaoToProjeto(orientacao: OrientacaoApi): Projeto {
+  const projeto = orientacao.projeto;
+  const eixoSlug = eixoFromTemaId(projeto?.temaId);
+
+  return {
+    id: `orientacao-${orientacao.id}`,
+    orientacaoId: orientacao.id,
+    titulo: projeto?.titulo ?? "Projeto sem título",
+    equipe: liderFromProjeto(projeto),
+    turma: turmaFromProjeto(projeto),
+    enviadoEm: formatBackendDate(orientacao.criadoEm),
+    status: statusProjetoFromOrientacao(orientacao.status),
+    eixoSlug,
+  };
+}
+
+function mapOrientacaoToEquipe(orientacao: OrientacaoApi): Equipe {
+  const projeto = orientacao.projeto;
+  const eixoSlug = eixoFromTemaId(projeto?.temaId);
+  const lider = liderFromProjeto(projeto);
+
+  return {
+    id: `orientacao-${orientacao.id}`,
+    nome: projeto?.titulo ? `Equipe ${projeto.titulo}` : `Equipe ${lider}`,
+    turma: turmaFromProjeto(projeto),
+    eixo: eixoLabels[eixoSlug],
+    eixoSlug,
+    tema: projeto?.descricao ?? projeto?.titulo ?? "Projeto sem descrição cadastrada",
+    lider,
+    integrantes: integrantesFromProjeto(projeto),
+    progresso: progressoFromOrientacao(orientacao.status),
+    ultimoContato: orientacao.respondidoEm ? formatBackendDate(orientacao.respondidoEm) : formatBackendDate(orientacao.criadoEm),
+    proximaReuniao: "A definir",
+    risco: riscoFromOrientacao(orientacao.status),
+  };
+}
+
+function useOrientadorBackendData() {
+  const [orientacoes, setOrientacoes] = useState<OrientacaoApi[] | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function carregar() {
+      setCarregando(true);
+
+      try {
+        const data = await apiRequest<OrientacaoApi[]>("/orientacoes");
+        if (!active) return;
+        setOrientacoes(data);
+        setErro("");
+      } catch (error) {
+        if (!active) return;
+        setOrientacoes(null);
+        setErro(error instanceof Error ? error.message : "Não foi possível carregar as orientações do backend.");
+      } finally {
+        if (active) setCarregando(false);
+      }
+    }
+
+    carregar();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const equipes = useMemo(() => orientacoes?.map(mapOrientacaoToEquipe) ?? null, [orientacoes]);
+  const projetos = useMemo(() => orientacoes?.map(mapOrientacaoToProjeto) ?? null, [orientacoes]);
+
+  async function responderProjeto(projeto: Projeto, status: StatusProjeto) {
+    if (!projeto.orientacaoId) return false;
+
+    const action = status === "aprovado" ? "aceito" : "recusado";
+    const orientacaoAtualizada = await apiRequest<OrientacaoApi>(`/orientacoes/${projeto.orientacaoId}/responder`, {
+      method: "PATCH",
+      body: { action },
+    });
+
+    setOrientacoes((lista) =>
+      lista?.map((orientacao) => (orientacao.id === orientacaoAtualizada.id ? orientacaoAtualizada : orientacao)) ?? lista
+    );
+
+    return true;
+  }
+
+  return { equipes, projetos, carregando, erro, responderProjeto };
 }
 
 function useStoredState<T>(key: string, initialValue: T) {
@@ -840,13 +1026,25 @@ function EquipeRow({
 }
 
 function DashboardOrientador() {
+  const backend = useOrientadorBackendData();
   const [eixoAtivo, setEixoAtivo] = useState<EixoTematico>("todos");
-  const [equipesData, setEquipesData] = useStoredState("sectec:equipes", equipesIniciais);
+  const [equipesLocais, setEquipesLocais] = useStoredState("sectec:equipes", equipesIniciais);
   const [entregasData] = useStoredState("sectec:entregas", entregasIniciais);
-  const [projetosData, setProjetosData] = useStoredState("sectec:projetos", projetosIniciais);
+  const [projetosLocais, setProjetosLocais] = useStoredState("sectec:projetos", projetosIniciais);
   const [agendaData, setAgendaData] = useStoredState("sectec:agenda", agendaInicial);
   const [aviso, setAviso] = useState("");
   const [equipeAberta, setEquipeAberta] = useState<Equipe | null>(null);
+  const [contatosAtualizados, setContatosAtualizados] = useState<Record<string, string>>({});
+
+  const equipesBase = backend.equipes ?? equipesLocais;
+  const equipesData = useMemo(
+    () =>
+      equipesBase.map((equipe) =>
+        contatosAtualizados[equipe.id] ? { ...equipe, ultimoContato: contatosAtualizados[equipe.id] } : equipe
+      ),
+    [contatosAtualizados, equipesBase]
+  );
+  const projetosData = backend.projetos ?? projetosLocais;
 
   const equipesFiltradas = useMemo(() => filterByEixo(equipesData, eixoAtivo), [equipesData, eixoAtivo]);
   const entregasFiltradas = useMemo(() => filterByEixo(entregasData, eixoAtivo), [entregasData, eixoAtivo]);
@@ -883,15 +1081,31 @@ function DashboardOrientador() {
     const equipe = equipesFiltradas[0] ?? equipesData[0];
     if (!equipe) return;
 
-    setEquipesData((lista) =>
-      lista.map((item) => (item.id === equipe.id ? { ...item, ultimoContato: `Hoje, ${formatShortNow()}` } : item))
-    );
+    const contato = `Hoje, ${formatShortNow()}`;
+
+    if (backend.equipes) {
+      setContatosAtualizados((lista) => ({ ...lista, [equipe.id]: contato }));
+    } else {
+      setEquipesLocais((lista) => lista.map((item) => (item.id === equipe.id ? { ...item, ultimoContato: contato } : item)));
+    }
+
     mostrarAviso(`Último contato atualizado para ${equipe.nome}.`);
   }
 
-  function atualizarProjeto(id: string, status: StatusProjeto) {
-    setProjetosData((lista) => lista.map((projeto) => (projeto.id === id ? { ...projeto, status } : projeto)));
-    mostrarAviso(status === "aprovado" ? "Projeto aprovado." : "Projeto marcado para ajustes.");
+  async function atualizarProjeto(id: string, status: StatusProjeto) {
+    const projeto = projetosData.find((item) => item.id === id);
+
+    try {
+      const atualizadoNoBackend = projeto ? await backend.responderProjeto(projeto, status) : false;
+
+      if (!atualizadoNoBackend) {
+        setProjetosLocais((lista) => lista.map((item) => (item.id === id ? { ...item, status } : item)));
+      }
+
+      mostrarAviso(status === "aprovado" ? "Projeto aprovado." : "Projeto marcado para ajustes.");
+    } catch (error) {
+      mostrarAviso(error instanceof Error ? error.message : "Não foi possível atualizar o projeto.");
+    }
   }
 
   return (
@@ -912,7 +1126,12 @@ function DashboardOrientador() {
         </>
       }
     >
-      <Notice message={aviso} />
+      <Notice
+        message={
+          aviso ||
+          (backend.carregando ? "Carregando dados do backend..." : backend.erro ? `Usando dados locais: ${backend.erro}` : "")
+        }
+      />
 
       <FiltroEixoBox
         eixoAtivo={eixoAtivo}
@@ -1073,8 +1292,10 @@ function DashboardOrientador() {
 }
 
 export function TurmasOrientador() {
+  const backend = useOrientadorBackendData();
   const [eixoAtivo, setEixoAtivo] = useState<EixoTematico>("todos");
-  const [equipesData] = useStoredState("sectec:equipes", equipesIniciais);
+  const [equipesLocais] = useStoredState("sectec:equipes", equipesIniciais);
+  const equipesData = backend.equipes ?? equipesLocais;
   const equipesFiltradas = useMemo(() => filterByEixo(equipesData, eixoAtivo), [equipesData, eixoAtivo]);
 
   return (
@@ -1089,6 +1310,12 @@ export function TurmasOrientador() {
         </Button>
       }
     >
+      <Notice
+        message={
+          backend.carregando ? "Carregando dados do backend..." : backend.erro ? `Usando dados locais: ${backend.erro}` : ""
+        }
+      />
+
       <FiltroEixoBox
         eixoAtivo={eixoAtivo}
         onChange={setEixoAtivo}
