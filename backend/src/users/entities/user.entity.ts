@@ -7,7 +7,8 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany } f
 export enum UserRole {
   ALUNO = 'aluno',
   ORIENTADOR = 'orientador',
-  COORDENACAO = 'coordenador', // 👈 igual ao enum do banco
+  COORDENACAO = 'coordenador',
+  COMISSAO = 'comissao', // 👈 igual ao enum do banco
 }
 
 @Entity('usuarios') // 👈 nome da tabela no banco
@@ -29,6 +30,9 @@ export class User {
 
   @Column({ default: true })
   ativo!: boolean;
+
+  @Column({ default: 1})
+  ano!: number;
 
   @CreateDateColumn()
   criado_em!: Date;
