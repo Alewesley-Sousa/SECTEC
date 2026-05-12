@@ -75,8 +75,9 @@ export class ProjectFile {
   fileSizeBytes: number;
 
   /** Número de páginas do PDF (preenchido após parse, pode ser null inicialmente) */
-  @Column({ name: 'page_count', nullable: true, default: null })
+  @Column({ name: 'page_count', type: 'int', nullable: true, default: null }) // 👈 Adicionado type: 'int'
   pageCount: number | null;
+
 
   /**
    * Status de integridade do arquivo:
