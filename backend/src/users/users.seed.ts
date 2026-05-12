@@ -13,16 +13,27 @@ export class UsersSeed {
 
   async run() {
     const emailAluno = 'aluno@sectec.com';
+    const emailOrientador = 'orientador@sectec.com';
+    const emailCoordenador = 'coordenador@sectec.com';
 
     // 1. Procura o usuário existente pelo email
     const existe = await this.usuarioRepository.findOne({ 
       where: { email_institucional: emailAluno } 
     });
+    const existeOri = await this.usuarioRepository.findOne({ 
+      where: { email_institucional: emailOrientador } 
+    });
+    const existeCoo = await this.usuarioRepository.findOne({ 
+      where: { email_institucional: emailCoordenador } 
+    });
 
     // 2. Se existir, apaga o registro antigo (limpeza para garantir o hash novo)
     if (existe) {
-      console.log(`🧹 Removendo registro antigo de: ${emailAluno}`);
+      console.log(`🧹 Removendo registro antigo de: ${emailAluno},
+      ${emailCoordenador}, ${emailOrientador}`);
       await this.usuarioRepository.remove(existe);
+      await this.usuarioRepository.remove(existeOri);
+      await this.usuarioRepository.remove(existeCoo);
     }
 
     // 3. Gera o salt e o hash da senha
@@ -36,6 +47,21 @@ export class UsersSeed {
       email_institucional: emailAluno,
       senha: senhaHashed,
       role_cargo: UserRole.ALUNO,
+      ativo: true,
+    });
+    
+    const aluno = this.usuarioRepository.create({
+      nome: 'Orientador Teste SECTEC',
+      email_institucional: emailOrientador,
+      senha: senhaHashed,
+      role_cargo: UserRole.ORIENTADOR,
+      ativo: true,
+    });
+    const aluno = this.usuarioRepository.create({
+      nome: 'Coordenador Teste SECTEC',
+      email_institucional: emailCoordenador,
+      senha: senhaHashed,
+      role_cargo: UserRole.COORDENADOR,
       ativo: true,
     });
 
