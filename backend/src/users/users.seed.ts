@@ -12,65 +12,55 @@ export class UsersSeed {
   ) {}
 
   async run() {
-    const emailAluno = 'aluno@sectec.com';
-    const emailOrientador = 'orientador@sectec.com';
-    const emailCoordenador = 'coordenador@sectec.com';
-
-    // 1. Procura o usuário existente pelo email
-    const existe = await this.usuarioRepository.findOne({ 
-      where: { email_institucional: emailAluno } 
-    });
-    const existeOri = await this.usuarioRepository.findOne({ 
-      where: { email_institucional: emailOrientador } 
-    });
-    const existeCoo = await this.usuarioRepository.findOne({ 
-      where: { email_institucional: emailCoordenador } 
-    });
-
-    // 2. Se existir, apaga o registro antigo (limpeza para garantir o hash novo)
-    if (existe) {
-      console.log(`🧹 Removendo registro antigo de: ${emailAluno},
-      ${emailCoordenador}, ${emailOrientador}`);
-      await this.usuarioRepository.remove(existe);
-      await this.usuarioRepository.remove(existeOri);
-      await this.usuarioRepository.remove(existeCoo);
-    }
-
-    // 3. Gera o salt e o hash da senha
-    // Usar bcrypt garante que a senha não fique legível no banco de dados
     const salt = await bcrypt.genSalt(10);
     const senhaHashed = await bcrypt.hash('Senha123@', salt);
 
-    // 4. Cria o novo registro com a senha protegida
-    const aluno = this.usuarioRepository.create({
-      nome: 'Aluno Teste SECTEC',
-      email_institucional: emailAluno,
-      senha: senhaHashed,
-      role_cargo: UserRole.ALUNO,
-      ativo: true,
-    });
-    
-    const aluno = this.usuarioRepository.create({
-      nome: 'Orientador Teste SECTEC',
-      email_institucional: emailOrientador,
-      senha: senhaHashed,
-      role_cargo: UserRole.ORIENTADOR,
-      ativo: true,
-    });
-    const aluno = this.usuarioRepository.create({
-      nome: 'Coordenador Teste SECTEC',
-      email_institucional: emailCoordenador,
-      senha: senhaHashed,
-      role_cargo: UserRole.COORDENADOR,
-      ativo: true,
-    });
+    // Definimos os usuários em um array para evitar repetição de código
+    const seedUsers = [
+      {
+        nome: 'Aluno Teste SECTEC',
+        email: 'aluno@sectec.com',
+        role: UserRole.ALUNO,
+      },
+      {
+        nome: 'Orientador Teste SECTEC',
+        email: 'orientador@sectec.com',
+        role: UserRole.ORIENTADOR,
+      },
+      {
+        nome: 'Coordenador Teste SECTEC',
+        email: 'coordenador@sectec.com',
+        role: UserRole.COORDENACAO, // 👈 Ajustado para COORDENACAO (conforme seu erro anterior)
+      },
+    ];
 
-    await this.usuarioRepository.save(aluno);
+    for (const u of seedUsers) {
+      // 1. Verifica se o usuário já existe
+      const existe = await this.usuarioRepository.findOne({ 
+        where: { email_institucional: u.email } 
+      });
+
+      // 2. Se existir, remove para atualizar com o novo hash
+      if (existe) {
+        console.log(`🧹 Atualizando registro: ${u.email}`);
+        await this.usuarioRepository.remove(existe);
+      }
+
+      // 3. Cria e salva o novo usuário
+      const novoUsuario = this.usuarioRepository.create({
+        nome: u.nome,
+        email_institucional: u.email,
+        senha: senhaHashed,
+        role_cargo: u.role,
+        ativo: true,
+      });
+
+      await this.usuarioRepository.save(novoUsuario);
+    }
     
     console.log('---------------------------------------');
-    console.log('✅ Seed de Usuário atualizada com Hash!');
-    console.log('📧 Email:', emailAluno);
-    console.log('🔑 Senha: Senha123@');
+    console.log('✅ Seeds finalizadas com sucesso!');
+    console.log('🔑 Senha padrão: Senha123@');
     console.log('---------------------------------------');
   }
 }
