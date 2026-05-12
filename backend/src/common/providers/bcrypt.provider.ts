@@ -1,4 +1,4 @@
-import * as bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcrypt';
 import { HashingProvider } from './hashing.provider'; // 👈 import que estava faltando
 
 export class BcryptProvider extends HashingProvider {
