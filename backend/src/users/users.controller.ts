@@ -2,6 +2,7 @@ import { Controller, FileTypeValidator, Get, MaxFileSizeValidator, ParseFilePipe
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UsersService } from './users.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiOperation } from '@nestjs/swagger';
 
 @Controller('users')
 // @UseGuards(JwtAuthGuard)
@@ -19,6 +20,19 @@ export class UsersController {
   }
 
   @Post('upload-csv')
+  @ApiOperation({ summary: 'Faz upload de um arquivo CSV para processamento de usuários' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { // Este nome deve ser igual ao do FileInterceptor('file')
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file'))
   uploadCsv(
     @UploadedFile(
