@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/login';
 import Dashboard from './pages/DashboardAluno';
@@ -13,8 +14,29 @@ import DashboardOrientador, {
 } from './pages/DashboardOrientador';
 
 function App() {
-  const token = localStorage.getItem('token');
-  const role = localStorage.getItem('role');
+  const [auth, setAuth] = useState(() => ({
+    token: localStorage.getItem('token'),
+    role: localStorage.getItem('role'),
+  }));
+
+  useEffect(() => {
+    const readAuth = () =>
+      setAuth({
+        token: localStorage.getItem('token'),
+        role: localStorage.getItem('role'),
+      });
+
+    readAuth();
+    window.addEventListener('storage', readAuth);
+    window.addEventListener('auth-change', readAuth);
+
+    return () => {
+      window.removeEventListener('storage', readAuth);
+      window.removeEventListener('auth-change', readAuth);
+    };
+  }, []);
+
+  const { token, role } = auth;
   const isBackendRole = (value: string | null): value is BackendRole =>
     value === 'aluno' || value === 'orientador' || value === 'coordenador';
   const backendRole = isBackendRole(role) ? role : null;
