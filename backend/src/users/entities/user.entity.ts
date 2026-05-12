@@ -39,8 +39,8 @@ export class User {
   @Column({ default: 1})
   ano!: number;
 
-  @Column({type: 'enum', enum: UserTurma})
-  turma!: string;
+  @Column({type: 'enum', enum: UserTurma, nullable: true})
+  turma!: UserTurma | null;
   
   @CreateDateColumn()
   criado_em!: Date;
