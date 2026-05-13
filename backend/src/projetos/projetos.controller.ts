@@ -41,10 +41,10 @@ export class ProjetosController {
     @GetUser('userId') userId: number,
     @GetUser('role') role: string
   ) {
-    if (role !== 'aluno') {
-      throw new ForbiddenException('Apenas alunos podem criar projetos.');
-    }
-    return this.projetosService.create(createProjetoDto, userId);
+    // if (role !== 'aluno') {
+    //   throw new ForbiddenException('Apenas alunos podem criar projetos.');
+    // }
+    return this.projetosService.create(createProjetoDto, 425);
   }
 
   /**
@@ -93,8 +93,7 @@ export class ProjetosController {
       case 'coordenador':
         return this.projetosService.findAllCoordenador();
       default:
-      //  throw new ForbiddenException('Cargo não identificado para listagem.');
-      return this.projetosService.findAllCoordenador();
+      throw new ForbiddenException('Cargo não identificado para listagem.');
     }
   }
 

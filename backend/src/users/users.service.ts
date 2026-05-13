@@ -35,7 +35,7 @@ export class UsersService {
   async findAllAlunos() {
     return this.usersRepository.find({
       where: { role_cargo: UserRole.ALUNO, ativo: true },
-      select: ['id', 'nome', 'email_institucional', 'senha'],
+      select: ['id', 'nome', 'email_institucional', 'turma'],
     });
   }
 

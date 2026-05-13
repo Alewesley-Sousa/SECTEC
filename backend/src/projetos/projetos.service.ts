@@ -58,9 +58,10 @@ export class ProjetosService {
    * @throws BadRequestException Se o grupo for inválido ou alunos já estiverem ocupados
    */
   async create(dto: CreateProjetoDto, userId: number): Promise<Projeto> {
-    await this.validarEventoETema(dto.evento, dto.temaId); // 👈 Nova validação
+  	const ultimoEvento = await this.buscarUltimoEvento();
+    await this.validarEventoETema(ultimoEvento.id, dto.temaId); // 👈 Nova validação
     this.validateGroupSize(dto.alunosIds);
-    await this.ensureAlunosAreAvailable(dto.evento, [...(dto.alunosIds || []), userId]);
+    await this.ensureAlunosAreAvailable(ultimoEvento.id, [...(dto.alunosIds || []), userId]);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -251,51 +252,73 @@ export class ProjetosService {
   /**
    * Atualiza dados do projeto. Regras de permissão variam por Role.
    */
-  async update(id: number, dto: UpdateProjetoDto, userId: number, role: string): Promise<Projeto> {
-    const projeto = await this.findOne(id);
+async update(id: number, dto: UpdateProjetoDto, userId: number, role: string): Promise<Projeto> {
+  const projeto = await this.findOne(id); // Já traz o evento nas relations
 
-    if (role !== 'coordenador' && projeto.alunoAutor.id !== userId) {
-      throw new ForbiddenException('Sem permissão para editar este projeto.');
-    }
-
-    if (dto.alunosIds && role !== 'coordenador') {
-      throw new ForbiddenException('Apenas coordenadores alteram integrantes.');
-    }
-
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const dadosAtualizados = {
-        ...dto,
-        ...(dto.evento && { evento: { id: dto.evento } as any }),
-        alunoAutor: { id: projeto.alunoAutor.id } as any,
-      };
-
-      this.projetoRepository.merge(projeto, dadosAtualizados);
-      await queryRunner.manager.save(projeto);
-
-      if (dto.alunosIds && role === 'coordenador') {
-        await queryRunner.manager.delete(ProjetoAluno, { projeto: { id: projeto.id } });
-        await this.saveParticipantes(queryRunner, projeto.id, dto.alunosIds, projeto.alunoAutor.id);
-      }
-
-      await queryRunner.commitTransaction();
-      await this.auditoriaService.registrar(
-        userId,
-        'PROJETO_ATUALIZADO',
-        `Projeto #${id} atualizado por usuario com cargo "${role}".`,
-        id,
-      );
-      return this.findOne(id);
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
+  // 1. Verificações de permissão
+  if (role !== 'coordenador' && projeto.alunoAutor.id !== userId) {
+    throw new ForbiddenException('Sem permissão para editar este projeto.');
   }
+
+  if (dto.alunosIds && role !== 'coordenador') {
+    throw new ForbiddenException('Apenas coordenadores alteram integrantes.');
+  }
+
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
+  try {
+    // 2. Definir qual evento usar: 
+    // Prioridade: 1. O que veio no DTO | 2. O que já estava no projeto | 3. O último do sistema
+    let eventoId = dto.evento || projeto.evento?.id;
+    
+    if (!eventoId) {
+      const ultimo = await this.buscarUltimoEvento();
+      eventoId = ultimo.id;
+    }
+
+    const dadosAtualizados = {
+      ...dto,
+      evento: { id: eventoId } as any,
+      alunoAutor: { id: projeto.alunoAutor.id } as any,
+    };
+
+    // Removemos propriedades que não pertencem à entidade antes do merge se necessário
+    delete (dadosAtualizados as any).temaId; 
+
+    this.projetoRepository.merge(projeto, dadosAtualizados);
+    
+    // Se o temaId mudou, precisamos atualizar a relação manualmente ou via merge
+    if (dto.temaId) {
+      projeto.temaId = { id: dto.temaId } as any;
+    }
+
+    await queryRunner.manager.save(projeto);
+
+    // 3. Atualizar integrantes (apenas coordenador)
+    if (dto.alunosIds && role === 'coordenador') {
+      await queryRunner.manager.delete(ProjetoAluno, { projeto: { id: projeto.id } });
+      await this.saveParticipantes(queryRunner, projeto.id, dto.alunosIds, projeto.alunoAutor.id);
+    }
+
+    await queryRunner.commitTransaction();
+    
+    await this.auditoriaService.registrar(
+      userId,
+      'PROJETO_ATUALIZADO',
+      `Projeto #${id} atualizado por usuario com cargo "${role}".`,
+      id,
+    );
+
+    return this.findOne(id);
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw err;
+  } finally {
+    await queryRunner.release();
+  }
+}
 
   /**
    * Remove um projeto do sistema.
@@ -424,16 +447,32 @@ export class ProjetosService {
   }
 
   /**
- * Valida se o evento existe e se o tema pertence a ele.
- */
+   * Valida se o evento existe, se está dentro do prazo e se o tema pertence a ele.
+   */
   private async validarEventoETema(eventoId: number, temaId: number) {
-    // Verifica se o evento existe
+    // 1. Busca o evento para verificar existência e prazos
     const evento = await this.eventoRepository.findOne({ where: { id: eventoId } });
+    
     if (!evento) {
       throw new NotFoundException(`O evento #${eventoId} não existe.`);
     }
 
-    // Verifica se o tema existe e está vinculado a esse evento
+    // 2. Validação de Prazo (Data de Início e Fim)
+    const agora = new Date();
+
+    if (agora < evento.prazoInicial) {
+      throw new BadRequestException(
+        `As inscrições para este evento ainda não começaram. (Início: ${evento.prazoInicial.toLocaleString()})`
+      );
+    }
+
+    if (agora > evento.prazoFinal) {
+      throw new BadRequestException(
+        `O prazo de inscrição para este evento encerrou em ${evento.prazoFinal.toLocaleString()}.`
+      );
+    }
+
+    // 3. Verifica se o tema existe e está vinculado a esse evento
     const temaValido = await this.temaEventoRepository.findOne({
       where: {
         id: temaId,
@@ -445,5 +484,21 @@ export class ProjetosService {
       throw new BadRequestException('O tema selecionado não pertence a este evento ou não existe.');
     }
   }
+
+	/**
+ * Busca o evento mais recente cadastrado no sistema.
+ */
+private async buscarUltimoEvento(): Promise<Evento> {
+  const ultimoEvento = await this.eventoRepository.findOne({
+    where: {},
+    order: { criadoEm: 'DESC' },
+  });
+
+  if (!ultimoEvento) {
+    throw new NotFoundException('Não há nenhum evento cadastrado no sistema.');
+  }
+
+  return ultimoEvento;
+}
 
 }

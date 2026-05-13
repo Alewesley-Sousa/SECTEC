@@ -28,8 +28,8 @@ export class CreateProjetoDto {
   subTema?: string;
 
   @IsNumber()
-  @IsNotEmpty()
-  evento: number;
+@IsOptional()
+  evento?: number;
 
   @IsArray()
   @IsOptional() // Opcional caso o projeto possa ser individual inicialmente
