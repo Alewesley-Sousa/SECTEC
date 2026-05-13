@@ -38,7 +38,7 @@ export class ProjetosController {
   @Post()
   async create(
     @Body() createProjetoDto: CreateProjetoDto, 
-    @GetUser('sub') userId: number,
+    @GetUser('userId') userId: number,
     @GetUser('role') role: string
   ) {
     if (role !== 'aluno') {
@@ -53,7 +53,7 @@ export class ProjetosController {
    */
   @Post('solicitar-orientador')
   async solicitarOrientador(
-    @GetUser('sub') userId: number,
+    @GetUser('userId') userId: number,
     @GetUser('role') role: string,
     @Body('orientadorId', ParseIntPipe) orientadorId: number
   ) {
@@ -75,7 +75,7 @@ export class ProjetosController {
    */
   @Get()
   async findAll(
-    @GetUser('sub') userId: number,
+    @GetUser('userId') userId: number,
     @GetUser('role') role: string 
   ) {
     switch (role) {
@@ -97,7 +97,7 @@ export class ProjetosController {
   @Get(':id')
   async findOne(
     @Param('id', ParseIntPipe) id: number, 
-    @GetUser('sub') userId: number,
+    @GetUser('userId') userId: number,
     @GetUser('role') role: string
   ) {
     const projeto = await this.projetosService.findOne(id);
@@ -122,7 +122,7 @@ export class ProjetosController {
   async update(
     @Param('id', ParseIntPipe) id: number, 
     @Body() updateProjetoDto: UpdateProjetoDto,
-    @GetUser('sub') userId: number,
+    @GetUser('userId') userId: number,
     @GetUser('role') role: string
   ) {
     return this.projetosService.update(id, updateProjetoDto, userId, role);
@@ -135,7 +135,7 @@ export class ProjetosController {
   @Delete(':id')
   async remove(
     @Param('id', ParseIntPipe) id: number, 
-    @GetUser('sub') userId: number,
+    @GetUser('userId') userId: number,
     @GetUser('role') role: string
   ) {
     return this.projetosService.remove(id, userId, role);
