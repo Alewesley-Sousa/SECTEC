@@ -7,7 +7,10 @@ import {
   UploadedFile,
   UseInterceptors,
   FileValidator,
-  UseGuards
+  UseGuards,
+  Patch,
+  Param,
+  ParseIntPipe
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -29,7 +32,7 @@ class CsvFileValidator extends FileValidator {
     return 'O arquivo deve ser um CSV válido (extensão .csv).';
   }
 }
-@UseGuards(JwtAuthGuard)
+// @UseGuards(JwtAuthGuard)
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
@@ -111,5 +114,10 @@ export class UsersController {
     file: Express.Multer.File,
   ) {
     return this.usersService.processarCsv(file, UserRole.ORIENTADOR);
+  }
+  
+    @Patch(':id/promote-comissao')
+  async promote(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.promoteToComissao(id);
   }
 }

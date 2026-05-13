@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException,
+NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserTurma, UserRole } from './entities/user.entity';
@@ -138,5 +139,22 @@ export class UsersService {
       }
       throw new InternalServerErrorException('Erro ao salvar usuários no banco de dados.');
     }
+  }
+  
+  async promoteToComissao(id: number): Promise<User> {
+    const user = await this.usersRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`Usuário com ID ${id} não encontrado.`);
+    }
+
+    // Regra de negócio: Apenas quem é ALUNO pode virar COMISSÃO nesta rota
+    if (user.role_cargo !== UserRole.ALUNO) {
+      throw new BadRequestException('Apenas usuários com cargo de ALUNO podem ser movidos para a COMISSÃO.');
+    }
+
+    user.role_cargo = UserRole.COMISSAO;
+    
+    return this.usersRepository.save(user);
   }
 }
