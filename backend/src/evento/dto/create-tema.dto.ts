@@ -1,8 +1,9 @@
-import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsArray, ArrayMinSize } from 'class-validator';
 
-export class CreateTemaDto {
-  @IsString()
-  @IsNotEmpty({ message: 'O nome do eixo temático não pode estar vazio' })
-  @MaxLength(255)
-  nome: string;
+export class CreateTemasDto {
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Forneça pelo menos um eixo temático.' })
+  @IsString({ each: true, message: 'Cada tema deve ser uma string.' })
+  @MaxLength(255, { each: true })
+  nomes: string[];
 }

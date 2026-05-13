@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
-import { CreateTemaDto } from './dto/create-tema.dto';
+import { CreateTemasDto } from './dto/create-tema.dto';
 import { Evento } from './entities/evento.entity';
 import { TemaEvento } from './entities/tema-evento.entity';
 
@@ -53,14 +53,19 @@ export class EventoService {
   }
 
   // Novo método para resolver o erro do Controller
-  async addTema(eventoId: number, createTemaDto: CreateTemaDto) {
-    const evento = await this.findOne(eventoId); // Valida se o evento existe
+  async addTemas(eventoId: number, createTemasDto: CreateTemasDto) {
+  const evento = await this.findOne(eventoId);
 
-    const novoTema = this.temaRepository.create({
-      nome: createTemaDto.nome,
-      evento: evento, // Associa o objeto do evento
+  // Criamos um array de objetos "Tema"
+  const novosTemas = createTemasDto.nomes.map(nome => {
+    return this.temaRepository.create({
+      nome,
+      evento,
     });
+  });
 
-    return await this.temaRepository.save(novoTema);
-  }
+  // Salva todos de uma vez
+  return await this.temaRepository.save(novosTemas);
+}
+
 }

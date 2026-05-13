@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from 
 import { EventoService } from './evento.service';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
-import { CreateTemaDto } from './dto/create-tema.dto'; // Certifique-se de ter criado este DTO
+import { CreateTemasDto } from './dto/create-tema.dto'; // Certifique-se de ter criado este DTO
 
 @Controller('evento')
 export class EventoController {
@@ -17,13 +17,15 @@ export class EventoController {
    * Adiciona um novo eixo temático a um evento específico via formulário
    * Rota: POST /evento/:id/temas
    */
-  @Post(':id/temas')
-  addTema(
-    @Param('id', ParseIntPipe) id: number, 
-    @Body() createTemaDto: CreateTemaDto
-  ) {
-    return this.eventoService.addTema(id, createTemaDto);
-  }
+@Post(':id/temas')
+addTemas(
+  @Param('id', ParseIntPipe) id: number, 
+  @Body() createTemasDto: CreateTemasDto
+) {
+  // Agora passamos o plural para o service
+  return this.eventoService.addTemas(id, createTemasDto);
+}
+
 
   @Get()
   findAll() {
