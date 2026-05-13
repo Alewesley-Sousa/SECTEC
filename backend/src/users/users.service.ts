@@ -35,7 +35,7 @@ export class UsersService {
   async findAllAlunos() {
     return this.usersRepository.find({
       where: { role_cargo: UserRole.ALUNO, ativo: true },
-      select: ['id', 'nome', 'email_institucional', 'turma'],
+      select: ['id', 'nome', 'email_institucional', 'turma', 'ano'],
     });
   }
 
@@ -43,6 +43,7 @@ export class UsersService {
     return this.usersRepository.find({
       where: { role_cargo: UserRole.ORIENTADOR, ativo: true },
       select: ['id', 'nome', 'email_institucional'],
+      relations: ['temasSelecionados'],
     });
   }
 

@@ -1,5 +1,7 @@
 // modulos/eventos/entities/tema-evento.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, JoinColumn } from 'typeorm';
+// ... restante dos imports
+
 import { Evento } from './evento.entity';
 import { User } from '../../users/entities/user.entity';
 
@@ -15,9 +17,14 @@ export class TemaEvento {
   @ManyToOne(() => Evento, (evento) => evento.temas) // 👈 Referência ao campo 'temas'
   @JoinColumn({ name: 'evento_id' })
   evento: Evento;
+  
+  // tema-evento.entity.ts
+@ManyToMany(() => User, (user) => user.temasSelecionados)
+@JoinTable({
+  name: 'tema_orientadores', // Nome da tabela pivot que será criada
+  joinColumn: { name: 'tema_id', referencedColumnName: 'id' },
+  inverseJoinColumn: { name: 'orientador_id', referencedColumnName: 'id' }
+})
+orientadores: User[];
 
-  // Muitos temas para um Professor (User)
-  @ManyToOne(() => User, (user) => user.temasCriados) // 👈 Referência ao campo 'temasCriados'
-  @JoinColumn({ name: 'professor_id' })
-  professor: User;
 }

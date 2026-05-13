@@ -4,10 +4,12 @@ import { EventoController } from './evento.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Evento } from './entities/evento.entity';
 import { TemaEvento } from './entities/tema-evento.entity';
+import { User } from '../users/entities/user.entity';
+
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Evento, TemaEvento])
+    TypeOrmModule.forFeature([Evento, TemaEvento, User])
   ],
   controllers: [EventoController],
   providers: [EventoService],
