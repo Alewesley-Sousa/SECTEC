@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Plus, FlaskConical, Users, ChevronRight, X, Search, UserPlus, UserMinus, ChevronDown, Upload, Video, FileText, CheckCircle, Lock, TriangleAlert, Calendar } from "lucide-react";
 import { MainLayout } from "../componentes/SideBarUniversal";
 import Swal from "sweetalert2";
@@ -124,6 +125,10 @@ function Dashboard() {
   const [orientadoresDisponiveis, setOrientadoresDisponiveis] = useState<Orientador[]>([]);
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [erroDados, setErroDados] = useState("");
+  const avisoSenhaDispensadoKey = `passwordNoticeDismissed:${localStorage.getItem("userId") ?? "me"}`;
+  const [avisoSenhaDispensado, setAvisoSenhaDispensado] = useState(
+    () => localStorage.getItem(avisoSenhaDispensadoKey) === "true"
+  );
 
   // 👇 busca do banco ao abrir a página
   useEffect(() => {
@@ -185,6 +190,13 @@ function Dashboard() {
   const projetoAceito = projeto?.status === "Aceito" || projeto?.status === "Em Desenvolvimento";
   const submissaoDesbloqueada = projetoAceito && FASE_ATUAL === 3 && projeto?.status !== "Submetido";
   const youtubeValido = linkYoutube === "" || /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}/.test(linkYoutube);
+  const passwordChangedKey = `passwordChangedAt:${localStorage.getItem("userId") ?? "me"}`;
+  const deveMostrarAvisoSenha = !localStorage.getItem(passwordChangedKey) && !avisoSenhaDispensado;
+
+  function dispensarAvisoSenha() {
+    localStorage.setItem(avisoSenhaDispensadoKey, "true");
+    setAvisoSenhaDispensado(true);
+  }
 
   function fecharModal() {
     setModalAberto(false);
@@ -259,6 +271,32 @@ function Dashboard() {
         {erroDados && (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
             {erroDados}
+          </div>
+        )}
+
+        {deveMostrarAvisoSenha && (
+          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 sm:px-5">
+            <Link
+              to="/dashboard/aluno/configuracoes"
+              className="min-w-0 flex-1 transition hover:text-amber-950"
+            >
+              <h2 className="text-sm font-bold text-amber-900 sm:text-base">
+                Recomendação de segurança
+              </h2>
+              <p className="mt-0.5 text-xs text-amber-800 sm:text-sm">
+                Por segurança, recomendamos alterar sua senha periodicamente.
+                Escolha uma nova senha que não seja usada em outros sistemas.
+              </p>
+            </Link>
+            <button
+              type="button"
+              onClick={dispensarAvisoSenha}
+              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-amber-700 transition hover:bg-amber-100 hover:text-amber-900"
+              aria-label="Fechar aviso de segurança"
+              title="Fechar aviso"
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
 

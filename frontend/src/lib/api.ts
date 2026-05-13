@@ -1,18 +1,25 @@
-const DEFAULT_API_URL = "http://localhost:3000/api";
+const LOCAL_API_BASE = "http://localhost:3000/api";
 
 function normalizeApiBaseUrl(rawUrl?: string) {
-  const baseUrl = (rawUrl?.trim() || DEFAULT_API_URL).replace(/\/+$/, "");
+  const configuredUrl = rawUrl?.trim();
+
+  if (!configuredUrl && import.meta.env.PROD) {
+    throw new Error("VITE_API_URL não configurada no frontend.");
+  }
+
+  const baseUrl = (configuredUrl || LOCAL_API_BASE).replace(/\/+$/, "");
   return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
 }
 
 export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL);
+export const API_BASE = API_BASE_URL;
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   auth?: boolean;
 };
 
-export type BackendRole = "aluno" | "orientador" | "coordenador";
+export type BackendRole = "aluno" | "orientador" | "coordenador" | "comissao";
 
 export type AuthUser = {
   id: string | number;
@@ -85,6 +92,10 @@ export async function apiRequest<T>(
   }
 
   if (response.status === 204) return undefined as T;
+  if (!response.headers.get("content-type")?.includes("application/json")) {
+    throw new ApiError("Este endpoint não retornou JSON. Verifique se a rota existe no backend publicado.", response.status);
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -109,6 +120,7 @@ export function getRoleRedirect(role: BackendRole) {
     aluno: "/dashboard/aluno",
     orientador: "/dashboard/orientador",
     coordenador: "/dashboard/coordenacao",
+    comissao: "/dashboard/coordenacao",
   };
 
   return routes[role];

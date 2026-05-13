@@ -1,8 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-// Definimos os níveis de acesso possíveis
-export type UserRole = "ADMIN" | "Professor" | "aluno";
+// Valores espelham exatamente o enum UserRole do backend:
+// ALUNO = 'aluno' | ORIENTADOR = 'orientador' | COORDENACAO = 'coordenador' | COMISSAO = 'comissao'
+export type UserRole = "coordenador" | "orientador" | "aluno" | "comissao";
 
 export type NavItem = {
   id: string;

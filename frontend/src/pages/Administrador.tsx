@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PiArrowUpRight,
   PiBellRinging,
@@ -27,9 +27,13 @@ import {
   PiUsersThree,
   PiWarningCircle,
   PiXCircle,
+  PiUploadSimple,
   PiYoutubeLogo,
 } from "react-icons/pi";
+import { useLocation } from "react-router-dom";
 import { MainLayout } from "../componentes/SideBarUniversal";
+import Swal from "sweetalert2";
+import { apiRequest, API_BASE_URL, type UsuarioApi } from "../lib/api";
 
 type FaseEvento = "Inscrição" | "Aceitação" | "Submissão" | "Avaliação";
 type StatusProjeto =
@@ -278,7 +282,369 @@ function AdminChip({ children, className = "" }: { children: React.ReactNode; cl
   );
 }
 
+function AdminPageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <MainLayout userRole="coordenador">
+      <main className="min-h-screen bg-[#f4f9f6] px-4 py-5 sm:px-7 sm:py-7">
+        <div className="mx-auto w-full max-w-[1500px] space-y-5">{children}</div>
+      </main>
+    </MainLayout>
+  );
+}
+
+function TurmasCoordenacao() {
+  return (
+    <AdminPageShell>
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <PanelTitle icon={<PiBuildings size={20} />} title="Todas as turmas" subtitle="Distribuição por curso, série, turno, projetos e orientadores vinculados." />
+          <button type="button" onClick={() => handleAcaoIndisponivel("Criar turma")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sectec-700 px-4 text-sm font-black text-white transition hover:bg-sectec-800">
+            <PiPlus size={17} /> Nova turma
+          </button>
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="hidden grid-cols-[1fr_0.8fr_0.6fr_0.6fr_0.6fr_44px] bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 lg:grid">
+            <span>Turma</span><span>Curso</span><span>Turno</span><span>Alunos</span><span>Projetos</span><span />
+          </div>
+          <div className="divide-y divide-slate-100">
+            {turmasMock.map((turma) => (
+              <article key={turma.id} className="grid gap-3 px-4 py-4 lg:grid-cols-[1fr_0.8fr_0.6fr_0.6fr_0.6fr_44px] lg:items-center">
+                <div>
+                  <h3 className="font-black text-slate-900">{turma.nome}</h3>
+                  <p className="text-xs font-semibold text-slate-400">{turma.serie} · {turma.status}</p>
+                </div>
+                <p className="text-sm font-semibold text-slate-600">{turma.curso}</p>
+                <p className="text-sm font-black text-slate-700">{turma.turno}</p>
+                <p className="text-sm font-black text-slate-700">{turma.alunos}</p>
+                <p className="text-sm font-black text-sectec-700">{turma.projetos}</p>
+                <button type="button" onClick={() => handleAcaoIndisponivel(`Gerenciar ${turma.nome}`)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-sectec-200 hover:bg-sectec-50 hover:text-sectec-700" aria-label={`Gerenciar ${turma.nome}`}>
+                  <PiArrowUpRight size={18} />
+                </button>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </AdminPageShell>
+  );
+}
+
+function FrequenciaCoordenacao() {
+  return (
+    <AdminPageShell>
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <PanelTitle icon={<PiBookOpen size={20} />} title="Frequência" subtitle="Acompanhamento operacional por turma e participação nos encontros de orientação." />
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {turmasMock.map((turma) => {
+            const percentual = Math.min(98, Math.round((turma.projetos / Math.max(turma.alunos, 1)) * 260));
+            return (
+              <article key={turma.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-slate-900">{turma.nome}</h3>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{turma.curso} · {turma.turno}</p>
+                  </div>
+                  <AdminChip className="bg-sectec-50 text-sectec-700 ring-sectec-200">{percentual}%</AdminChip>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
+                  <div className="h-full rounded-full bg-sectec-600" style={{ width: `${percentual}%` }} />
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  <span className="rounded-xl bg-white px-2 py-2 text-xs font-black text-slate-700">{turma.alunos} alunos</span>
+                  <span className="rounded-xl bg-white px-2 py-2 text-xs font-black text-slate-700">{turma.projetos} projetos</span>
+                  <span className="rounded-xl bg-white px-2 py-2 text-xs font-black text-slate-700">{turma.orientadoresVinculados} orient.</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </AdminPageShell>
+  );
+}
+
+function NotasCoordenacao() {
+  return (
+    <AdminPageShell>
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <PanelTitle icon={<PiNotebook size={20} />} title="Notas" subtitle="Visão da coordenação sobre situação de avaliação, materiais enviados e prioridades." />
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="hidden grid-cols-[1.2fr_0.75fr_0.7fr_0.5fr] bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 lg:grid">
+            <span>Projeto</span><span>Status</span><span>Materiais</span><span>Prioridade</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {projetosMock.map((projeto) => (
+              <article key={projeto.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[1.2fr_0.75fr_0.7fr_0.5fr] lg:items-center">
+                <div>
+                  <h3 className="font-black text-slate-900">{projeto.titulo}</h3>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">{projeto.autor} · {projeto.turma}</p>
+                  <p className="mt-1 text-xs text-slate-400">{projeto.orientador} · {projeto.atualizadoEm}</p>
+                </div>
+                <AdminChip className={statusStyle[projeto.status]}>{projeto.status}</AdminChip>
+                <div className="flex gap-2 text-xl">
+                  <span className={projeto.materiais.pdf ? "text-emerald-600" : "text-slate-300"} title="PDF"><PiFilePdf /></span>
+                  <span className={projeto.materiais.youtube ? "text-emerald-600" : "text-slate-300"} title="Vídeo"><PiYoutubeLogo /></span>
+                  <span className={projeto.materiais.resumo ? "text-emerald-600" : "text-slate-300"} title="Resumo"><PiTextAlignLeft /></span>
+                </div>
+                <AdminChip className={prioridadeStyle[projeto.prioridade]}>{projeto.prioridade}</AdminChip>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </AdminPageShell>
+  );
+}
+
+type UsuarioCoordenacao = {
+  id: string;
+  nome: string;
+  email: string;
+  perfil: "Aluno" | "Orientador";
+};
+
+function UsuariosCoordenacao() {
+  const [abaAtiva, setAbaAtiva] = useState<"alunos" | "orientadores">("alunos");
+  const [busca, setBusca] = useState("");
+  const [alunos, setAlunos] = useState<UsuarioCoordenacao[]>([]);
+  const [orientadores, setOrientadores] = useState<UsuarioCoordenacao[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+  const inputAlunosRef = useRef<HTMLInputElement>(null);
+  const inputOrientadoresRef = useRef<HTMLInputElement>(null);
+
+  const totalAlunos = alunos.length;
+  const totalOrientadores = orientadores.length;
+  const totalGeral = totalAlunos + totalOrientadores;
+
+  function normalizarUsuarios(lista: UsuarioApi[], perfil: "Aluno" | "Orientador") {
+    return lista.map((usuario) => ({
+      id: String(usuario.id),
+      nome: usuario.nome,
+      email: usuario.email_institucional ?? "",
+      perfil,
+    }));
+  }
+
+  async function carregarUsuarios() {
+    setCarregando(true);
+    setErro("");
+
+    try {
+      const [alunosResponse, orientadoresResponse] = await Promise.all([
+        apiRequest<UsuarioApi[]>("/users/alunos"),
+        apiRequest<UsuarioApi[]>("/users/orientadores"),
+      ]);
+
+      setAlunos(normalizarUsuarios(alunosResponse, "Aluno"));
+      setOrientadores(normalizarUsuarios(orientadoresResponse, "Orientador"));
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Nao foi possivel carregar os usuarios.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  async function lerMensagemErro(response: Response) {
+    try {
+      const data = await response.json();
+      if (typeof data?.message === "string") return data.message;
+      if (Array.isArray(data?.message)) return data.message.join(" ");
+    } catch {
+      // fallback para erros sem JSON
+    }
+
+    return "Nao foi possivel concluir a importacao.";
+  }
+
+  async function handleUploadCsv(tipo: "alunos" | "orientadores", file?: File) {
+    if (!file) return;
+
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const rota = tipo === "alunos" ? "/users/upload-csv/alunos" : "/users/upload-csv/professores";
+      const response = await fetch(`${API_BASE_URL}${rota}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const message = await lerMensagemErro(response);
+        throw new Error(message);
+      }
+
+      Swal.fire({
+        icon: "success",
+        title: "CSV importado com sucesso!",
+        showConfirmButton: false,
+        timer: 1400,
+        timerProgressBar: true,
+      });
+      await carregarUsuarios();
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Erro ao importar CSV",
+        text: error instanceof Error ? error.message : "Tente novamente.",
+        confirmButtonColor: "#15803d",
+      });
+    } finally {
+      if (tipo === "alunos" && inputAlunosRef.current) inputAlunosRef.current.value = "";
+      if (tipo === "orientadores" && inputOrientadoresRef.current) inputOrientadoresRef.current.value = "";
+    }
+  }
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregar() {
+      if (!ativo) return;
+      await carregarUsuarios();
+    }
+
+    carregar();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const listaAtual = abaAtiva === "alunos" ? alunos : orientadores;
+  const termo = busca.trim().toLowerCase();
+  const listaFiltrada = listaAtual.filter((usuario) => {
+    if (!termo) return true;
+    return (
+      usuario.nome.toLowerCase().includes(termo) ||
+      usuario.email.toLowerCase().includes(termo)
+    );
+  });
+
+  return (
+    <AdminPageShell>
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <PanelTitle icon={<PiUsersThree size={20} />} title="Usuarios" subtitle="Cadastro via CSV e controle de alunos e orientadores ativos." />
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={inputAlunosRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(event) => handleUploadCsv("alunos", event.target.files?.[0])}
+            />
+            <input
+              ref={inputOrientadoresRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(event) => handleUploadCsv("orientadores", event.target.files?.[0])}
+            />
+            <button
+              type="button"
+              onClick={() => inputAlunosRef.current?.click()}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-sectec-200 bg-sectec-50 px-4 text-sm font-black text-sectec-700 transition hover:bg-sectec-100"
+            >
+              <PiUploadSimple size={18} /> Importar CSV (alunos)
+            </button>
+            <button
+              type="button"
+              onClick={() => inputOrientadoresRef.current?.click()}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:border-sectec-200 hover:bg-sectec-50 hover:text-sectec-700"
+            >
+              <PiUploadSimple size={18} /> Importar CSV (orientadores)
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {[
+            { label: "Total de alunos", value: totalAlunos },
+            { label: "Total de orientadores", value: totalOrientadores },
+            { label: "Total geral", value: totalGeral },
+          ].map((card) => (
+            <article key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">{card.label}</p>
+              <strong className="mt-2 block text-2xl font-black text-slate-900">{card.value}</strong>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+            {[
+              { id: "alunos", label: "Alunos" },
+              { id: "orientadores", label: "Orientadores" },
+            ].map((aba) => {
+              const ativa = abaAtiva === aba.id;
+              return (
+                <button
+                  key={aba.id}
+                  type="button"
+                  onClick={() => setAbaAtiva(aba.id as "alunos" | "orientadores")}
+                  className={`px-4 py-2 text-sm font-black transition ${
+                    ativa
+                      ? "rounded-xl bg-white text-sectec-700 shadow-sm"
+                      : "text-slate-500"
+                  }`}
+                >
+                  {aba.label}
+                </button>
+              );
+            })}
+          </div>
+          <label className="relative block">
+            <PiMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+            <input
+              value={busca}
+              onChange={(event) => setBusca(event.target.value)}
+              placeholder="Buscar por nome ou email"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100 sm:w-72"
+            />
+          </label>
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="hidden grid-cols-[1fr_1fr_0.5fr_0.4fr] bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 lg:grid">
+            <span>Nome</span>
+            <span>Email institucional</span>
+            <span>Perfil</span>
+            <span>Status</span>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {carregando && (
+              <div className="px-4 py-6 text-sm font-semibold text-slate-500">Carregando usuarios...</div>
+            )}
+            {!carregando && erro && (
+              <div className="px-4 py-6 text-sm font-semibold text-red-600">{erro}</div>
+            )}
+            {!carregando && !erro && listaFiltrada.length === 0 && (
+              <div className="px-4 py-6 text-sm font-semibold text-slate-500">Nenhum usuario encontrado.</div>
+            )}
+            {!carregando && !erro && listaFiltrada.map((usuario) => (
+              <article key={usuario.id} className="grid gap-2 px-4 py-4 lg:grid-cols-[1fr_1fr_0.5fr_0.4fr] lg:items-center">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-900">{usuario.nome}</p>
+                </div>
+                <p className="truncate text-sm font-semibold text-slate-600">{usuario.email || "-"}</p>
+                <p className="text-sm font-black text-slate-700">{usuario.perfil}</p>
+                <AdminChip className="bg-emerald-50 text-emerald-700 ring-emerald-200">Ativo</AdminChip>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </AdminPageShell>
+  );
+}
+
 function Administrador() {
+  const { pathname } = useLocation();
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<StatusProjeto | "Todos">("Todos");
 
@@ -302,8 +668,13 @@ function Administrador() {
     (projeto) => projeto.materiais.pdf && projeto.materiais.youtube && projeto.materiais.resumo,
   ).length;
 
+  if (pathname.endsWith("/turmas")) return <TurmasCoordenacao />;
+  if (pathname.endsWith("/frequencia")) return <FrequenciaCoordenacao />;
+  if (pathname.endsWith("/notas")) return <NotasCoordenacao />;
+  if (pathname.endsWith("/usuarios")) return <UsuariosCoordenacao />;
+
   return (
-    <MainLayout userRole="ADMIN">
+    <MainLayout userRole="coordenador">
       <main className="min-h-screen bg-[#f4f9f6] px-4 py-5 sm:px-7 sm:py-7">
         <div className="mx-auto grid max-w-[1500px] gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.75fr)]">
           <section className="grid gap-5">

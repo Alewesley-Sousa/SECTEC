@@ -15,4 +15,9 @@ export class TemaEvento {
   @ManyToOne(() => Evento, (evento) => evento.temas) // 👈 Referência ao campo 'temas'
   @JoinColumn({ name: 'evento_id' })
   evento: Evento;
+
+  // Muitos temas para um Professor (User)
+  @ManyToOne(() => User, (user) => user.temasCriados) // 👈 Referência ao campo 'temasCriados'
+  @JoinColumn({ name: 'professor_id' })
+  professor: User;
 }

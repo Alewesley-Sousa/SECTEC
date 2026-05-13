@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   FileText, Lock, Clock, Upload,
-  ChevronRight, Info, Calendar, ShieldCheck, RefreshCw, // tirei o CheckCircle desse import porque estava dando erro na build
+  ChevronRight, Info, Calendar, ShieldCheck, RefreshCw,
   BookOpen, Pencil, Send, TriangleAlert
 } from "lucide-react";
 import { MainLayout } from "../componentes/SideBarUniversal";

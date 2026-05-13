@@ -3,6 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/login';
 import Dashboard from './pages/DashboardAluno';
 import Administrador from './pages/Administrador';
+import NotasAluno from './pages/Notas';
+import RelatoriosAluno from './pages/Relatoriosaluno';
+import ConfigAluno from './componentes/configurações/config';
 import ProtectedRoute from './componentes/ProtectedRoute';
 import { getRoleRedirect, type BackendRole } from './lib/api';
 import DashboardOrientador, {
@@ -38,7 +41,7 @@ function App() {
 
   const { token, role } = auth;
   const isBackendRole = (value: string | null): value is BackendRole =>
-    value === 'aluno' || value === 'orientador' || value === 'coordenador';
+    value === 'aluno' || value === 'orientador' || value === 'coordenador' || value === 'comissao';
   const backendRole = isBackendRole(role) ? role : null;
   const isLoggedIn = Boolean(token && backendRole);
 
@@ -61,6 +64,30 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['aluno']}>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/aluno/notas"
+          element={
+            <ProtectedRoute allowedRoles={['aluno']}>
+              <NotasAluno />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/aluno/relatorios"
+          element={
+            <ProtectedRoute allowedRoles={['aluno']}>
+              <RelatoriosAluno />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/aluno/configuracoes"
+          element={
+            <ProtectedRoute allowedRoles={['aluno']}>
+              <ConfigAluno />
             </ProtectedRoute>
           }
         />
@@ -113,10 +140,50 @@ function App() {
           }
         />
         <Route
-          path="/dashboard/coordenacao/*"
+          path="/dashboard/coordenacao"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador", "comissao"]}>
+              <Administrador />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/coordenacao/turmas"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador", "comissao"]}>
+              <Administrador />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/coordenacao/frequencia"
           element={
             <ProtectedRoute allowedRoles={["coordenador"]}>
               <Administrador />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/coordenacao/notas"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador", "comissao"]}>
+              <Administrador />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/coordenacao/usuarios"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador", "comissao"]}>
+              <Administrador />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/coordenacao/configuracoes"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador", "comissao"]}>
+              <ConfigAluno userRole={backendRole === "comissao" ? "comissao" : "coordenador"} />
             </ProtectedRoute>
           }
         />

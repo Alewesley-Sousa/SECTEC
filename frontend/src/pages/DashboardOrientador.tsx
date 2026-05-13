@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
@@ -27,10 +27,11 @@ import EixoDropdown, {
   EIXOS_LIST,
   type EixoTematico,
 } from "../componentes/EixoDropdown";
+import { apiRequest } from "../lib/api";
 
 type EixoProjeto = Exclude<EixoTematico, "todos">;
 type Risco = "alto" | "medio" | "baixo";
-type StatusEntrega = "pendente" | "revisada" | "atrasada";
+type StatusEntrega = "pendente" | "revisada" | "recusada";
 type StatusProjeto = "aguardando" | "aprovado" | "ajustes";
 
 type RegistroComEixo = {
@@ -53,6 +54,7 @@ type Equipe = RegistroComEixo & {
 
 type Entrega = RegistroComEixo & {
   id: string;
+  materialId?: number;
   arquivo: string;
   equipe: string;
   turma: string;
@@ -64,6 +66,7 @@ type Entrega = RegistroComEixo & {
 
 type Projeto = RegistroComEixo & {
   id: string;
+  orientacaoId?: number;
   titulo: string;
   equipe: string;
   turma: string;
@@ -89,370 +92,50 @@ type NotaEquipe = RegistroComEixo & {
   documentacao: number;
 };
 
-type PerfilOrientador = {
+type UsuarioProjetoApi = {
+  id: number | string;
   nome: string;
-  area: string;
-  bio: string;
+  ano?: number;
 };
 
-type RegraFeira = {
-  id: string;
-  texto: string;
-  ativo: boolean;
-};
-
-type AlertaConfig = {
-  id: string;
+type ProjetoApi = {
+  id: number;
   titulo: string;
-  texto: string;
-  ativo: boolean;
+  descricao?: string;
+  temaId?: number;
+  criadoEm?: string;
+  alunoAutor?: UsuarioProjetoApi;
+  projetoAlunos?: Array<{
+    id?: number | string;
+    aluno?: UsuarioProjetoApi;
+  }>;
 };
 
-const turmas = [
-  {
-    id: "3info-a",
-    nome: "3º Informática A",
-    turno: "Manhã",
-    alunos: 31,
-  },
-  {
-    id: "3info-b",
-    nome: "3º Informática B",
-    turno: "Tarde",
-    alunos: 28,
-  },
-  {
-    id: "2info-a",
-    nome: "2º Informática A",
-    turno: "Manhã",
-    alunos: 34,
-  },
-];
-
-const equipesIniciais: Equipe[] = [
-  {
-    id: "eq-lab",
-    nome: "Grupo Lab Fácil",
-    turma: "3º Informática A",
-    eixo: "Tecnologia e Inovação",
-    eixoSlug: "tecnologia",
-    tema: "Sistema de triagem para o laboratório escolar",
-    lider: "Mariana Costa",
-    integrantes: 6,
-    progresso: 78,
-    ultimoContato: "Hoje, 09:20",
-    proximaReuniao: "Terça, 08:20",
-    risco: "baixo",
-  },
-  {
-    id: "eq-horta",
-    nome: "Grupo HortaTech",
-    turma: "3º Informática B",
-    eixo: "Sustentabilidade Ambiental",
-    eixoSlug: "sustentabilidade",
-    tema: "Irrigação automatizada com sensores de umidade",
-    lider: "Rafael Lima",
-    integrantes: 7,
-    progresso: 56,
-    ultimoContato: "Ontem, 16:45",
-    proximaReuniao: "Quarta, 10:00",
-    risco: "medio",
-  },
-  {
-    id: "eq-energia",
-    nome: "Grupo Energia na Escola",
-    turma: "2º Informática A",
-    eixo: "Energia e Recursos Naturais",
-    eixoSlug: "energia",
-    tema: "Painel de acompanhamento do consumo de energia",
-    lider: "João Victor",
-    integrantes: 6,
-    progresso: 39,
-    ultimoContato: "Há 5 dias",
-    proximaReuniao: "Sexta, 13:30",
-    risco: "alto",
-  },
-  {
-    id: "eq-inclusao",
-    nome: "Grupo Acesso+",
-    turma: "3º Informática A",
-    eixo: "Sociedade e Cidadania",
-    eixoSlug: "sociedade",
-    tema: "Mapa colaborativo de acessibilidade na escola",
-    lider: "Bianca Alves",
-    integrantes: 5,
-    progresso: 64,
-    ultimoContato: "Hoje, 10:10",
-    proximaReuniao: "Quinta, 09:30",
-    risco: "medio",
-  },
-  {
-    id: "eq-estudo",
-    nome: "Grupo Estudaí",
-    turma: "2º Informática A",
-    eixo: "Educação",
-    eixoSlug: "educacao",
-    tema: "Plataforma de simulados e trilhas de revisão",
-    lider: "Letícia Rocha",
-    integrantes: 6,
-    progresso: 82,
-    ultimoContato: "Hoje, 13:40",
-    proximaReuniao: "Quinta, 14:00",
-    risco: "baixo",
-  },
-  {
-    id: "eq-saude",
-    nome: "Grupo Saúde em Foco",
-    turma: "3º Informática B",
-    eixo: "Saúde e Bem-estar",
-    eixoSlug: "saude",
-    tema: "Dashboard de hábitos saudáveis para estudantes",
-    lider: "Pedro Henrique",
-    integrantes: 5,
-    progresso: 47,
-    ultimoContato: "Há 3 dias",
-    proximaReuniao: "Sexta, 09:00",
-    risco: "alto",
-  },
-];
-
-const entregasIniciais: Entrega[] = [
-  {
-    id: "ent-1",
-    arquivo: "relatorio_metodologia.pdf",
-    equipe: "Grupo Lab Fácil",
-    turma: "3º Informática A",
-    aluno: "Mariana Costa",
-    etapa: "Metodologia",
-    data: "Hoje, 09:20",
-    status: "pendente",
-    eixoSlug: "tecnologia",
-  },
-  {
-    id: "ent-2",
-    arquivo: "codigo_prototipo.zip",
-    equipe: "Grupo HortaTech",
-    turma: "3º Informática B",
-    aluno: "Rafael Lima",
-    etapa: "Protótipo",
-    data: "Ontem, 16:45",
-    status: "atrasada",
-    eixoSlug: "sustentabilidade",
-  },
-  {
-    id: "ent-3",
-    arquivo: "banner_sectec.pdf",
-    equipe: "Grupo Energia na Escola",
-    turma: "2º Informática A",
-    aluno: "João Victor",
-    etapa: "Banner",
-    data: "Hoje, 11:10",
-    status: "revisada",
-    eixoSlug: "energia",
-  },
-  {
-    id: "ent-4",
-    arquivo: "referencias_abnt.docx",
-    equipe: "Grupo HortaTech",
-    turma: "3º Informática B",
-    aluno: "Ana Beatriz",
-    etapa: "Referências",
-    data: "Segunda, 14:05",
-    status: "pendente",
-    eixoSlug: "sustentabilidade",
-  },
-  {
-    id: "ent-5",
-    arquivo: "mapa_acessibilidade.fig",
-    equipe: "Grupo Acesso+",
-    turma: "3º Informática A",
-    aluno: "Bianca Alves",
-    etapa: "Protótipo visual",
-    data: "Hoje, 15:05",
-    status: "pendente",
-    eixoSlug: "sociedade",
-  },
-  {
-    id: "ent-6",
-    arquivo: "simulados_backend.zip",
-    equipe: "Grupo Estudaí",
-    turma: "2º Informática A",
-    aluno: "Letícia Rocha",
-    etapa: "Código",
-    data: "Ontem, 08:30",
-    status: "revisada",
-    eixoSlug: "educacao",
-  },
-];
-
-const projetosIniciais: Projeto[] = [
-  {
-    id: "apr-1",
-    titulo: "Coleta seletiva com pontos inteligentes",
-    equipe: "Equipe Recicla+",
-    turma: "2º Informática A",
-    enviadoEm: "Hoje, 07:50",
-    status: "aguardando",
-    eixoSlug: "sustentabilidade",
-  },
-  {
-    id: "apr-2",
-    titulo: "Aplicativo de achados e perdidos da escola",
-    equipe: "Equipe Conecta",
-    turma: "3º Informática A",
-    enviadoEm: "Ontem, 12:10",
-    status: "ajustes",
-    eixoSlug: "sociedade",
-  },
-  {
-    id: "apr-3",
-    titulo: "Sensor de presença para salas ociosas",
-    equipe: "Equipe Volt",
-    turma: "3º Informática B",
-    enviadoEm: "Segunda, 08:30",
-    status: "aprovado",
-    eixoSlug: "energia",
-  },
-  {
-    id: "apr-4",
-    titulo: "Aplicativo de revisão por flashcards",
-    equipe: "Equipe Memo",
-    turma: "2º Informática A",
-    enviadoEm: "Hoje, 13:20",
-    status: "aguardando",
-    eixoSlug: "educacao",
-  },
-];
-
-const agendaInicial: AgendaItem[] = [
-  {
-    id: "age-1",
-    hora: "08:20",
-    dia: "Terça",
-    titulo: "Problema, objetivo e justificativa",
-    equipe: "Grupo Lab Fácil",
-    local: "Lab 2",
-    eixoSlug: "tecnologia",
-  },
-  {
-    id: "age-2",
-    hora: "10:00",
-    dia: "Quarta",
-    titulo: "Teste dos sensores e coleta de dados",
-    equipe: "Grupo HortaTech",
-    local: "Pátio",
-    eixoSlug: "sustentabilidade",
-  },
-  {
-    id: "age-3",
-    hora: "13:30",
-    dia: "Sexta",
-    titulo: "Revisão do banner e apresentação",
-    equipe: "Grupo Energia na Escola",
-    local: "Sala 11",
-    eixoSlug: "energia",
-  },
-  {
-    id: "age-4",
-    hora: "09:30",
-    dia: "Quinta",
-    titulo: "Validação com usuários",
-    equipe: "Grupo Acesso+",
-    local: "Biblioteca",
-    eixoSlug: "sociedade",
-  },
-];
-
-const notasIniciais: NotaEquipe[] = [
-  {
-    equipe: "Grupo Lab Fácil",
-    turma: "3º Informática A",
-    pesquisa: 9,
-    prototipo: 8.5,
-    apresentacao: 8.8,
-    documentacao: 9.2,
-    eixoSlug: "tecnologia",
-  },
-  {
-    equipe: "Grupo HortaTech",
-    turma: "3º Informática B",
-    pesquisa: 7.8,
-    prototipo: 8.9,
-    apresentacao: 7.4,
-    documentacao: 7,
-    eixoSlug: "sustentabilidade",
-  },
-  {
-    equipe: "Grupo Energia na Escola",
-    turma: "2º Informática A",
-    pesquisa: 8.4,
-    prototipo: 7.6,
-    apresentacao: 8.1,
-    documentacao: 7.8,
-    eixoSlug: "energia",
-  },
-  {
-    equipe: "Grupo Acesso+",
-    turma: "3º Informática A",
-    pesquisa: 8,
-    prototipo: 7.8,
-    apresentacao: 8.5,
-    documentacao: 8.1,
-    eixoSlug: "sociedade",
-  },
-  {
-    equipe: "Grupo Estudaí",
-    turma: "2º Informática A",
-    pesquisa: 9.1,
-    prototipo: 8.8,
-    apresentacao: 8.6,
-    documentacao: 8.9,
-    eixoSlug: "educacao",
-  },
-  {
-    equipe: "Grupo Saúde em Foco",
-    turma: "3º Informática B",
-    pesquisa: 7.2,
-    prototipo: 7,
-    apresentacao: 7.5,
-    documentacao: 6.8,
-    eixoSlug: "saude",
-  },
-];
-
-const perfilInicial: PerfilOrientador = {
-  nome: "Professor orientador",
-  area: "Informática e projetos integradores",
-  bio: "Responsável por acompanhar equipes, revisar entregas e avaliar projetos da SECTEC.",
+type OrientacaoApi = {
+  id: number;
+  status: "pendente" | "aceito" | "recusado";
+  criadoEm?: string;
+  respondidoEm?: string | null;
+  projeto?: ProjetoApi;
 };
 
-const regrasIniciais: RegraFeira[] = [
-  { id: "relatorio", texto: "Exigir relatório antes da banca", ativo: true },
-  { id: "reenvio", texto: "Permitir reenvio até o prazo final", ativo: true },
-  { id: "media", texto: "Usar média entre quatro critérios", ativo: true },
-  { id: "bloqueio", texto: "Bloquear notas depois da publicação", ativo: false },
-];
+type MaterialApi = {
+  id: number;
+  tipo: "pdf" | "link";
+  status: "em_analise" | "aprovado" | "recusado";
+  conteudo: string;
+  opiniao?: string;
+  criadoEm?: string;
+};
 
-const alertasIniciais: AlertaConfig[] = [
-  {
-    id: "atrasadas",
-    titulo: "Entregas atrasadas",
-    texto: "Avisar quando uma equipe passar do prazo.",
-    ativo: true,
-  },
-  {
-    id: "duvidas",
-    titulo: "Dúvidas dos alunos",
-    texto: "Avisar quando houver novo comentário.",
-    ativo: true,
-  },
-  {
-    id: "notas",
-    titulo: "Notas pendentes",
-    texto: "Avisar quando uma equipe estiver sem avaliação.",
-    ativo: false,
-  },
-];
+type PdfApi = {
+  fileId: number;
+  materialId?: number;
+  projetoId: number;
+  originalName?: string;
+  status?: string;
+  enviadoEm?: string;
+};
 
 const rubrica = [
   ["Pesquisa", "Problema, objetivo, justificativa, fontes e metodologia."],
@@ -462,38 +145,324 @@ const rubrica = [
 ];
 
 const diasAgenda = ["Seg", "Ter", "Qua", "Qui", "Sex"];
+const agendaSemBackend: AgendaItem[] = [];
+const notasSemBackend: NotaEquipe[] = [];
+const eixosProjeto = EIXOS_LIST.filter((eixo): eixo is EixoProjeto => eixo !== "todos");
+const eixoLabels: Record<EixoProjeto, string> = {
+  tecnologia: "Tecnologia e Inovação",
+  sustentabilidade: "Sustentabilidade Ambiental",
+  sociedade: "Sociedade e Cidadania",
+  energia: "Energia e Recursos Naturais",
+  educacao: "Educação",
+  saude: "Saúde e Bem-estar",
+};
 
 function cx(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function useStoredState<T>(key: string, initialValue: T) {
-  const [state, setState] = useState<T>(() => {
-    if (typeof window === "undefined") return initialValue;
+function eixoFromTemaId(temaId?: number): EixoProjeto {
+  if (!temaId || temaId < 1) return "tecnologia";
+  return eixosProjeto[(temaId - 1) % eixosProjeto.length];
+}
 
-    const stored = window.localStorage.getItem(key);
-    if (!stored) return initialValue;
+function formatBackendDate(value?: string | null) {
+  if (!value) return "Sem data";
 
-    try {
-      return JSON.parse(stored) as T;
-    } catch {
-      return initialValue;
-    }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sem data";
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function turmaFromProjeto(projeto?: ProjetoApi) {
+  const ano = projeto?.alunoAutor?.ano ?? projeto?.projetoAlunos?.find((item) => item.aluno?.ano)?.aluno?.ano;
+  return ano ? `${ano}º ano` : "Turma não informada";
+}
+
+function liderFromProjeto(projeto?: ProjetoApi) {
+  return projeto?.alunoAutor?.nome ?? projeto?.projetoAlunos?.[0]?.aluno?.nome ?? "Aluno não informado";
+}
+
+function integrantesFromProjeto(projeto?: ProjetoApi) {
+  const ids = new Set<number | string>();
+
+  if (projeto?.alunoAutor?.id) ids.add(projeto.alunoAutor.id);
+  projeto?.projetoAlunos?.forEach((item) => {
+    if (item.aluno?.id) ids.add(item.aluno.id);
   });
 
-  const setStoredState: React.Dispatch<React.SetStateAction<T>> = (value) => {
-    setState((previous) => {
-      const nextValue = value instanceof Function ? value(previous) : value;
+  return Math.max(ids.size, 1);
+}
 
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(key, JSON.stringify(nextValue));
+function statusProjetoFromOrientacao(status: OrientacaoApi["status"]): StatusProjeto {
+  if (status === "aceito") return "aprovado";
+  if (status === "recusado") return "ajustes";
+  return "aguardando";
+}
+
+function riscoFromOrientacao(status: OrientacaoApi["status"]): Risco {
+  if (status === "pendente") return "alto";
+  if (status === "recusado") return "medio";
+  return "baixo";
+}
+
+function progressoFromOrientacao(status: OrientacaoApi["status"]) {
+  if (status === "aceito") return 75;
+  if (status === "recusado") return 35;
+  return 45;
+}
+
+function mapOrientacaoToProjeto(orientacao: OrientacaoApi): Projeto {
+  const projeto = orientacao.projeto;
+  const eixoSlug = eixoFromTemaId(projeto?.temaId);
+
+  return {
+    id: `orientacao-${orientacao.id}`,
+    orientacaoId: orientacao.id,
+    titulo: projeto?.titulo ?? "Projeto sem título",
+    equipe: liderFromProjeto(projeto),
+    turma: turmaFromProjeto(projeto),
+    enviadoEm: formatBackendDate(orientacao.criadoEm),
+    status: statusProjetoFromOrientacao(orientacao.status),
+    eixoSlug,
+  };
+}
+
+function mapProjetoToOrientacao(projeto: ProjetoApi): OrientacaoApi {
+  return {
+    id: projeto.id,
+    status: "aceito",
+    criadoEm: projeto.criadoEm,
+    respondidoEm: null,
+    projeto,
+  };
+}
+
+function mapOrientacaoToEquipe(orientacao: OrientacaoApi): Equipe {
+  const projeto = orientacao.projeto;
+  const eixoSlug = eixoFromTemaId(projeto?.temaId);
+  const lider = liderFromProjeto(projeto);
+
+  return {
+    id: `orientacao-${orientacao.id}`,
+    nome: projeto?.titulo ? `Equipe ${projeto.titulo}` : `Equipe ${lider}`,
+    turma: turmaFromProjeto(projeto),
+    eixo: eixoLabels[eixoSlug],
+    eixoSlug,
+    tema: projeto?.descricao ?? projeto?.titulo ?? "Projeto sem descrição cadastrada",
+    lider,
+    integrantes: integrantesFromProjeto(projeto),
+    progresso: progressoFromOrientacao(orientacao.status),
+    ultimoContato: orientacao.respondidoEm ? formatBackendDate(orientacao.respondidoEm) : formatBackendDate(orientacao.criadoEm),
+    proximaReuniao: "A definir",
+    risco: riscoFromOrientacao(orientacao.status),
+  };
+}
+
+function materialStatusToEntregaStatus(status: MaterialApi["status"]): StatusEntrega {
+  if (status === "aprovado") return "revisada";
+  if (status === "recusado") return "recusada";
+  return "pendente";
+}
+
+function materialEtapa(tipo: MaterialApi["tipo"]) {
+  return tipo === "pdf" ? "PDF do projeto" : "Link de evidência";
+}
+
+function materialArquivo(material: MaterialApi) {
+  if (!material.conteudo) return materialEtapa(material.tipo);
+
+  const partes = material.conteudo.split("/");
+  return partes.at(-1) || material.conteudo;
+}
+
+function mapMaterialToEntrega(material: MaterialApi, orientacao: OrientacaoApi): Entrega {
+  const projeto = orientacao.projeto;
+  const eixoSlug = eixoFromTemaId(projeto?.temaId);
+
+  return {
+    id: `material-${material.id}`,
+    materialId: material.id,
+    arquivo: materialArquivo(material),
+    equipe: projeto?.titulo ?? "Projeto sem título",
+    turma: turmaFromProjeto(projeto),
+    aluno: liderFromProjeto(projeto),
+    etapa: materialEtapa(material.tipo),
+    data: formatBackendDate(material.criadoEm),
+    status: materialStatusToEntregaStatus(material.status),
+    eixoSlug,
+  };
+}
+
+function mapPdfToEntrega(pdf: PdfApi, orientacao: OrientacaoApi): Entrega {
+  const projeto = orientacao.projeto;
+  const eixoSlug = eixoFromTemaId(projeto?.temaId);
+
+  return {
+    id: `pdf-${pdf.fileId}`,
+    materialId: pdf.materialId,
+    arquivo: pdf.originalName ?? `PDF #${pdf.fileId}`,
+    equipe: projeto?.titulo ?? "Projeto sem título",
+    turma: turmaFromProjeto(projeto),
+    aluno: liderFromProjeto(projeto),
+    etapa: "PDF do projeto",
+    data: formatBackendDate(pdf.enviadoEm),
+    status: pdf.status === "VALID" || pdf.status === "aprovado" ? "revisada" : "pendente",
+    eixoSlug,
+  };
+}
+
+function useOrientadorBackendData() {
+  const [orientacoes, setOrientacoes] = useState<OrientacaoApi[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function carregar() {
+      setCarregando(true);
+
+      try {
+        const data = await apiRequest<OrientacaoApi[]>("/orientacoes");
+        if (!active) return;
+        setOrientacoes(data);
+        setErro("");
+      } catch (error) {
+        try {
+          const projetos = await apiRequest<ProjetoApi[]>("/projetos");
+          if (!active) return;
+          setOrientacoes(projetos.map(mapProjetoToOrientacao));
+          setErro("O servidor publicado não tem /orientacoes; usando /projetos. Aceitar/recusar orientação fica sem backend.");
+        } catch (fallbackError) {
+          if (!active) return;
+          setOrientacoes([]);
+          setErro(
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : error instanceof Error
+                ? error.message
+                : "Não foi possível carregar dados do orientador no backend."
+          );
+        }
+      } finally {
+        if (active) setCarregando(false);
+      }
+    }
+
+    carregar();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const equipes = useMemo(() => orientacoes.map(mapOrientacaoToEquipe), [orientacoes]);
+  const projetos = useMemo(() => orientacoes.map(mapOrientacaoToProjeto), [orientacoes]);
+
+  async function responderProjeto(projeto: Projeto, status: StatusProjeto) {
+    if (!projeto.orientacaoId) {
+      throw new Error("Sem endpoint no backend publicado para aceitar ou recusar orientações.");
+    }
+
+    const action = status === "aprovado" ? "aceito" : "recusado";
+    const orientacaoAtualizada = await apiRequest<OrientacaoApi>(`/orientacoes/${projeto.orientacaoId}/responder`, {
+      method: "PATCH",
+      body: { action },
+    });
+
+    setOrientacoes((lista) =>
+      lista.map((orientacao) =>
+        orientacao.id === orientacaoAtualizada.id
+          ? { ...orientacao, ...orientacaoAtualizada, projeto: orientacaoAtualizada.projeto ?? orientacao.projeto }
+          : orientacao
+      )
+    );
+
+    return true;
+  }
+
+  return { orientacoes, equipes, projetos, carregando, erro, responderProjeto };
+}
+
+function useEntregasBackendData(orientacoes: OrientacaoApi[], orientacoesCarregando: boolean) {
+  const [entregas, setEntregas] = useState<Entrega[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function carregar() {
+      if (orientacoesCarregando) return;
+
+      const orientacoesAceitas = orientacoes.filter((orientacao) => orientacao.status === "aceito" && orientacao.projeto?.id);
+
+      if (orientacoesAceitas.length === 0) {
+        setEntregas([]);
+        setErro("");
+        setCarregando(false);
+        return;
       }
 
-      return nextValue;
-    });
-  };
+      setCarregando(true);
 
-  return [state, setStoredState] as const;
+      const respostas = await Promise.allSettled(
+        orientacoesAceitas.map(async (orientacao) => {
+          try {
+            const materiais = await apiRequest<MaterialApi[]>(`/materiais/projeto/${orientacao.projeto?.id}`);
+            return materiais.map((material) => mapMaterialToEntrega(material, orientacao));
+          } catch {
+            const pdf = await apiRequest<PdfApi>(`/pdf/projeto/${orientacao.projeto?.id}`);
+            return [mapPdfToEntrega(pdf, orientacao)];
+          }
+        })
+      );
+
+      if (!active) return;
+
+      const entregasCarregadas = respostas.flatMap((resposta) => (resposta.status === "fulfilled" ? resposta.value : []));
+      const falhas = respostas.filter((resposta) => resposta.status === "rejected").length;
+
+      setEntregas(entregasCarregadas);
+      setErro(falhas ? "Algumas entregas não puderam ser carregadas. O servidor publicado não tem /materiais para todos os projetos." : "");
+      setCarregando(false);
+    }
+
+    carregar();
+
+    return () => {
+      active = false;
+    };
+  }, [orientacoes, orientacoesCarregando]);
+
+  async function revisarEntrega(entrega: Entrega, status: "aprovado" | "recusado" = "aprovado") {
+    if (!entrega.materialId) {
+      throw new Error("Sem endpoint no backend publicado para revisar esta entrega.");
+    }
+
+    const atualizado = await apiRequest<MaterialApi>(`/materiais/${entrega.materialId}/revisar`, {
+      method: "PATCH",
+      body: {
+        status,
+        opiniao: status === "aprovado" ? "Material revisado e aprovado pelo painel." : "Material revisado e recusado pelo painel.",
+      },
+    });
+
+    setEntregas((lista) =>
+      lista.map((item) =>
+        item.materialId === atualizado.id ? { ...item, status: materialStatusToEntregaStatus(atualizado.status) } : item
+      )
+    );
+  }
+
+  return { entregas, carregando, erro, revisarEntrega };
 }
 
 function matchesEixo<T extends RegistroComEixo>(item: T, eixoAtivo: EixoTematico) {
@@ -506,18 +475,6 @@ function filterByEixo<T extends RegistroComEixo>(items: T[], eixoAtivo: EixoTema
 
 function countByEixo<T extends RegistroComEixo>(items: T[], eixo: EixoTematico) {
   return eixo === "todos" ? items.length : items.filter((item) => item.eixoSlug === eixo).length;
-}
-
-function formatShortNow() {
-  return new Date().toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function clampNota(value: number) {
-  if (Number.isNaN(value)) return 0;
-  return Math.min(10, Math.max(0, value));
 }
 
 const fadeUp = {
@@ -539,7 +496,7 @@ function PageShell({
   children: React.ReactNode;
 }) {
   return (
-    <MainLayout userRole="Professor">
+    <MainLayout userRole="orientador">
       <motion.div
         initial="hidden"
         animate="visible"
@@ -689,7 +646,7 @@ function riscoTone(risco: Risco) {
 }
 
 function entregaTone(status: StatusEntrega) {
-  if (status === "atrasada") return "red";
+  if (status === "recusada") return "red";
   if (status === "pendente") return "yellow";
   return "green";
 }
@@ -840,13 +797,15 @@ function EquipeRow({
 }
 
 function DashboardOrientador() {
+  const backend = useOrientadorBackendData();
+  const entregasBackend = useEntregasBackendData(backend.orientacoes, backend.carregando);
   const [eixoAtivo, setEixoAtivo] = useState<EixoTematico>("todos");
-  const [equipesData, setEquipesData] = useStoredState("sectec:equipes", equipesIniciais);
-  const [entregasData] = useStoredState("sectec:entregas", entregasIniciais);
-  const [projetosData, setProjetosData] = useStoredState("sectec:projetos", projetosIniciais);
-  const [agendaData, setAgendaData] = useStoredState("sectec:agenda", agendaInicial);
   const [aviso, setAviso] = useState("");
   const [equipeAberta, setEquipeAberta] = useState<Equipe | null>(null);
+  const equipesData = backend.equipes;
+  const entregasData = entregasBackend.entregas;
+  const projetosData = backend.projetos;
+  const agendaData = agendaSemBackend;
 
   const equipesFiltradas = useMemo(() => filterByEixo(equipesData, eixoAtivo), [equipesData, eixoAtivo]);
   const entregasFiltradas = useMemo(() => filterByEixo(entregasData, eixoAtivo), [entregasData, eixoAtivo]);
@@ -854,7 +813,7 @@ function DashboardOrientador() {
   const agendaFiltrada = useMemo(() => filterByEixo(agendaData, eixoAtivo), [agendaData, eixoAtivo]);
 
   const riscosAltos = equipesFiltradas.filter((equipe) => equipe.risco === "alto").length;
-  const pendentes = entregasFiltradas.filter((entrega) => entrega.status === "pendente" || entrega.status === "atrasada").length;
+  const pendentes = entregasFiltradas.filter((entrega) => entrega.status === "pendente" || entrega.status === "recusada").length;
   const aguardandoAprovacao = projetosFiltrados.filter((projeto) => projeto.status === "aguardando").length;
 
   function mostrarAviso(mensagem: string) {
@@ -862,36 +821,24 @@ function DashboardOrientador() {
   }
 
   function agendarOrientacao() {
-    const equipe = equipesFiltradas[0] ?? equipesData[0];
-    if (!equipe) return;
-
-    const novoItem: AgendaItem = {
-      id: `age-${Date.now()}`,
-      hora: formatShortNow(),
-      dia: "Hoje",
-      titulo: "Orientação rápida registrada pelo painel",
-      equipe: equipe.nome,
-      local: "Lab 1",
-      eixoSlug: equipe.eixoSlug,
-    };
-
-    setAgendaData((lista) => [novoItem, ...lista]);
-    mostrarAviso(`Orientação criada para ${equipe.nome}.`);
+    mostrarAviso("Agenda ainda não tem endpoint no backend para criar horários.");
   }
 
   function registrarReuniao() {
-    const equipe = equipesFiltradas[0] ?? equipesData[0];
-    if (!equipe) return;
-
-    setEquipesData((lista) =>
-      lista.map((item) => (item.id === equipe.id ? { ...item, ultimoContato: `Hoje, ${formatShortNow()}` } : item))
-    );
-    mostrarAviso(`Último contato atualizado para ${equipe.nome}.`);
+    mostrarAviso("Registro de reunião/último contato ainda não tem endpoint no backend.");
   }
 
-  function atualizarProjeto(id: string, status: StatusProjeto) {
-    setProjetosData((lista) => lista.map((projeto) => (projeto.id === id ? { ...projeto, status } : projeto)));
-    mostrarAviso(status === "aprovado" ? "Projeto aprovado." : "Projeto marcado para ajustes.");
+  async function atualizarProjeto(id: string, status: StatusProjeto) {
+    const projeto = projetosData.find((item) => item.id === id);
+
+    try {
+      if (!projeto) return;
+      await backend.responderProjeto(projeto, status);
+
+      mostrarAviso(status === "aprovado" ? "Projeto aprovado." : "Projeto marcado para ajustes.");
+    } catch (error) {
+      mostrarAviso(error instanceof Error ? error.message : "Não foi possível atualizar o projeto.");
+    }
   }
 
   return (
@@ -912,7 +859,14 @@ function DashboardOrientador() {
         </>
       }
     >
-      <Notice message={aviso} />
+      <Notice
+        message={
+          aviso ||
+          (backend.carregando || entregasBackend.carregando
+            ? "Carregando dados do backend..."
+            : backend.erro || entregasBackend.erro || "Agenda e registro de reunião ainda não têm endpoints no backend.")
+        }
+      />
 
       <FiltroEixoBox
         eixoAtivo={eixoAtivo}
@@ -1073,9 +1027,26 @@ function DashboardOrientador() {
 }
 
 export function TurmasOrientador() {
+  const backend = useOrientadorBackendData();
   const [eixoAtivo, setEixoAtivo] = useState<EixoTematico>("todos");
-  const [equipesData] = useStoredState("sectec:equipes", equipesIniciais);
+  const equipesData = backend.equipes;
   const equipesFiltradas = useMemo(() => filterByEixo(equipesData, eixoAtivo), [equipesData, eixoAtivo]);
+  const turmasResumo = useMemo(() => {
+    const mapa = new Map<string, { id: string; nome: string; alunos: number }>();
+
+    equipesFiltradas.forEach((equipe) => {
+      const turma = mapa.get(equipe.turma) ?? {
+        id: equipe.turma.toLowerCase().replace(/\s+/g, "-"),
+        nome: equipe.turma,
+        alunos: 0,
+      };
+
+      turma.alunos += equipe.integrantes;
+      mapa.set(equipe.turma, turma);
+    });
+
+    return Array.from(mapa.values());
+  }, [equipesFiltradas]);
 
   return (
     <PageShell
@@ -1089,6 +1060,14 @@ export function TurmasOrientador() {
         </Button>
       }
     >
+      <Notice
+        message={
+          backend.carregando
+            ? "Carregando dados do backend..."
+            : backend.erro || "Turmas são agrupadas pelos projetos/orientações retornados pelo backend; turno da turma ainda não tem endpoint."
+        }
+      />
+
       <FiltroEixoBox
         eixoAtivo={eixoAtivo}
         onChange={setEixoAtivo}
@@ -1097,7 +1076,7 @@ export function TurmasOrientador() {
       />
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-12">
-        {turmas.map((turma, index) => {
+        {turmasResumo.map((turma, index) => {
           const equipesDaTurma = equipesFiltradas.filter((equipe) => equipe.turma === turma.nome);
           const pendencias = equipesDaTurma.filter((equipe) => equipe.risco !== "baixo").length;
           const mediaProgresso = equipesDaTurma.length
@@ -1117,7 +1096,7 @@ export function TurmasOrientador() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="break-words text-lg font-bold text-slate-900">{turma.nome}</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-400">{turma.turno}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-400">Turno não disponível no backend</p>
                 </div>
                 <Badge tone={pendencias > 1 ? "yellow" : "green"}>{pendencias} pendências</Badge>
               </div>
@@ -1143,6 +1122,11 @@ export function TurmasOrientador() {
             </Card>
           );
         })}
+        {turmasResumo.length === 0 && (
+          <Card className="md:col-span-2 xl:col-span-12">
+            <EmptyState text="Nenhuma turma retornada pelo backend." />
+          </Card>
+        )}
       </div>
 
       <Card>
@@ -1167,10 +1151,12 @@ export function TurmasOrientador() {
 }
 
 export function EntregasOrientador() {
+  const backend = useOrientadorBackendData();
+  const entregasBackend = useEntregasBackendData(backend.orientacoes, backend.carregando);
   const [filtro, setFiltro] = useState<"todas" | StatusEntrega>("todas");
   const [eixoAtivo, setEixoAtivo] = useState<EixoTematico>("todos");
-  const [entregasData, setEntregasData] = useStoredState("sectec:entregas", entregasIniciais);
   const [aviso, setAviso] = useState("");
+  const entregasData = entregasBackend.entregas;
 
   const entregasPorEixo = useMemo(() => filterByEixo(entregasData, eixoAtivo), [entregasData, eixoAtivo]);
   const entregasFiltradas = useMemo(() => {
@@ -1178,13 +1164,20 @@ export function EntregasOrientador() {
     return entregasPorEixo.filter((entrega) => entrega.status === filtro);
   }, [entregasPorEixo, filtro]);
 
-  function revisarEntrega(id: string) {
-    setEntregasData((lista) => lista.map((entrega) => (entrega.id === id ? { ...entrega, status: "revisada" } : entrega)));
-    setAviso("Entrega marcada como revisada.");
+  async function revisarEntrega(id: string) {
+    const entrega = entregasData.find((item) => item.id === id);
+    if (!entrega) return;
+
+    try {
+      await entregasBackend.revisarEntrega(entrega);
+      setAviso("Entrega marcada como revisada no backend.");
+    } catch (error) {
+      setAviso(error instanceof Error ? error.message : "Não foi possível revisar a entrega.");
+    }
   }
 
-  function marcarLoteRevisado() {
-    const idsVisiveis = new Set(entregasFiltradas.map((entrega) => entrega.id));
+  async function marcarLoteRevisado() {
+    const entregasPendentes = entregasFiltradas.filter((entrega) => entrega.status !== "revisada");
     const total = entregasFiltradas.filter((entrega) => entrega.status !== "revisada").length;
 
     if (!total) {
@@ -1192,10 +1185,12 @@ export function EntregasOrientador() {
       return;
     }
 
-    setEntregasData((lista) =>
-      lista.map((entrega) => (idsVisiveis.has(entrega.id) ? { ...entrega, status: "revisada" } : entrega))
-    );
-    setAviso(`${total} entrega(s) marcada(s) como revisadas.`);
+    try {
+      await Promise.all(entregasPendentes.map((entrega) => entregasBackend.revisarEntrega(entrega)));
+      setAviso(`${total} entrega(s) marcada(s) como revisadas no backend.`);
+    } catch (error) {
+      setAviso(error instanceof Error ? error.message : "Não foi possível revisar o lote completo.");
+    }
   }
 
   return (
@@ -1210,7 +1205,14 @@ export function EntregasOrientador() {
         </Button>
       }
     >
-      <Notice message={aviso} />
+      <Notice
+        message={
+          aviso ||
+          (backend.carregando || entregasBackend.carregando
+            ? "Carregando entregas do backend..."
+            : backend.erro || entregasBackend.erro || "Entregas são carregadas de /materiais apenas para projetos já aceitos.")
+        }
+      />
 
       <FiltroEixoBox
         eixoAtivo={eixoAtivo}
@@ -1227,7 +1229,7 @@ export function EntregasOrientador() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(["todas", "pendente", "atrasada", "revisada"] as const).map((item) => (
+            {(["todas", "pendente", "recusada", "revisada"] as const).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -1353,33 +1355,13 @@ export function EntregasOrientador() {
 
 export function AgendaOrientador() {
   const [eixoAtivo, setEixoAtivo] = useState<EixoTematico>("todos");
-  const [agendaData, setAgendaData] = useStoredState("sectec:agenda", agendaInicial);
-  const [equipesData] = useStoredState("sectec:equipes", equipesIniciais);
   const [aviso, setAviso] = useState("");
+  const agendaData = agendaSemBackend;
 
   const agendaFiltrada = useMemo(() => filterByEixo(agendaData, eixoAtivo), [agendaData, eixoAtivo]);
 
   function novoHorario() {
-    const equipe = filterByEixo(equipesData, eixoAtivo)[0] ?? equipesData[0];
-    if (!equipe) return;
-
-    const novoItem: AgendaItem = {
-      id: `age-${Date.now()}`,
-      hora: formatShortNow(),
-      dia: "Hoje",
-      titulo: "Novo horário de orientação",
-      equipe: equipe.nome,
-      local: "Lab 1",
-      eixoSlug: equipe.eixoSlug,
-    };
-
-    setAgendaData((lista) => [novoItem, ...lista]);
-    setAviso(`Novo horário criado para ${equipe.nome}.`);
-  }
-
-  function removerHorario(id: string) {
-    setAgendaData((lista) => lista.filter((item) => item.id !== id));
-    setAviso("Horário removido da agenda.");
+    setAviso("Agenda ainda não tem endpoint no backend para criar horários.");
   }
 
   return (
@@ -1394,7 +1376,7 @@ export function AgendaOrientador() {
         </Button>
       }
     >
-      <Notice message={aviso} />
+      <Notice message={aviso || "Não existe backend para agenda/horários de orientação nesta implementação."} />
 
       <FiltroEixoBox
         eixoAtivo={eixoAtivo}
@@ -1431,7 +1413,7 @@ export function AgendaOrientador() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => removerHorario(item.id)}
+                          onClick={() => setAviso("Agenda ainda não tem endpoint no backend para remover horários.")}
                           className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500"
                           aria-label="Remover horário"
                         >
@@ -1458,13 +1440,16 @@ export function AgendaOrientador() {
 
 export function AvaliacoesOrientador() {
   const [eixoAtivo, setEixoAtivo] = useState<EixoTematico>("todos");
-  const [notasData, setNotasData] = useStoredState("sectec:notas", notasIniciais);
   const [aviso, setAviso] = useState("");
+  const notasData = notasSemBackend;
 
   const notasFiltradas = useMemo(() => filterByEixo(notasData, eixoAtivo), [notasData, eixoAtivo]);
 
   function atualizarNota(equipe: string, campo: keyof Pick<NotaEquipe, "pesquisa" | "prototipo" | "apresentacao" | "documentacao">, valor: number) {
-    setNotasData((lista) => lista.map((item) => (item.equipe === equipe ? { ...item, [campo]: clampNota(valor) } : item)));
+    void equipe;
+    void campo;
+    void valor;
+    setAviso("Notas/avaliações ainda não têm endpoint no backend.");
   }
 
   return (
@@ -1473,13 +1458,13 @@ export function AvaliacoesOrientador() {
       title="Notas e rubrica"
       description="Lance notas por critério e mantenha a avaliação consistente para todas as equipes."
       actions={
-        <Button onClick={() => setAviso("Notas salvas no armazenamento local do navegador.")}>
+        <Button onClick={() => setAviso("Notas/avaliações ainda não têm endpoint no backend.")}>
           <Save size={16} />
           Salvar notas
         </Button>
       }
     >
-      <Notice message={aviso} />
+      <Notice message={aviso || "Não existe backend para notas/avaliações nesta implementação."} />
 
       <FiltroEixoBox
         eixoAtivo={eixoAtivo}
@@ -1601,10 +1586,9 @@ export function AvaliacoesOrientador() {
 }
 
 export function ConfigOrientador() {
-  const [perfil, setPerfil] = useStoredState("sectec:perfil", perfilInicial);
-  const [regras, setRegras] = useStoredState("sectec:regras", regrasIniciais);
-  const [alertas, setAlertas] = useStoredState("sectec:alertas", alertasIniciais);
   const [aviso, setAviso] = useState("");
+  const nome = typeof window !== "undefined" ? localStorage.getItem("nome") ?? "Orientador" : "Orientador";
+  const userId = typeof window !== "undefined" ? localStorage.getItem("userId") ?? "Não informado" : "Não informado";
 
   return (
     <PageShell
@@ -1612,13 +1596,13 @@ export function ConfigOrientador() {
       title="Configurações do orientador"
       description="Preferências de perfil, regras da feira e alertas importantes do acompanhamento."
       actions={
-        <Button onClick={() => setAviso("Configurações salvas no navegador.")}>
+        <Button onClick={() => setAviso("Configurações do orientador ainda não têm endpoint no backend.")}>
           <Save size={16} />
           Salvar alterações
         </Button>
       }
     >
-      <Notice message={aviso} />
+      <Notice message={aviso || "Não existe backend para perfil editável, regras da feira ou alertas do orientador nesta implementação."} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <Card className="lg:col-span-8 xl:col-span-7">
@@ -1628,31 +1612,21 @@ export function ConfigOrientador() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="space-y-2">
+            <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Nome</span>
-              <input
-                value={perfil.nome}
-                onChange={(event) => setPerfil((valor) => ({ ...valor, nome: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold outline-none focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Área</span>
-              <input
-                value={perfil.area}
-                onChange={(event) => setPerfil((valor) => ({ ...valor, area: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold outline-none focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
-              />
-            </label>
-            <label className="space-y-2 sm:col-span-2">
-              <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Bio curta</span>
-              <textarea
-                rows={4}
-                value={perfil.bio}
-                onChange={(event) => setPerfil((valor) => ({ ...valor, bio: event.target.value }))}
-                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-medium outline-none focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
-              />
-            </label>
+              <div className="min-h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700">
+                {nome}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">ID do usuário</span>
+              <div className="min-h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700">
+                {userId}
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <EmptyState text="Área, bio e preferências de perfil ainda não vêm do backend." />
+            </div>
           </div>
         </Card>
 
@@ -1663,19 +1637,7 @@ export function ConfigOrientador() {
           </div>
 
           <div className="space-y-3">
-            {regras.map((item) => (
-              <label key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-4">
-                <span className="min-w-0 break-words text-sm font-semibold text-slate-700">{item.texto}</span>
-                <input
-                  type="checkbox"
-                  checked={item.ativo}
-                  onChange={() =>
-                    setRegras((lista) => lista.map((regra) => (regra.id === item.id ? { ...regra, ativo: !regra.ativo } : regra)))
-                  }
-                  className="h-4 w-4 accent-sectec-700"
-                />
-              </label>
-            ))}
+            <EmptyState text="Regras da feira ainda não têm endpoint no backend." />
           </div>
         </Card>
       </div>
@@ -1690,28 +1652,9 @@ export function ConfigOrientador() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {alertas.map((alerta) => (
-            <button
-              type="button"
-              key={alerta.id}
-              onClick={() =>
-                setAlertas((lista) => lista.map((item) => (item.id === alerta.id ? { ...item, ativo: !item.ativo } : item)))
-              }
-              className={cx(
-                "rounded-lg border p-4 text-left transition",
-                alerta.ativo ? "border-sectec-200 bg-sectec-50" : "border-slate-200 bg-white hover:bg-slate-50"
-              )}
-            >
-              <div className="mb-3 flex items-center gap-2">
-                <Check size={17} className={alerta.ativo ? "text-sectec-600" : "text-slate-300"} />
-                <h3 className="font-bold text-slate-900">{alerta.titulo}</h3>
-              </div>
-              <p className="text-sm font-medium leading-6 text-slate-500">{alerta.texto}</p>
-              <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-                {alerta.ativo ? "ativo" : "desativado"}
-              </p>
-            </button>
-          ))}
+          <div className="sm:col-span-2 lg:col-span-3">
+            <EmptyState text="Alertas/notificações ainda não têm endpoint no backend." />
+          </div>
         </div>
       </Card>
     </PageShell>

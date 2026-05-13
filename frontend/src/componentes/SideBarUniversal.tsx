@@ -14,6 +14,9 @@ import {
   CalendarDays,
   ClipboardList,
   LogOut,
+  Users,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 
 import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
@@ -62,6 +65,14 @@ export function Sidebar({
       (sub) => !sub.roles || sub.roles.includes(userRole)
     ),
   }));
+  const settingsItem = filteredItems.find(
+    (item) =>
+      item.id.toLowerCase().includes("config") ||
+      item.href?.includes("/configuracoes")
+  );
+  const visibleItems = settingsItem
+    ? filteredItems.filter((item) => item.id !== settingsItem.id)
+    : filteredItems;
 
   return (
     <motion.aside
@@ -73,7 +84,7 @@ export function Sidebar({
         mobile
           ? "fixed inset-y-0 left-0 z-50 w-72 flex"
           : "fixed inset-y-0 left-0 z-20 hidden h-dvh min-h-dvh shrink-0 lg:flex"
-      } bg-[#0b4d2c] text-white border-r border-white/5 flex-col shadow-2xl overflow-hidden`}
+      } bg-[#0b4d2c] text-white border-r border-white/5 flex-col shadow-2xl overflow-visible`}
     >
       {!mobile && (
         <motion.button
@@ -139,7 +150,7 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 px-3 sm:px-4 py-6 sm:py-8 overflow-y-auto space-y-1 overflow-x-hidden">
-        {filteredItems.map((item, index) => {
+        {visibleItems.map((item, index) => {
           const hasSubItems = item.subItems && item.subItems.length > 0;
           const isActive = Boolean(item.isActive);
 
@@ -255,15 +266,20 @@ export function Sidebar({
         </motion.button>
 
         <motion.div
-          whileHover={{ x: expanded ? 3 : 0 }}
+          whileHover={{ scale: expanded ? 1.02 : 1.1 }}
           whileTap={{ scale: 0.97 }}
-          className={`flex items-center gap-3 px-2 py-1 text-white/65 transition ${
-            !expanded && "justify-center"
-          }`}
         >
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold shrink-0">
-            {userRole[0]}
-          </div>
+          <Link
+            to={settingsItem?.href || "#"}
+            onClick={onClose}
+            className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition text-white/70 hover:bg-white/10 hover:text-white ${
+              !expanded ? "justify-center p-3" : "py-3 px-4"
+            }`}
+            title="Configurações"
+          >
+            <span className="opacity-80 shrink-0">
+              {settingsItem?.icon || <Settings size={20} />}
+            </span>
 
           <AnimatePresence>
             {expanded && (
@@ -272,17 +288,19 @@ export function Sidebar({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -6 }}
                 transition={{ duration: 0.16 }}
-                className="min-w-0 flex-1"
+                className="whitespace-nowrap truncate"
               >
-                <span className="block truncate text-xs font-bold text-white">
+                {settingsItem?.label || "Configurações"}
+                {false && <span className="hidden">
                   Usuário conectado
-                </span>
-                <span className="block truncate text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                </span>}
+                {false && <span className="hidden">
                   {userRole}
-                </span>
+                </span>}
               </motion.span>
             )}
           </AnimatePresence>
+          </Link>
         </motion.div>
       </div>
     </motion.aside>
@@ -301,9 +319,9 @@ export function MainLayout({
   const location = useLocation();
 
   const rolePath =
-    userRole === "ADMIN"
+    userRole === "coordenador" || userRole === "comissao"
       ? "coordenacao"
-      : userRole === "Professor"
+      : userRole === "orientador"
       ? "orientador"
       : "aluno";
 
@@ -314,7 +332,9 @@ export function MainLayout({
     [`${dashboardPrefix}/turmas`]: "Turmas",
     [`${dashboardPrefix}/entregas`]: "Entregas",
     [`${dashboardPrefix}/agenda`]: "Agenda",
+    [`${dashboardPrefix}/relatorios`]: "Relatórios",
     [`${dashboardPrefix}/notas`]: "Avaliações",
+    [`${dashboardPrefix}/usuarios`]: "Usuários",
     [`${dashboardPrefix}/configuracoes`]: "Configurações",
   };
 
@@ -323,14 +343,14 @@ export function MainLayout({
     location.pathname.split("/").pop()?.replace(/-/g, " ") ||
     "painel";
 
-  const professorMenu: NavItem[] = [
+  const orientadorMenu: NavItem[] = [
     {
       id: "orientador-painel",
       label: "Painel",
       icon: <LayoutDashboard size={20} />,
       href: dashboardPrefix,
       isActive: location.pathname === dashboardPrefix,
-      roles: ["Professor"],
+      roles: ["orientador"],
     },
     {
       id: "orientador-turmas",
@@ -338,7 +358,7 @@ export function MainLayout({
       icon: <School size={20} />,
       href: `${dashboardPrefix}/turmas`,
       isActive: location.pathname === `${dashboardPrefix}/turmas`,
-      roles: ["Professor"],
+      roles: ["orientador"],
     },
     {
       id: "orientador-entregas",
@@ -346,7 +366,7 @@ export function MainLayout({
       icon: <ClipboardList size={20} />,
       href: `${dashboardPrefix}/entregas`,
       isActive: location.pathname === `${dashboardPrefix}/entregas`,
-      roles: ["Professor"],
+      roles: ["orientador"],
     },
     {
       id: "orientador-agenda",
@@ -354,7 +374,7 @@ export function MainLayout({
       icon: <CalendarDays size={20} />,
       href: `${dashboardPrefix}/agenda`,
       isActive: location.pathname === `${dashboardPrefix}/agenda`,
-      roles: ["Professor"],
+      roles: ["orientador"],
     },
     {
       id: "orientador-notas",
@@ -362,7 +382,7 @@ export function MainLayout({
       icon: <FileSpreadsheet size={20} />,
       href: `${dashboardPrefix}/notas`,
       isActive: location.pathname === `${dashboardPrefix}/notas`,
-      roles: ["Professor"],
+      roles: ["orientador"],
     },
     {
       id: "orientador-config",
@@ -370,7 +390,7 @@ export function MainLayout({
       icon: <Settings size={20} />,
       href: `${dashboardPrefix}/configuracoes`,
       isActive: location.pathname === `${dashboardPrefix}/configuracoes`,
-      roles: ["Professor"],
+      roles: ["orientador"],
     },
   ];
 
@@ -383,24 +403,104 @@ export function MainLayout({
       isActive: location.pathname === dashboardPrefix,
       roles: ["aluno"],
     },
+    {
+      id: "aluno-relatorios",
+      label: "Relatórios",
+      icon: <FileText size={20} />,
+      href: `${dashboardPrefix}/relatorios`,
+      isActive: location.pathname === `${dashboardPrefix}/relatorios`,
+      roles: ["aluno"],
+    },
+    {
+      id: "aluno-notas",
+      label: "Notas",
+      icon: <FileSpreadsheet size={20} />,
+      href: `${dashboardPrefix}/notas`,
+      isActive: location.pathname === `${dashboardPrefix}/notas`,
+      roles: ["aluno"],
+    },
+    {
+      id: "aluno-config",
+      label: "Configurações",
+      icon: <Settings size={20} />,
+      href: `${dashboardPrefix}/configuracoes`,
+      isActive: location.pathname === `${dashboardPrefix}/configuracoes`,
+      roles: ["aluno"],
+    },
   ];
 
-  const adminMenu: NavItem[] = [
+  const coordenadorMenu: NavItem[] = [
     {
       id: "coordenacao-painel",
       label: "Painel",
       icon: <LayoutDashboard size={20} />,
       href: dashboardPrefix,
       isActive: location.pathname === dashboardPrefix,
-      roles: ["ADMIN"],
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-projetos",
+      label: "Projetos",
+      icon: <FileText size={20} />,
+      href: `${dashboardPrefix}#coord-projetos`,
+      isActive: location.hash === "#coord-projetos",
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-turmas",
+      label: "Turmas",
+      icon: <School size={20} />,
+      href: `${dashboardPrefix}#coord-turmas`,
+      isActive: location.hash === "#coord-turmas",
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-orientacoes",
+      label: "Orientações",
+      icon: <ClipboardList size={20} />,
+      href: `${dashboardPrefix}#coord-orientacoes`,
+      isActive: location.hash === "#coord-orientacoes",
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-usuarios",
+      label: "Usuários",
+      icon: <Users size={20} />,
+      href: `${dashboardPrefix}/usuarios`,
+      isActive: location.pathname === `${dashboardPrefix}/usuarios`,
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-prazos",
+      label: "Prazos",
+      icon: <CalendarDays size={20} />,
+      href: `${dashboardPrefix}#coord-prazos`,
+      isActive: location.hash === "#coord-prazos",
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-pdfs",
+      label: "Relatórios & PDFs",
+      icon: <FileSpreadsheet size={20} />,
+      href: `${dashboardPrefix}#coord-pdfs`,
+      isActive: location.hash === "#coord-pdfs",
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-auditoria",
+      label: "Auditoria",
+      icon: <ShieldCheck size={20} />,
+      href: `${dashboardPrefix}#coord-auditoria`,
+      isActive: location.hash === "#coord-auditoria",
+      roles: ["coordenador", "comissao"],
     },
   ];
 
   const menuConfig =
-    userRole === "Professor"
-      ? professorMenu
-      : userRole === "ADMIN"
-      ? adminMenu
+    userRole === "orientador"
+      ? orientadorMenu
+      : userRole === "coordenador" || userRole === "comissao"
+      ? coordenadorMenu
       : alunoMenu;
 
   return (

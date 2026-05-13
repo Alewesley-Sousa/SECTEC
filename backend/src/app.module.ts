@@ -3,8 +3,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ServeStaticModule } from '@nestjs/serve-static'; // 👈 ADICIONADO
-import { join } from 'path'; // 👈 ADICIONADO
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -15,6 +15,8 @@ import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PdfModule } from './pdf/pdf.module';
+import { OrientacoesModule } from './orientacoes/orientacoes.module';
+import { MateriaisModule } from './materiais/materiais.module';
 
 @Module({
   imports: [
@@ -30,15 +32,12 @@ import { PdfModule } from './pdf/pdf.module';
       synchronize: true,
     }),
     ScheduleModule.forRoot(),
-    
+
     // ── CONFIGURAÇÃO PARA SERVIR O REACT ──
     ServeStaticModule.forRoot({
-  // Usamos o caminho absoluto para evitar o erro de "backend/frontend/dist"
-  rootPath: '/app/frontend/dist', 
-  // Usamos o asterisco simples que é compatível com strings do TS
-  exclude: ['/api'], 
-}),
-
+      rootPath: '/app/frontend/dist',
+      exclude: ['/api'],
+    }),
 
     CommonModule,
     UsersModule,
@@ -47,6 +46,10 @@ import { PdfModule } from './pdf/pdf.module';
     ProjetosModule,
     EventoModule,
     PdfModule,
+
+    // ── MÓDULOS DO ORIENTADOR ──
+    OrientacoesModule,
+    MateriaisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Mail, User } from "lucide-react";
 import Swal from "sweetalert2";
 import { MainLayout } from "../SideBarUniversal";
+import type { UserRole } from "../../helpes/InteligenciaSideBar";
 
 function getEmailFromToken() {
   const token = localStorage.getItem("token");
@@ -18,7 +19,7 @@ function getEmailFromToken() {
   }
 }
 
-function Config() {
+function Config({ userRole = "aluno" }: { userRole?: UserRole }) {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -71,13 +72,15 @@ function Config() {
       confirmButtonColor: "#15803d",
     });
 
+    const userId = localStorage.getItem("userId") ?? "me";
+    localStorage.setItem(`passwordChangedAt:${userId}`, new Date().toISOString());
     setOldPassword("");
     setNewPassword("");
     setConfirmPassword("");
   }
 
   return (
-    <MainLayout userRole="aluno">
+    <MainLayout userRole={userRole}>
       <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8 sm:py-8">
         {/* Wrapper centralizado */}
         <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
