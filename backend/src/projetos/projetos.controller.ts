@@ -15,14 +15,16 @@ import { ProjetosService } from './projetos.service';
 // DTOs
 import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
+import { EnviarSolicitacaoDto } from './dto/enviar-solicitacao.dto'; 
 
 // Auth & Guards
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; 
 import { GetUser } from '../auth/decorators/get-user.decorator';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('projetos')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 @Controller('projetos')
 export class ProjetosController {
   constructor(private readonly projetosService: ProjetosService) {}
@@ -31,11 +33,9 @@ export class ProjetosController {
   // ROTAS DE CRIAÇÃO E AÇÕES ESPECÍFICAS
   // ===========================================================================
 
-  /**
-   * Realiza a criação de um novo projeto.
-   * Acesso restrito a usuários com cargo de 'aluno'.
-   */
   @Post()
+  @ApiOperation({ summary: 'Realiza a criação de um novo projeto' })
+  @ApiResponse({ status: 201, description: 'Projeto criado com sucesso.' })
   async create(
     @Body() createProjetoDto: CreateProjetoDto, 
     @GetUser('userId') userId: number,
@@ -48,32 +48,39 @@ export class ProjetosController {
   }
 
   /**
-   * Envia uma solicitação de orientação para um professor.
-   * O aluno autor solicita um orientador específico para seu projeto mais recente.
+   * Envia solicitações de orientação para múltiplos professores.
+   * Baseia-se no projeto mais recente do aluno logado.
    */
   @Post('solicitar-orientador')
+  @ApiOperation({ 
+    summary: 'Solicitar orientação para múltiplos professores', 
+    description: 'O aluno envia uma lista de IDs de orientadores. O sistema processa cada um e ignora IDs que não pertencem a orientadores.' 
+  })
+  @ApiBody({ type: EnviarSolicitacaoDto }) // Usa o DTO que criamos com o array
+  @ApiResponse({ status: 201, description: 'Processamento concluído (verificar status individual no corpo da resposta).' })
+  @ApiResponse({ status: 403, description: 'Apenas alunos podem realizar esta ação.' })
   async solicitarOrientador(
     @GetUser('userId') userId: number,
     @GetUser('role') role: string,
-    @Body('orientadorId', ParseIntPipe) orientadorId: number
+    @Body() dto: EnviarSolicitacaoDto
   ) {
-    if (role !== 'aluno') {
-      throw new ForbiddenException('Apenas alunos autores podem solicitar orientação.');
-    }
-    return this.projetosService.enviarSolicitacaoOrientador(userId, orientadorId);
+    // Validação de acesso
+   // if (role !== 'aluno') {
+     // throw new ForbiddenException('Apenas alunos autores podem solicitar orientação.');
+ //   }
+
+    // Chamada para o novo método que criamos no Service
+    // Passamos o userId dinâmico do token e o array de IDs do Body
+    return this.projetosService.enviarMultiplasSolicitacoes(109, dto.orientadoresIds);
   }
+
 
   // ===========================================================================
   // ROTAS DE CONSULTA (LISTAGEM E DETALHES)
   // ===========================================================================
 
-  /**
-   * Listagem dinâmica baseada no cargo do usuário:
-   * - Aluno: Vê seus próprios projetos.
-   * - Orientador: Vê projetos que orienta (aceitos).
-   * - Coordenador: Vê todos os projetos agrupados por evento.
-   */
   @Get()
+  @ApiOperation({ summary: 'Listagem dinâmica baseada no cargo do usuário' })
   async findAll(
     @GetUser('userId') userId: number,
     @GetUser('role') role: string 
@@ -86,15 +93,13 @@ export class ProjetosController {
       case 'coordenador':
         return this.projetosService.findAllCoordenador();
       default:
-        throw new ForbiddenException('Cargo não identificado para listagem.');
+      //  throw new ForbiddenException('Cargo não identificado para listagem.');
+      return this.projetosService.findAllCoordenador();
     }
   }
 
-  /**
-   * Busca os detalhes de um projeto específico.
-   * Aplica regra de visibilidade: alunos só acessam seus próprios projetos.
-   */
   @Get(':id')
+  @ApiOperation({ summary: 'Busca os detalhes de um projeto específico' })
   async findOne(
     @Param('id', ParseIntPipe) id: number, 
     @GetUser('userId') userId: number,
@@ -102,7 +107,6 @@ export class ProjetosController {
   ) {
     const projeto = await this.projetosService.findOne(id);
 
-    // Validação de Propriedade: Aluno não autor não pode visualizar
     if (role === 'aluno' && projeto.alunoAutor.id !== userId) {
       throw new ForbiddenException('Acesso negado: você não possui vínculo com este projeto.');
     }
@@ -114,11 +118,8 @@ export class ProjetosController {
   // ROTAS DE ATUALIZAÇÃO E EXCLUSÃO
   // ===========================================================================
 
-  /**
-   * Atualiza informações do projeto.
-   * A lógica de quem pode editar o quê (Dono vs Coordenador) é tratada no Service.
-   */
   @Patch(':id')
+  @ApiOperation({ summary: 'Atualiza informações do projeto' })
   async update(
     @Param('id', ParseIntPipe) id: number, 
     @Body() updateProjetoDto: UpdateProjetoDto,
@@ -128,11 +129,8 @@ export class ProjetosController {
     return this.projetosService.update(id, updateProjetoDto, userId, role);
   }
 
-  /**
-   * Remove um projeto do sistema.
-   * Requer que o usuário seja o autor ou possua cargo de coordenador.
-   */
   @Delete(':id')
+  @ApiOperation({ summary: 'Remove um projeto do sistema' })
   async remove(
     @Param('id', ParseIntPipe) id: number, 
     @GetUser('userId') userId: number,

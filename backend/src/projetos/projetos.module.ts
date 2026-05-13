@@ -14,6 +14,7 @@ import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
 import { Evento } from 'src/evento/entities/evento.entity';
 import { AuditoriaModule } from 'src/auditoria/auditoria.module';
+import { User } from 'src/users/entities/user.entity'; 
 
 /**
  * Módulo responsável pela gestão de projetos científicos e acadêmicos.
@@ -34,6 +35,7 @@ import { AuditoriaModule } from 'src/auditoria/auditoria.module';
       TemaEvento,
       Evento,
       AuditoriaModule,
+      User
     ]),
     AuditoriaModule,
   ],

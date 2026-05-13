@@ -52,8 +52,4 @@ export class User {
   // Relacionamento para Orientadores: Ver convites/orientações vinculadas a ele
   @OneToMany(() => ProjetoOrientador, (projetoOrientador) => projetoOrientador.orientador)
   solicitacoesOrientacao!: ProjetoOrientador[];
-
-  // Um professor pode criar vários temas para um evento
-  @OneToMany(() => TemaEvento, (tema) => tema.professor)
-  temasCriados!: TemaEvento[]; // 👈 Novo relacionamento
 }

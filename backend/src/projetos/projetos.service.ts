@@ -13,6 +13,8 @@ import { ProjetoAluno } from './entities/projeto-aluno.entity';
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
 import { Evento } from 'src/evento/entities/evento.entity';
+import { User, UserRole } from 'src/users/entities/user.entity';
+
 
 // DTOs
 import { CreateProjetoDto } from './dto/create-projeto.dto';
@@ -36,6 +38,9 @@ export class ProjetosService {
 
     @InjectRepository(Evento)
     private readonly eventoRepository: Repository<Evento>,
+    
+      @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
 
 
     private readonly dataSource: DataSource,
@@ -63,6 +68,7 @@ export class ProjetosService {
 
     try {
       const projeto = await this.saveProjeto(queryRunner, dto, userId);
+      
       await this.saveParticipantes(queryRunner, projeto.id, dto.alunosIds, userId);
 
       await queryRunner.commitTransaction();
@@ -82,13 +88,58 @@ export class ProjetosService {
   }
 
   /**
-   * Envia uma solicitação para um orientador específico baseada no projeto mais recente do aluno.
-   * @param userId ID do autor do projeto
-   * @param orientadorId ID do professor orientador
+   * Processa uma lista de orientadores, enviando solicitações individuais.
+   * Se um ID falhar, o sistema registra o erro e continua para o próximo.
    */
-  async enviarSolicitacaoOrientador(userId: number, orientadorId: number): Promise<ProjetoOrientador> {
+  async enviarMultiplasSolicitacoes(userId: number, orientadoresIds: number[]) {
+    const resultados: { 
+      orientadorId: number; 
+      status: string; 
+      motivo?: string; 
+      solicitacaoId?: number 
+    }[] = [];
+    
+    // Buscamos o projeto uma única vez antes do loop para poupar processamento
     const projeto = await this.getUltimoProjetoDoAluno(userId);
 
+    for (const orientadorId of orientadoresIds) {
+      try {
+        // 1. Verificação de Perfil: É realmente um orientador?
+        const professorValido = await this.verificarSeEProfessor(orientadorId);
+        
+        if (!professorValido) {
+          resultados.push({ orientadorId, status: 'pulado', motivo: 'Usuário não é um orientador válido.' });
+          continue; // Pula para o próximo ID
+        }
+
+        // 2. Tenta realizar a solicitação usando seu método existente
+        // Se validarSolicitacaoDuplicada ou validarTema disparar erro, o catch captura
+        const solicitacao = await this.enviarSolicitacaoIndividual(projeto, userId, orientadorId);
+        
+        resultados.push({ orientadorId, status: 'sucesso', solicitacaoId: solicitacao.id });
+
+      } catch (error) {
+        // Captura erros de validação (duplicidade, tema inválido, etc)
+        resultados.push({ 
+          orientadorId, 
+          status: 'erro', 
+          motivo: error.message || 'Erro interno ao processar este ID.' 
+        });
+        continue; // Garante que o loop continue mesmo com erro
+      }
+    }
+
+    return {
+      projetoId: projeto.id,
+      resumo: resultados
+    };
+  }
+
+  /**
+   * Versão ajustada do seu método original para aceitar o objeto projeto já carregado
+   */
+  private async enviarSolicitacaoIndividual(projeto: Projeto, userId: number, orientadorId: number): Promise<ProjetoOrientador> {
+    // Suas validações existentes
     await this.validarTemaNoEvento(projeto.temaId, projeto.evento.id);
     await this.validarSolicitacaoDuplicada(projeto.id, orientadorId);
 
@@ -103,12 +154,23 @@ export class ProjetosService {
     await this.auditoriaService.registrar(
       userId,
       'ORIENTADOR_SOLICITADO',
-      `Solicitacao enviada ao orientador #${orientadorId} para o projeto #${projeto.id}.`,
+      `Solicitação enviada ao orientador #${orientadorId} para o projeto #${projeto.id}.`,
       projeto.id,
     );
 
     return solicitacao;
   }
+
+  /**
+   * Verifica se o ID pertence a um usuário com cargo de orientador
+   */
+  private async verificarSeEProfessor(id: number): Promise<boolean> {
+    // Ajuste conforme o nome da sua entidade de usuário/repositório
+    const user = await this.userRepository.findOne({ where: { id, role_cargo:
+    UserRole.ORIENTADOR } });
+    return !!user;
+  }
+
 
   // ===========================================================================
   // MÉTODOS DE CONSULTA (LEITURA)
@@ -281,24 +343,35 @@ export class ProjetosService {
   }
 
   private async saveProjeto(qr: QueryRunner, dto: CreateProjetoDto, autorId: number): Promise<Projeto> {
-    const projeto = qr.manager.create(Projeto, {
-      ...dto,
-      evento: { id: dto.evento } as any,
-      alunoAutor: { id: autorId } as any,
-    });
-    return qr.manager.save(projeto);
-  }
+  const projeto = qr.manager.create(Projeto, {
+    ...dto,
+    evento: { id: dto.evento } as any,
+    tema: { id: dto.temaId } as any, // Garanta que o temaId também seja vinculado
+    alunoAutor: { id: autorId } as any,
+  });
+  return qr.manager.save(projeto);
+}
+
 
   private async saveParticipantes(qr: QueryRunner, projetoId: number, convidadosIds: number[] = [], autorId: number) {
-    const idsUnicos = [...new Set([...convidadosIds, autorId])];
-    const vinculos = idsUnicos.map(id =>
-      qr.manager.create(ProjetoAluno, {
-        projeto: { id: projetoId },
-        aluno: { id: id }
-      })
-    );
-    return qr.manager.save(vinculos);
-  }
+  // 1. Remove o autor da lista (caso o front tenha enviado por engano)
+  // 2. Remove IDs duplicados que possam ter vindo no array
+  const participantesApenas = convidadosIds.filter(id => id !== autorId);
+  const idsUnicos = [...new Set(participantesApenas)];
+
+  // Se o projeto for individual (sem convidados), não precisa salvar nada na tabela pivô
+  if (idsUnicos.length === 0) return [];
+
+  const vinculos = idsUnicos.map(id =>
+    qr.manager.create(ProjetoAluno, {
+      projeto: { id: projetoId },
+      aluno: { id: id }
+    })
+  );
+
+  return qr.manager.save(vinculos);
+}
+
 
   private async getUltimoProjetoDoAluno(userId: number): Promise<Projeto> {
     const projeto = await this.projetoRepository.findOne({
