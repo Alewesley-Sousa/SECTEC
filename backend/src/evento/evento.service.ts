@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'; // 1. Adicionado BadRequestException
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreateEventoDto } from './dto/create-evento.dto';
 import { UpdateEventoDto } from './dto/update-evento.dto';
 import { CreateTemasDto } from './dto/create-tema.dto';
@@ -75,32 +75,33 @@ export class EventoService {
 
 
 
-async selecionarTema(temaId: number, professorId: number) {
-    // 1. Buscamos o tema (importante carregar a relação 'orientadores')
-    const tema = await this.temaRepository.findOne({
-      where: { id: temaId },
-      relations: ['orientadores']
-    });
+async sincronizarTemas(professorId: number, temasIds: number[]) {
+  // 1. Buscamos o professor carregando a relação da tabela pivot
+  const professor = await this.userRepository.findOne({
+    where: { id: professorId },
+    relations: ['temasSelecionados']
+  });
 
-    if (!tema) throw new NotFoundException('Tema não encontrado');
-
-    // 2. Buscamos o professor - Agora o this.userRepository existe!
-    const professor = await this.userRepository.findOneBy({ id: professorId });
-
-    // Verificamos o cargo usando o UserRole importado
-    if (!professor || professor.role_cargo !== UserRole.ORIENTADOR) {
-      throw new BadRequestException('Usuário deve ser um orientador.');
-    }
-
-    // 3. Adicionamos o professor à lista do tema (Tabela Pivot)
-    const jaSelecionou = tema.orientadores.some(p => p.id === professorId);
-    if (!jaSelecionou) {
-      tema.orientadores.push(professor);
-      await this.temaRepository.save(tema);
-    }
-
-    return { message: 'Tema selecionado com sucesso!' };
+  if (!professor || professor.role_cargo !== UserRole.ORIENTADOR) {
+    throw new BadRequestException('Orientador não encontrado ou cargo inválido.');
   }
 
+  // 2. Buscamos todos os temas que vieram no array de IDs
+  const novosTemas = await this.temaRepository.findBy({
+    id: In(temasIds)
+  });
+
+  // 3. O Pulo do Gato: Substituímos o array antigo pelo novo
+  // O TypeORM detecta a diferença e faz os DELETEs e INSERTs sozinho
+  professor.temasSelecionados = novosTemas;
+
+  // 4. Salvamos o professor com a nova lista
+  await this.userRepository.save(professor);
+
+  return {
+    message: 'Temas sincronizados com sucesso',
+    totalSelecionado: novosTemas.length
+  };
+}
 
 }

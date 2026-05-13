@@ -6,7 +6,8 @@ import { CreateTemasDto } from './dto/create-tema.dto'; // Certifique-se de ter 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; 
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity'; // 👈 ADICIONE ESTA LINHA
-
+import { ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+@ApiTags('evento')
 @Controller('evento')
 export class EventoController {
   constructor(private readonly eventoService: EventoService) {}
@@ -60,14 +61,35 @@ addTemas(
   
   
   // POST /evento/temas/:temaId/selecionar
-@Post('temas/:temaId/selecionar')
-  //@UseGuards(JwtAuthGuard) // Protege a rota: só acessa quem tem token válido
-  async selecionar(
-    @Param('temaId', ParseIntPipe) temaId: number,
-    @GetUser() user: User // Extrai o usuário logado diretamente do Token
-  ) {
-    // Agora passamos o ID do usuário que o Decorator encontrou
-    return await this.eventoService.selecionarTema(temaId, 51);
+@Post('temas/sincronizar')
+@ApiOperation({ 
+  summary: 'Sincroniza os temas do orientador', 
+  description: 'Envia uma lista completa de IDs. Os temas que não estiverem na lista serão removidos e os novos serão adicionados.' 
+})
+@ApiResponse({ status: 201, description: 'Temas sincronizados com sucesso.' })
+@ApiResponse({ status: 400, description: 'Dados inválidos ou usuário não é orientador.' })
+// Aqui você define o corpo manualmente para o Swagger
+@ApiBody({
+  schema: {
+    type: 'object',
+    properties: {
+      temasIds: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'Lista de IDs dos temas selecionados',
+        example: [1, 2, 3]
+      }
+    }
   }
+})
+//@UseGuards(JwtAuthGuard)
+async sincronizar(
+  @Body('temasIds') temasIds: number[], // Espera um array: [1, 2, 3]
+  @GetUser() user: User
+) {
+  // Usamos o ID do orientador logado para garantir que ele só mexa nos temas dele
+  return await this.eventoService.sincronizarTemas(51, temasIds);
+}
+
 
 }
