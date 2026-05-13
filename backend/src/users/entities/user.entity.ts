@@ -49,6 +49,10 @@ export class User {
   @OneToMany(() => ProjetoAluno, (projetoAluno) => projetoAluno.aluno)
   projetosParticipados!: ProjetoAluno[];
 
+  // relacionamento de professores com temas de evento criados
+  @OneToMany(() => TemaEvento, (temaEvento) => temaEvento.professor)
+  temasCriados!: TemaEvento[];
+
   // Relacionamento para Orientadores: Ver convites/orientações vinculadas a ele
   @OneToMany(() => ProjetoOrientador, (projetoOrientador) => projetoOrientador.orientador)
   solicitacoesOrientacao!: ProjetoOrientador[];

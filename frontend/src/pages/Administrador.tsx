@@ -402,15 +402,20 @@ type UsuarioCoordenacao = {
   nome: string;
   email: string;
   perfil: "Aluno" | "Orientador";
+  turma?: string;
 };
 
 function UsuariosCoordenacao() {
   const [abaAtiva, setAbaAtiva] = useState<"alunos" | "orientadores">("alunos");
   const [busca, setBusca] = useState("");
+  const [turmaFiltro, setTurmaFiltro] = useState("todas");
+  const [paginaAtual, setPaginaAtual] = useState(1);
   const [alunos, setAlunos] = useState<UsuarioCoordenacao[]>([]);
   const [orientadores, setOrientadores] = useState<UsuarioCoordenacao[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
+  const [uploadando, setUploadando] = useState(false);
+  const [uploadLabel, setUploadLabel] = useState("Adicionando");
   const inputAlunosRef = useRef<HTMLInputElement>(null);
   const inputOrientadoresRef = useRef<HTMLInputElement>(null);
 
@@ -424,6 +429,7 @@ function UsuariosCoordenacao() {
       nome: usuario.nome,
       email: usuario.email_institucional ?? "",
       perfil,
+      turma: (usuario as { turma?: string })?.turma,
     }));
   }
 
@@ -464,6 +470,8 @@ function UsuariosCoordenacao() {
     const token = localStorage.getItem("token");
     const formData = new FormData();
     formData.append("file", file);
+    setUploadando(true);
+    setUploadLabel(tipo === "alunos" ? "Adicionando alunos" : "Adicionando orientadores");
 
     try {
       const rota = tipo === "alunos" ? "/users/upload-csv/alunos" : "/users/upload-csv/professores";
@@ -494,6 +502,7 @@ function UsuariosCoordenacao() {
         confirmButtonColor: "#15803d",
       });
     } finally {
+      setUploadando(false);
       if (tipo === "alunos" && inputAlunosRef.current) inputAlunosRef.current.value = "";
       if (tipo === "orientadores" && inputOrientadoresRef.current) inputOrientadoresRef.current.value = "";
     }
@@ -516,13 +525,31 @@ function UsuariosCoordenacao() {
 
   const listaAtual = abaAtiva === "alunos" ? alunos : orientadores;
   const termo = busca.trim().toLowerCase();
+  const turmasDisponiveis = [
+    "todas",
+    ...Array.from(new Set(listaAtual.map((usuario) => usuario.turma).filter(Boolean))).sort(),
+  ] as string[];
+
   const listaFiltrada = listaAtual.filter((usuario) => {
     if (!termo) return true;
-    return (
+    const bateBusca =
       usuario.nome.toLowerCase().includes(termo) ||
-      usuario.email.toLowerCase().includes(termo)
-    );
+      usuario.email.toLowerCase().includes(termo);
+    const bateTurma =
+      turmaFiltro === "todas" ||
+      (usuario.turma?.toLowerCase() ?? "") === turmaFiltro.toLowerCase();
+    return bateBusca && bateTurma;
   });
+
+  const itensPorPagina = 10;
+  const totalPaginas = Math.max(1, Math.ceil(listaFiltrada.length / itensPorPagina));
+  const paginaSegura = Math.min(paginaAtual, totalPaginas);
+  const inicio = (paginaSegura - 1) * itensPorPagina;
+  const listaPaginada = listaFiltrada.slice(inicio, inicio + itensPorPagina);
+
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [abaAtiva, busca, turmaFiltro]);
 
   return (
     <AdminPageShell>
@@ -561,6 +588,12 @@ function UsuariosCoordenacao() {
           </div>
         </div>
 
+        {uploadando && (
+          <div className="mt-4 rounded-2xl border border-sectec-200 bg-sectec-50 px-4 py-3 text-sm font-black text-sectec-700 shadow-sm">
+            {uploadLabel}...
+          </div>
+        )}
+
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {[
             { label: "Total de alunos", value: totalAlunos },
@@ -597,21 +630,38 @@ function UsuariosCoordenacao() {
               );
             })}
           </div>
-          <label className="relative block">
-            <PiMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
-            <input
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-              placeholder="Buscar por nome ou email"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100 sm:w-72"
-            />
-          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label className="relative block">
+              <PiMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+              <input
+                value={busca}
+                onChange={(event) => setBusca(event.target.value)}
+                placeholder="Buscar por nome ou email"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100 sm:w-60"
+              />
+            </label>
+            <label className="relative block">
+              <PiFunnel className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+              <select
+                value={turmaFiltro}
+                onChange={(event) => setTurmaFiltro(event.target.value)}
+                className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-8 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100 sm:w-48"
+              >
+                {turmasDisponiveis.map((turma) => (
+                  <option key={turma} value={turma}>
+                    {turma === "todas" ? "Todas as turmas" : turma}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-          <div className="hidden grid-cols-[1fr_1fr_0.5fr_0.4fr] bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 lg:grid">
+          <div className="hidden grid-cols-[1fr_1fr_0.5fr_0.5fr_0.4fr] bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 lg:grid">
             <span>Nome</span>
             <span>Email institucional</span>
+            <span>Turma</span>
             <span>Perfil</span>
             <span>Status</span>
           </div>
@@ -626,18 +676,45 @@ function UsuariosCoordenacao() {
             {!carregando && !erro && listaFiltrada.length === 0 && (
               <div className="px-4 py-6 text-sm font-semibold text-slate-500">Nenhum usuario encontrado.</div>
             )}
-            {!carregando && !erro && listaFiltrada.map((usuario) => (
-              <article key={usuario.id} className="grid gap-2 px-4 py-4 lg:grid-cols-[1fr_1fr_0.5fr_0.4fr] lg:items-center">
+            {!carregando && !erro && listaPaginada.map((usuario) => (
+              <article key={usuario.id} className="grid gap-2 px-4 py-4 lg:grid-cols-[1fr_1fr_0.5fr_0.5fr_0.4fr] lg:items-center">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-slate-900">{usuario.nome}</p>
                 </div>
                 <p className="truncate text-sm font-semibold text-slate-600">{usuario.email || "-"}</p>
+                <p className="truncate text-sm font-semibold text-slate-600">{usuario.turma || "-"}</p>
                 <p className="text-sm font-black text-slate-700">{usuario.perfil}</p>
                 <AdminChip className="bg-emerald-50 text-emerald-700 ring-emerald-200">Ativo</AdminChip>
               </article>
             ))}
           </div>
         </div>
+
+        {!carregando && !erro && totalPaginas > 1 && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm font-semibold text-slate-600">
+            <span>
+              Pagina {paginaSegura} de {totalPaginas}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPaginaAtual((prev) => Math.max(1, prev - 1))}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-sectec-200 hover:bg-sectec-50 hover:text-sectec-700"
+                disabled={paginaSegura === 1}
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaginaAtual((prev) => Math.min(totalPaginas, prev + 1))}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-sectec-200 hover:bg-sectec-50 hover:text-sectec-700"
+                disabled={paginaSegura === totalPaginas}
+              >
+                Proxima
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </AdminPageShell>
   );
