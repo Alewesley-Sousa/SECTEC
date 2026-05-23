@@ -111,9 +111,8 @@ function Config({ userRole = "aluno" }: { userRole?: UserRole }) {
 
   return (
     <MainLayout userRole={userRole}>
-      <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8 sm:py-8">
-        {/* Wrapper centralizado */}
-        <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+      <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8 sm:py-8 overflow-x-hidden">
+        <div className="mx-auto grid w-full max-w-6xl gap-6 grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
 
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="bg-[#0b4d2c] px-6 py-6 text-white sm:px-8">
@@ -126,7 +125,8 @@ function Config({ userRole = "aluno" }: { userRole?: UserRole }) {
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">
                     {perfil.label}
                   </p>
-                  <h1 className="mt-1 truncate text-2xl font-black text-white sm:text-3xl">
+                  
+                  <h1 className="mt-1 break-words text-xl font-black text-white sm:text-2xl lg:text-3xl">
                     {nomeUsuario}
                   </h1>
                   <p className="mt-1 text-sm font-medium text-white/60">
@@ -145,7 +145,8 @@ function Config({ userRole = "aluno" }: { userRole?: UserRole }) {
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     Nome
                   </p>
-                  <p className="truncate text-sm font-semibold text-slate-800">
+                  
+                  <p className="break-all text-sm font-semibold text-slate-800">
                     {nomeUsuario}
                   </p>
                 </div>
@@ -159,7 +160,8 @@ function Config({ userRole = "aluno" }: { userRole?: UserRole }) {
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     E-mail institucional
                   </p>
-                  <p className="truncate text-sm font-semibold text-slate-800">
+                  
+                  <p className="break-all text-sm font-semibold text-slate-800">
                     {emailUsuario}
                   </p>
                 </div>

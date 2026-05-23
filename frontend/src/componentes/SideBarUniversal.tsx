@@ -357,6 +357,7 @@ export function MainLayout({
     location.pathname.split("/").pop()?.replace(/-/g, " ") ||
     "painel";
   const usuarioInicial = usuarioNome.trim().charAt(0).toUpperCase() || "U";
+  const primeiroNome = usuarioNome.split(" ")[0];
 
   const orientadorMenu: NavItem[] = [
     {
@@ -527,8 +528,8 @@ export function MainLayout({
               <p className="text-[10px] font-black text-slate-400 uppercase">
                 {userRole}
               </p>
-              <p className="max-w-48 truncate text-xs font-bold text-slate-700">
-                {usuarioNome}
+              <p className="text-xs font-bold text-slate-700">
+                {primeiroNome}
               </p>
             </div>
 
