@@ -19,6 +19,7 @@ import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { EnviarSolicitacaoDto } from './dto/enviar-solicitacao.dto';
 import { AddIntegrantesProjetoDto } from './dto/add-integrantes-projeto.dto';
+import { GerenciarOrientadorProjetoDto } from './dto/gerenciar-orientador-projeto.dto';
 
 // Auth & Guards
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -187,6 +188,29 @@ export class ProjetosController {
     @GetUser('role') role: string,
   ) {
     return this.projetosService.removeIntegrante(id, alunoId, userId, role);
+  }
+
+  @Patch(':id/orientador')
+  @ApiOperation({ summary: 'Adiciona ou troca o orientador aceito de um projeto' })
+  @ApiResponse({ status: 200, description: 'Orientador vinculado com sucesso.', type: Object })
+  async gerenciarOrientador(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: GerenciarOrientadorProjetoDto,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    return this.projetosService.gerenciarOrientador(id, dto.orientadorId, userId, role);
+  }
+
+  @Delete(':id/orientador')
+  @ApiOperation({ summary: 'Remove logicamente o orientador atual de um projeto' })
+  @ApiResponse({ status: 200, description: 'Orientador removido logicamente com sucesso.', type: Object })
+  async removerOrientador(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    return this.projetosService.removerOrientador(id, userId, role);
   }
 
   @Patch(':id')

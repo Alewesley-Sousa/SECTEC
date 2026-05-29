@@ -400,6 +400,115 @@ export class ProjetosService {
     return this.findOne(id);
   }
 
+  async gerenciarOrientador(
+    id: number,
+    orientadorId: number,
+    userId: number,
+    role: string,
+  ): Promise<Projeto> {
+    if (role !== UserRole.COORDENACAO) {
+      throw new ForbiddenException('Apenas coordenadores podem gerenciar o orientador do projeto.');
+    }
+
+    await this.findOne(id);
+    await this.ensureUserIsActiveOrientador(orientadorId);
+
+    const vinculosAtivos = await this.projetoOrientadorRepository.find({
+      where: {
+        projeto: { id },
+        status: In(['pendente', 'aceito']),
+      },
+      relations: ['orientador'],
+    });
+
+    if (vinculosAtivos.some((vinculo) => vinculo.orientador.id === orientadorId)) {
+      throw new BadRequestException('Este orientador ja esta vinculado ao projeto.');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const agora = new Date();
+
+      // mantem o historico: o orientador antigo deixa de ficar ativo, mas o registro continua no banco.
+      for (const vinculo of vinculosAtivos) {
+        vinculo.status = 'recusado';
+        vinculo.respondidoEm = agora;
+        await queryRunner.manager.save(ProjetoOrientador, vinculo);
+      }
+
+      // como a troca e feita pela coordenacao, o novo orientador ja entra como aceito.
+      const novoVinculo = queryRunner.manager.create(ProjetoOrientador, {
+        projeto: { id },
+        orientador: { id: orientadorId },
+        status: 'aceito',
+        respondidoEm: agora,
+      });
+
+      await queryRunner.manager.save(ProjetoOrientador, novoVinculo);
+      await queryRunner.commitTransaction();
+
+      await this.auditoriaService.registrar(
+        userId,
+        vinculosAtivos.length > 0 ? 'PROJETO_ORIENTADOR_TROCADO' : 'PROJETO_ORIENTADOR_ADICIONADO',
+        `Orientador #${orientadorId} vinculado como aceito ao projeto #${id} por coordenador #${userId}.`,
+        id,
+      );
+
+      return this.findOne(id);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async removerOrientador(
+    id: number,
+    userId: number,
+    role: string,
+  ): Promise<Projeto> {
+    if (role !== UserRole.COORDENACAO) {
+      throw new ForbiddenException('Apenas coordenadores podem remover o orientador do projeto.');
+    }
+
+    await this.findOne(id);
+
+    const vinculosAtivos = await this.projetoOrientadorRepository.find({
+      where: {
+        projeto: { id },
+        status: In(['pendente', 'aceito']),
+      },
+      relations: ['orientador'],
+    });
+
+    if (vinculosAtivos.length === 0) {
+      throw new NotFoundException('Este projeto nao possui orientador ativo para remover.');
+    }
+
+    const agora = new Date();
+
+    // remocao logica: nao apaga o vinculo, apenas tira ele da lista de ativos.
+    for (const vinculo of vinculosAtivos) {
+      vinculo.status = 'recusado';
+      vinculo.respondidoEm = agora;
+    }
+
+    await this.projetoOrientadorRepository.save(vinculosAtivos);
+
+    await this.auditoriaService.registrar(
+      userId,
+      'PROJETO_ORIENTADOR_REMOVIDO',
+      `Orientador(es) [${vinculosAtivos.map((vinculo) => vinculo.orientador.id).join(', ')}] removido(s) logicamente do projeto #${id} por coordenador #${userId}.`,
+      id,
+    );
+
+    return this.findOne(id);
+  }
+
   // =========================================================================
   // GESTÃO DE SOLICITAÇÕES DE ORIENTAÇÃO
   // =========================================================================
@@ -576,6 +685,21 @@ export class ProjetosService {
 
     if (invalidos.length > 0) {
       throw new BadRequestException(`Alunos invalidos ou inativos: ${invalidos.join(', ')}`);
+    }
+  }
+
+  private async ensureUserIsActiveOrientador(orientadorId: number) {
+    const orientador = await this.userRepository.findOne({
+      where: {
+        id: orientadorId,
+        role_cargo: UserRole.ORIENTADOR,
+        ativo: true,
+      },
+      select: ['id'],
+    });
+
+    if (!orientador) {
+      throw new BadRequestException('Orientador invalido ou inativo.');
     }
   }
 
