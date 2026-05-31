@@ -101,6 +101,55 @@ export async function apiRequest<T>(
   return response.json() as Promise<T>;
 }
 
+export async function adicionarIntegrantes(
+  projetoId: string | number,
+  alunosIds: number[]
+): Promise<unknown> {
+  return apiRequest(`/projetos/${projetoId}/integrantes`, {
+    method: "POST",
+    body: { alunosIds },
+  });
+}
+
+export async function removerIntegrante(
+  projetoId: string | number,
+  alunoId: string | number
+): Promise<unknown> {
+  return apiRequest(`/projetos/${projetoId}/integrantes/${alunoId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function sincronizarIntegrantes(
+  projetoId: string | number,
+  integrantesOriginaisIds: number[],
+  integrantesNovosIds: number[]
+): Promise<{ adicionados: number[]; removidos: number[]; erros: string[] }> {
+  const originaisSet = new Set(integrantesOriginaisIds);
+  const novosSet = new Set(integrantesNovosIds);
+  const adicionados = integrantesNovosIds.filter((id) => !originaisSet.has(id));
+  const removidos = integrantesOriginaisIds.filter((id) => !novosSet.has(id));
+  const erros: string[] = [];
+
+  if (adicionados.length > 0) {
+    try {
+      await adicionarIntegrantes(projetoId, adicionados);
+    } catch (err) {
+      erros.push(`Erro ao adicionar integrantes: ${err instanceof Error ? err.message : "Erro desconhecido"}`);
+    }
+  }
+
+  for (const alunoId of removidos) {
+    try {
+      await removerIntegrante(projetoId, alunoId);
+    } catch (err) {
+      erros.push(`Erro ao remover integrante #${alunoId}: ${err instanceof Error ? err.message : "Erro desconhecido"}`);
+    }
+  }
+
+  return { adicionados, removidos, erros };
+}
+
 export function saveSession(data: LoginResponse) {
   localStorage.setItem("token", data.access_token);
   localStorage.setItem("role", data.role);

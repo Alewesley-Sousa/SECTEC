@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Plus, FlaskConical, Users, ChevronRight, X, Search, UserPlus, UserMinus, ChevronDown, Upload, Video, FileText, Lock, TriangleAlert, Calendar, Pencil, Trash2 } from "lucide-react";
 import { MainLayout } from "../componentes/SideBarUniversal";
 import Swal from "sweetalert2";
-import { API_BASE_URL, apiRequest, type UsuarioApi } from "../lib/api";
+import { API_BASE_URL, apiRequest, sincronizarIntegrantes, type UsuarioApi } from "../lib/api";
 
 type FaseAtual = 1 | 2 | 3;
 type Etapa = 1 | 2 | 3;
@@ -863,16 +863,45 @@ function Dashboard() {
         .map((membro) => Number(membro.id))
         .filter((id) => Number.isFinite(id));
 
-      const projetoSalvo = editandoProjeto && projeto
-        ? await apiRequest<ProjetoApi>(`/projetos/${projeto.id}`, {
+      let projetoSalvo: ProjetoApi;
+
+      if (editandoProjeto && projeto) {
+        projetoSalvo = await apiRequest<ProjetoApi>(`/projetos/${projeto.id}`, {
           method: "PATCH",
-          // Ao editar, envia apenas título, descrição e membros (sem alterar temaId)
-          body: { titulo, descricao, alunosIds },
-        })
-        : await apiRequest<ProjetoApi>("/projetos", {
+          body: { titulo, descricao },
+        });
+
+        const integrantesOriginaisIds = projeto.membros
+          .filter((m) => m.id !== projeto.autorId && m.id !== ALUNO_LOGADO.id)
+          .map((m) => Number(m.id))
+          .filter((id) => Number.isFinite(id));
+
+        const { erros } = await sincronizarIntegrantes(
+          projeto.id,
+          integrantesOriginaisIds,
+          alunosIds
+        );
+
+        if (erros.length > 0) {
+          Swal.fire({
+            icon: "warning",
+            title: "Atualização parcial",
+            html: `O projeto foi atualizado, mas ocorreram erros ao sincronizar integrantes:<br><br><small>${erros.join("<br>")}</small>`,
+            confirmButtonColor: "#15803d",
+          });
+          fecharModal();
+          return;
+        }
+
+        projetoSalvo = await apiRequest<ProjetoApi>(`/projetos/${projeto.id}`, {
+          method: "GET",
+        });
+      } else {
+        projetoSalvo = await apiRequest<ProjetoApi>("/projetos", {
           method: "POST",
           body: { titulo, descricao, temaId, alunosIds },
         });
+      }
 
       if (!editandoProjeto && solicitacoes.length > 0) {
         await apiRequest("/projetos/solicitar-orientador", {
