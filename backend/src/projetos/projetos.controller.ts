@@ -20,7 +20,10 @@ import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { EnviarSolicitacaoDto } from './dto/enviar-solicitacao.dto';
 import { AddIntegrantesProjetoDto } from './dto/add-integrantes-projeto.dto';
 import { GerenciarOrientadorProjetoDto } from './dto/gerenciar-orientador-projeto.dto';
+<<<<<<< HEAD
 import { TransferirAutoriaDto } from './dto/transferir-autoria.dto';
+=======
+>>>>>>> 65e89bc5d5b878c13e2cbdad46896699fc25e14d
 
 // Auth & Guards
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -226,6 +229,7 @@ export class ProjetosController {
     return this.projetosService.update(id, updateProjetoDto, userId, role);
   }
 
+<<<<<<< HEAD
   @Patch(':id/transferir-autoria')
   @ApiOperation({
     summary: '[Coordenador] Transferir autoria do projeto para outro integrante',
@@ -249,6 +253,8 @@ export class ProjetosController {
     return this.projetosService.transferirAutoria(id, dto.novoAutorId, dto.manterAutorAtual, userId);
   }
 
+=======
+>>>>>>> 65e89bc5d5b878c13e2cbdad46896699fc25e14d
   @Delete(':id')
   @ApiOperation({ summary: 'Remove um projeto do sistema' })
   async remove(
