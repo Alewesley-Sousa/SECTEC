@@ -400,7 +400,7 @@ export class ProjetosService {
     return this.findOne(id);
   }
 
-  async gerenciarOrientador(
+async gerenciarOrientador(
     id: number,
     orientadorId: number,
     userId: number,
@@ -413,6 +413,7 @@ export class ProjetosService {
     await this.findOne(id);
     await this.ensureUserIsActiveOrientador(orientadorId);
 
+    // 1. Busca vínculos ativos (pendente/aceito) para o projeto
     const vinculosAtivos = await this.projetoOrientadorRepository.find({
       where: {
         projeto: { id },
@@ -421,10 +422,20 @@ export class ProjetosService {
       relations: ['orientador'],
     });
 
+    // 2. Não permite adicionar um orientador que JÁ está ativo no projeto
     if (vinculosAtivos.some((vinculo) => vinculo.orientador.id === orientadorId)) {
       throw new BadRequestException('Este orientador ja esta vinculado ao projeto.');
     }
 
+    // 3. Busca QUALQUER vínculo existente entre o projeto e o orientador (incluindo recusado)
+    const vinculoExistente = await this.projetoOrientadorRepository.findOne({
+      where: {
+        projeto: { id },
+        orientador: { id: orientadorId },
+      },
+    });
+
+    // Inicia transação
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -432,22 +443,28 @@ export class ProjetosService {
     try {
       const agora = new Date();
 
-      // mantem o historico: o orientador antigo deixa de ficar ativo, mas o registro continua no banco.
+      // 4. Desativa todos os vínculos ativos (remoção lógica)
       for (const vinculo of vinculosAtivos) {
         vinculo.status = 'recusado';
         vinculo.respondidoEm = agora;
         await queryRunner.manager.save(ProjetoOrientador, vinculo);
       }
 
-      // como a troca e feita pela coordenacao, o novo orientador ja entra como aceito.
-      const novoVinculo = queryRunner.manager.create(ProjetoOrientador, {
-        projeto: { id },
-        orientador: { id: orientadorId },
-        status: 'aceito',
-        respondidoEm: agora,
-      });
+      // 5. Reativa um vínculo recusado existente OU cria um novo
+      if (vinculoExistente) {
+        vinculoExistente.status = 'aceito';
+        vinculoExistente.respondidoEm = agora;
+        await queryRunner.manager.save(ProjetoOrientador, vinculoExistente);
+      } else {
+        const novoVinculo = queryRunner.manager.create(ProjetoOrientador, {
+          projeto: { id },
+          orientador: { id: orientadorId },
+          status: 'aceito',
+          respondidoEm: agora,
+        });
+        await queryRunner.manager.save(ProjetoOrientador, novoVinculo);
+      }
 
-      await queryRunner.manager.save(ProjetoOrientador, novoVinculo);
       await queryRunner.commitTransaction();
 
       await this.auditoriaService.registrar(
@@ -995,7 +1012,6 @@ export class ProjetosService {
   }
 
   // =========================================================================
-<<<<<<< HEAD
   // TRANSFERÊNCIA DE AUTORIA (COORDENADOR)
   // =========================================================================
 
@@ -1008,6 +1024,7 @@ export class ProjetosService {
    *                            false: remove o autor atual da equipe
    * @param userId     - ID do coordenador que está executando a ação (para auditoria)
    */
+
   async transferirAutoria(
     projetoId: number,
     novoAutorId: number,
@@ -1094,8 +1111,6 @@ export class ProjetosService {
   }
 
   // =========================================================================
-=======
->>>>>>> 65e89bc5d5b878c13e2cbdad46896699fc25e14d
   // MÉTODO PARA BUSCAR ALUNOS OCUPADOS (CORRIGIDO)
   // =========================================================================
 
