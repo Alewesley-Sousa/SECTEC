@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Plus, FlaskConical, Users, ChevronRight, X, Search, UserPlus, UserMinus, ChevronDown, Upload, Video, FileText, Lock, TriangleAlert, Calendar, Pencil, Trash2 } from "lucide-react";
 import { MainLayout } from "../componentes/SideBarUniversal";
 import Swal from "sweetalert2";
-import { API_BASE_URL, apiRequest, sincronizarIntegrantes, type UsuarioApi } from "../lib/api";
+import { API_BASE_URL, apiRequest, type UsuarioApi } from "../lib/api";
 
 type FaseAtual = 1 | 2 | 3;
 type Etapa = 1 | 2 | 3;
@@ -270,7 +270,6 @@ function getFaseAtualEvento(evento?: EventoApi | null): FaseAtual {
     { fase: 3 as FaseAtual, periodo: evento.avaliacao },
   ];
 
-  // ✅ Pega TODAS as fases em andamento e retorna a de maior número
   const fasesEmAndamento = fases.filter(({ periodo }) => {
     const inicio = parseEventoDate(periodo?.inicio);
     const fim = parseEventoDate(periodo?.fim, true);
@@ -281,7 +280,6 @@ function getFaseAtualEvento(evento?: EventoApi | null): FaseAtual {
     return fasesEmAndamento[fasesEmAndamento.length - 1].fase;
   }
 
-  // Se nenhuma está em andamento, pega a última encerrada
   const ultimaEncerrada = [...fases].reverse().find(({ periodo }) => {
     const fim = parseEventoDate(periodo?.fim, true);
     return fim && hoje > fim;
@@ -498,21 +496,8 @@ function Dashboard() {
           );
         }
         if (meuProjeto) {
-          console.log('📦 Projeto retornado da API:', meuProjeto);
-          console.log('📝 Tema do projeto:', meuProjeto.tema);
-          console.log('📛 Nome do tema:', meuProjeto.tema?.nome);
-          console.log('👥 projetoAlunos:', meuProjeto.projetoAlunos);
-          console.log('👤 alunoAutor:', meuProjeto.alunoAutor);
-          console.log('🎓 orientadores:', meuProjeto.orientadores);
-          console.log('🎓 Orientadores raw:', meuProjeto.orientadores);
-          console.log('🗂️ meuProjeto:', meuProjeto);
-          console.log('📅 faseAtual:', getFaseAtualEvento(eventoAtualApi));
-          console.log('🗓️ eventoAtualApi:', JSON.stringify(eventoAtualApi, null, 2));
-
           const projetoMapeado = mapProjetoApiToProjeto(meuProjeto, temas);
           setProjeto(projetoMapeado);
-
-
           if (projetoMapeado.orientadorAceito) {
             setOrientadorProjeto(projetoMapeado.orientadorAceito);
           }
@@ -613,7 +598,6 @@ function Dashboard() {
   const passwordChangedKey = `passwordChangedAt:${localStorage.getItem("userId") ?? "me"}`;
   const deveMostrarAvisoSenha = !localStorage.getItem(passwordChangedKey) && !avisoSenhaDispensado;
 
-  // Em modo de edição, só precisa de título e descrição para avançar (eixo fica bloqueado)
   const podeAvancarEtapa1 = editandoProjeto
     ? titulo.trim().length > 0 && descricao.trim().length >= 30
     : titulo.trim().length > 0 && descricao.trim().length >= 30 && eixo !== "";
@@ -648,7 +632,6 @@ function Dashboard() {
     setSolicitacoes(orientadoresSelecionaveis.length === 1 ? [orientadoresSelecionaveis[0].id] : []);
   }
 
-  // ALTERADO: sempre começa na etapa 1, eixo fica bloqueado visualmente
   function abrirEdicaoProjeto() {
     if (!projeto) return;
     setEditandoProjeto(true);
@@ -657,8 +640,8 @@ function Dashboard() {
     setTitulo(projeto.titulo);
     setDescricao(projeto.descricao);
     setEixo(projeto.temaId ? String(projeto.temaId) : "");
-    setSolicitacoes(projeto.orientadorId ? [projeto.orientadorId] : []);
-    setMembros(projeto.membros);
+    setSolicitacoes([]);
+    setMembros(projeto.status === "Aceito" ? [] : projeto.membros);
     setBuscaAluno("");
     setFiltrSala("todas");
     setFiltrTurma("todas");
@@ -700,7 +683,6 @@ function Dashboard() {
       });
       return;
     }
-
     setMembros((prev) => [...prev, aluno]);
   }
 
@@ -744,7 +726,6 @@ function Dashboard() {
     }
   }
 
-  // Se o projeto já existe e só está solicitando novos orientadores
   async function handleCriarProjeto() {
     if (!editandoProjeto && !inscricaoAberta) {
       Swal.fire({
@@ -756,7 +737,6 @@ function Dashboard() {
       return;
     }
 
-    // Se o projeto já existe e está recusado, só envia novas solicitações
     if (reenviandoOrientadores && projeto) {
       const temaId = Number(eixo);
       const orientadoresIds = solicitacoes.map(Number).filter((id) => Number.isFinite(id));
@@ -809,19 +789,21 @@ function Dashboard() {
       return;
     }
 
-    const membrosForaDaTurma = getMembrosForaDaTurma(membros);
-    if (membrosForaDaTurma.length > 0) {
-      mostrarAlertaTurma({
-        titulo: "Equipe com turmas diferentes",
-        texto: "Revise os integrantes antes de criar o projeto.",
-        detalhe: `Remova da equipe: ${membrosForaDaTurma.map((membro) => membro.nome).join(", ")}.`,
-      });
-      return;
-    }
+    // Validações de equipe apenas se não for edição de projeto aceito
+    if (!(editandoProjeto && projeto?.status === "Aceito")) {
+      const membrosForaDaTurma = getMembrosForaDaTurma(membros);
+      if (membrosForaDaTurma.length > 0) {
+        mostrarAlertaTurma({
+          titulo: "Equipe com turmas diferentes",
+          texto: "Revise os integrantes antes de criar o projeto.",
+          detalhe: `Remova da equipe: ${membrosForaDaTurma.map((membro) => membro.nome).join(", ")}.`,
+        });
+        return;
+      }
 
-    if (membros.length < MIN_MEMBROS) {
-      Swal.fire({
-        html: `
+      if (membros.length < MIN_MEMBROS) {
+        Swal.fire({
+          html: `
         <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 0">
           <div style="width:52px;height:52px;border-radius:14px;background:#f0fdf4;border:2px solid #a7f3d0;display:flex;align-items:center;justify-content:center">
             <svg width="24" height="24" fill="none" stroke="#15803d" stroke-width="2.5" viewBox="0 0 24 24">
@@ -834,15 +816,16 @@ function Dashboard() {
           </div>
         </div>
       `,
-        showConfirmButton: true,
-        confirmButtonText: "Entendi",
-        confirmButtonColor: "#15803d",
-        background: "#ffffff",
-        customClass: { popup: "rounded-2xl shadow-xl", confirmButton: "rounded-lg text-sm font-semibold px-6 py-2.5" },
-        width: "min(380px, 90vw)",
-        padding: "1.5rem",
-      });
-      return;
+          showConfirmButton: true,
+          confirmButtonText: "Entendi",
+          confirmButtonColor: "#15803d",
+          background: "#ffffff",
+          customClass: { popup: "rounded-2xl shadow-xl", confirmButton: "rounded-lg text-sm font-semibold px-6 py-2.5" },
+          width: "min(380px, 90vw)",
+          padding: "1.5rem",
+        });
+        return;
+      }
     }
 
     const temaId = Number(eixo);
@@ -858,45 +841,26 @@ function Dashboard() {
 
     setCriando(true);
     try {
-      const alunosIds = membros
-        .filter((membro) => membro.id !== ALUNO_LOGADO.id)
-        .map((membro) => Number(membro.id))
-        .filter((id) => Number.isFinite(id));
-
       let projetoSalvo: ProjetoApi;
-
       if (editandoProjeto && projeto) {
+        const body: any = { titulo, descricao };
+        // Só envia alunosIds se o projeto não estiver aceito
+        if (projeto.status !== "Aceito") {
+          const alunosIds = membros
+            .filter((membro) => membro.id !== ALUNO_LOGADO.id)
+            .map((membro) => Number(membro.id))
+            .filter((id) => Number.isFinite(id));
+          body.alunosIds = alunosIds;
+        }
         projetoSalvo = await apiRequest<ProjetoApi>(`/projetos/${projeto.id}`, {
           method: "PATCH",
-          body: { titulo, descricao },
-        });
-
-        const integrantesOriginaisIds = projeto.membros
-          .filter((m) => m.id !== projeto.autorId && m.id !== ALUNO_LOGADO.id)
-          .map((m) => Number(m.id))
-          .filter((id) => Number.isFinite(id));
-
-        const { erros } = await sincronizarIntegrantes(
-          projeto.id,
-          integrantesOriginaisIds,
-          alunosIds
-        );
-
-        if (erros.length > 0) {
-          Swal.fire({
-            icon: "warning",
-            title: "Atualização parcial",
-            html: `O projeto foi atualizado, mas ocorreram erros ao sincronizar integrantes:<br><br><small>${erros.join("<br>")}</small>`,
-            confirmButtonColor: "#15803d",
-          });
-          fecharModal();
-          return;
-        }
-
-        projetoSalvo = await apiRequest<ProjetoApi>(`/projetos/${projeto.id}`, {
-          method: "GET",
+          body,
         });
       } else {
+        const alunosIds = membros
+          .filter((membro) => membro.id !== ALUNO_LOGADO.id)
+          .map((membro) => Number(membro.id))
+          .filter((id) => Number.isFinite(id));
         projetoSalvo = await apiRequest<ProjetoApi>("/projetos", {
           method: "POST",
           body: { titulo, descricao, temaId, alunosIds },
@@ -916,7 +880,9 @@ function Dashboard() {
         orientadorId: solicitacoes[0] ?? projetoAtualizado.orientadorId,
         status: projetoAtualizado.status === "Aguardando Aprovação" ? "Aguardando Aprovação" : projetoAtualizado.status,
       });
-      setAlunosOcupadosIds((prev) => [...new Set([...prev, ...membros.map((membro) => membro.id)])]);
+      if (!editandoProjeto || projeto?.status !== "Aceito") {
+        setAlunosOcupadosIds((prev) => [...new Set([...prev, ...membros.map((membro) => membro.id)])]);
+      }
       Swal.fire({
         icon: "success",
         title: editandoProjeto ? "Projeto atualizado" : "Projeto criado",
@@ -937,11 +903,10 @@ function Dashboard() {
   }
 
   const descricaoLonga = (projeto?.descricao.length ?? 0) > 110;
-  // Em modo de edição, o stepper mostra apenas "Projeto" e "Equipe"
   const STEP_LABELS = reenviandoOrientadores
     ? ["Eixo e Orientador"]
     : editandoProjeto
-      ? ["Projeto", "Equipe"]
+      ? (projeto?.status === "Aceito" ? ["Projeto"] : ["Projeto", "Equipe"])
       : ["Projeto", "Orientador", "Equipe"];
 
   return (
@@ -1454,7 +1419,11 @@ function Dashboard() {
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
                   {reenviandoOrientadores && "Escolha o eixo temático e novos orientadores para este projeto"}
-                  {etapa === 1 && (editandoProjeto ? "Edite o título e a descrição do projeto" : "Preencha os dados do projeto")}
+                  {etapa === 1 && (editandoProjeto
+                    ? (projeto?.status === "Aceito"
+                      ? "Apenas título e descrição podem ser alterados"
+                      : "Edite o título, a descrição e a equipe do projeto")
+                    : "Preencha os dados do projeto")}
                   {etapa === 2 && !editandoProjeto && !reenviandoOrientadores && "Escolha até 3 orientadores para solicitar"}
                   {etapa === 3 && !reenviandoOrientadores && "Monte a equipe do projeto"}
                 </p>
@@ -1464,16 +1433,14 @@ function Dashboard() {
               </button>
             </div>
 
-            {/* Stepper — em edição mostra só 2 passos: Projeto e Equipe */}
+            {/* Stepper */}
             <div className="flex items-center px-4 sm:px-6 pt-4 pb-2">
               {STEP_LABELS.map((label, i) => {
-                // Em edição: índice 0 = etapa 1 (Projeto), índice 1 = etapa 3 (Equipe)
-                // Em criação: índice 0 = etapa 1, índice 1 = etapa 2, índice 2 = etapa 3
                 const stepVisual = i + 1;
                 const etapaReal = reenviandoOrientadores
                   ? 2
                   : editandoProjeto
-                    ? (i === 0 ? 1 : 3)
+                    ? (projeto?.status === "Aceito" ? 1 : i === 0 ? 1 : 3)
                     : stepVisual;
                 const done = !reenviandoOrientadores && (etapa > etapaReal || (editandoProjeto && i === 0 && etapa === 3));
                 const active = etapa === etapaReal;
@@ -1506,7 +1473,6 @@ function Dashboard() {
             {/* Body */}
             <div className="min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
 
-              {/* Etapa 1: Dados do Projeto */}
               {etapa === 1 && (
                 <div className="space-y-4">
                   <div>
@@ -1563,12 +1529,13 @@ function Dashboard() {
                     <div className="flex items-start gap-2 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-xs text-blue-700">
                       <Lock size={12} className="mt-0.5 shrink-0" />
                       <span>
-                        Ao editar, só é possível alterar <strong>título</strong>, <strong>descrição</strong> e <strong>integrantes</strong>. O eixo temático e os orientadores permanecem fixos.
+                        {projeto?.status === "Aceito"
+                          ? "Com o projeto aceito, apenas título e descrição podem ser alterados."
+                          : "Ao editar, só é possível alterar título, descrição e integrantes. O eixo temático e os orientadores permanecem fixos."}
                       </span>
                     </div>
                   )}
 
-                  {/* Dica de eixo — apenas em criação */}
                   {!editandoProjeto && eixo && (
                     <div className="flex items-start gap-2 rounded-xl bg-sectec-50 border border-sectec-100 px-3 py-2.5 text-xs text-sectec-700">
                       <FlaskConical size={13} className="mt-0.5 shrink-0" />
@@ -1581,9 +1548,9 @@ function Dashboard() {
                 </div>
               )}
 
-              {/* Etapa 2: Orientadores — apenas em criação */}
               {etapa === 2 && !editandoProjeto && (
                 <div className="space-y-4">
+                  {/* ... conteúdo existente da etapa 2 ... */}
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-slate-500">
                       Orientadores disponíveis para <strong className="text-sectec-700">{eixoSelecionado?.nome ?? "este eixo"}</strong>
@@ -1595,7 +1562,6 @@ function Dashboard() {
                       {solicitacoes.length}/3 solicitados
                     </span>
                   </div>
-
                   {reenviandoOrientadores && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Eixo Temático *</label>
@@ -1614,16 +1580,12 @@ function Dashboard() {
                       </div>
                     </div>
                   )}
-
                   {reenviandoOrientadores && (
                     <div className="flex items-start gap-2 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-xs text-blue-700">
                       <Lock size={12} className="mt-0.5 shrink-0" />
-                      <span>
-                        Nesta etapa só é possível alterar o eixo temático e escolher novos orientadores. Título, descrição e equipe permanecem iguais.
-                      </span>
+                      <span>Nesta etapa só é possível alterar o eixo temático e escolher novos orientadores. Título, descrição e equipe permanecem iguais.</span>
                     </div>
                   )}
-
                   {carregandoDados ? (
                     <p className="text-center text-xs text-slate-400 py-8">Carregando orientadores...</p>
                   ) : orientadoresDisponiveisParaSolicitacao.length === 0 ? (
@@ -1642,18 +1604,11 @@ function Dashboard() {
                         const selecionado = solicitacoes.includes(o.id);
                         const bloqueado = !selecionado && solicitacoes.length >= 3;
                         return (
-                          <button
-                            key={o.id}
-                            type="button"
-                            disabled={bloqueado}
-                            onClick={() => toggleSolicitacao(o.id)}
+                          <button key={o.id} type="button" disabled={bloqueado} onClick={() => toggleSolicitacao(o.id)}
                             className={`w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all
-                              ${selecionado
-                                ? "border-sectec-400 bg-sectec-50 ring-1 ring-sectec-300"
-                                : bloqueado
-                                  ? "border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed"
-                                  : "border-slate-200 bg-white hover:border-sectec-200 hover:bg-sectec-50"}`}
-                          >
+                              ${selecionado ? "border-sectec-400 bg-sectec-50 ring-1 ring-sectec-300"
+                                : bloqueado ? "border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed"
+                                  : "border-slate-200 bg-white hover:border-sectec-200 hover:bg-sectec-50"}`}>
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0
                               ${selecionado ? "bg-sectec-600 text-white" : "bg-yellow-100 text-yellow-700"}`}>
                               {o.nome.split(" ").slice(-1)[0]?.[0] ?? "?"}
@@ -1674,7 +1629,6 @@ function Dashboard() {
                       })}
                     </div>
                   )}
-
                   {solicitacoes.length > 0 && (
                     <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800">
                       <strong>Como funciona:</strong> Sua solicitação será enviada para os orientadores selecionados. O primeiro que aceitar será vinculado ao projeto.
@@ -1683,8 +1637,8 @@ function Dashboard() {
                 </div>
               )}
 
-              {/* Etapa 3: Equipe */}
-              {etapa === 3 && (
+              {/* Etapa 3: Equipe (não renderizada quando projeto aceito) */}
+              {etapa === 3 && !(projeto?.status === "Aceito") && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-slate-500">Monte sua equipe</p>
@@ -1712,12 +1666,8 @@ function Dashboard() {
                         {m.id === ALUNO_LOGADO.id || m.id === projeto?.autorId ? (
                           <span className="text-[10px] font-semibold bg-sectec-100 text-sectec-700 px-2 py-0.5 rounded-full shrink-0">Líder</span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => setMembros((prev) => prev.filter((x) => x.id !== m.id))}
-                            className="text-slate-400 hover:text-red-500 active:text-red-600 transition-colors p-1.5 shrink-0"
-                            title="Remover membro"
-                          >
+                          <button type="button" onClick={() => setMembros((prev) => prev.filter((x) => x.id !== m.id))}
+                            className="text-slate-400 hover:text-red-500 active:text-red-600 transition-colors p-1.5 shrink-0" title="Remover membro">
                             <UserMinus size={14} />
                           </button>
                         )}
@@ -1730,12 +1680,8 @@ function Dashboard() {
                       <div className="p-2 bg-slate-50 border-b border-slate-200">
                         <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1.5">
                           <Search size={11} className="text-slate-400 shrink-0" />
-                          <input
-                            value={buscaAluno}
-                            onChange={(e) => setBuscaAluno(e.target.value)}
-                            placeholder="Buscar aluno por nome..."
-                            className="flex-1 text-xs outline-none bg-transparent min-w-0"
-                          />
+                          <input value={buscaAluno} onChange={(e) => setBuscaAluno(e.target.value)}
+                            placeholder="Buscar aluno por nome..." className="flex-1 text-xs outline-none bg-transparent min-w-0" />
                         </div>
                       </div>
                       <div className="max-h-44 overflow-y-auto">
@@ -1745,27 +1691,14 @@ function Dashboard() {
                           <div className="text-center py-5">
                             <p className="text-xs text-slate-400">Nenhum aluno encontrado</p>
                             {(buscaAluno || filtrSala !== "todas" || filtrTurma !== "todas") && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBuscaAluno("");
-                                  setFiltrSala("todas");
-                                  setFiltrTurma("todas");
-                                }}
-                                className="mt-2 text-xs text-sectec-600 hover:text-sectec-700"
-                              >
-                                Limpar filtros
-                              </button>
+                              <button type="button" onClick={() => { setBuscaAluno(""); setFiltrSala("todas"); setFiltrTurma("todas"); }}
+                                className="mt-2 text-xs text-sectec-600 hover:text-sectec-700">Limpar filtros</button>
                             )}
                           </div>
                         ) : (
                           alunosFiltrados.map((aluno) => (
-                            <button
-                              key={aluno.id}
-                              type="button"
-                              onClick={() => adicionarMembro(aluno)}
-                              className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100 last:border-0 text-left"
-                            >
+                            <button key={aluno.id} type="button" onClick={() => adicionarMembro(aluno)}
+                              className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100 last:border-0 text-left">
                               <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 text-[10px] font-semibold flex items-center justify-center shrink-0">
                                 {aluno.nome[0].toUpperCase()}
                               </div>
@@ -1810,74 +1743,46 @@ function Dashboard() {
 
             {/* Footer */}
             <div className="flex flex-col-reverse gap-2 rounded-b-2xl border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-between sm:px-6 sm:py-4">
-              <button
-                type="button"
+              <button type="button"
                 onClick={() => {
                   if (reenviandoOrientadores || etapa === 1) {
                     fecharModal();
                   } else if (editandoProjeto && etapa === 3) {
-                    // Em edição, voltar da equipe vai para o projeto (etapa 1)
                     setEtapa(1);
                   } else {
                     setEtapa((e) => (e - 1) as Etapa);
                   }
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 active:bg-slate-200 sm:w-auto"
-              >
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 active:bg-slate-200 sm:w-auto">
                 {etapa === 1 || reenviandoOrientadores ? "Cancelar" : "← Voltar"}
               </button>
 
-              {/* Botão de avançar ou salvar */}
               {reenviandoOrientadores ? (
-                <button
-                  type="button"
-                  disabled={criando || !eixo || !podeAvancarEtapa2}
-                  onClick={handleCriarProjeto}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-5"
-                >
-                  {criando && (
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                  )}
+                <button type="button" disabled={criando || !eixo || !podeAvancarEtapa2} onClick={handleCriarProjeto}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-5">
                   {criando ? "Enviando..." : "Enviar solicitações"}
                 </button>
               ) : etapa === 1 ? (
-                <button
-                  type="button"
-                  disabled={!podeAvancarEtapa1}
+                <button type="button" disabled={!podeAvancarEtapa1}
                   onClick={() => {
-                    // Em edição pula direto para a etapa de equipe (3)
-                    // Em criação vai para orientadores (2)
-                    setEtapa(editandoProjeto ? 3 : 2);
+                    if (editandoProjeto && projeto?.status === "Aceito") {
+                      handleCriarProjeto();
+                    } else {
+                      setEtapa(editandoProjeto ? 3 : 2);
+                    }
                   }}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto sm:px-5"
-                >
-                  Continuar →
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto sm:px-5">
+                  {editandoProjeto && projeto?.status === "Aceito" ? "Salvar alterações" : "Continuar →"}
                 </button>
               ) : etapa === 2 && !editandoProjeto ? (
-                <button
-                  type="button"
-                  disabled={!podeAvancarEtapa2}
-                  onClick={() => setEtapa(3)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto sm:px-5"
-                >
+                <button type="button" disabled={!podeAvancarEtapa2} onClick={() => setEtapa(3)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto sm:px-5">
                   Continuar →
                 </button>
               ) : (
-                <button
-                  type="button"
-                  disabled={criando || membros.length < MIN_MEMBROS || membros.length > MAX_MEMBROS}
+                <button type="button" disabled={criando || membros.length < MIN_MEMBROS || membros.length > MAX_MEMBROS}
                   onClick={handleCriarProjeto}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-5"
-                >
-                  {criando && (
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                  )}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-sectec-700 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-sectec-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-5">
                   {criando ? (editandoProjeto ? "Salvando..." : "Cadastrando...") : (editandoProjeto ? "Salvar alterações" : "Criar projeto")}
                 </button>
               )}
