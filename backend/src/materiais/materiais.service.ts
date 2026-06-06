@@ -304,17 +304,31 @@ console.log('ID do Autor no Banco:', typeof material.projeto.alunoAutor.id, mate
   /**
    * Garante a existência do projeto alvo no banco de dados.
    */
-  private async buscarEValidarProjeto(projetoId: number, file: Express.Multer.File | undefined): Promise<Projeto> {
-    const projeto = await this.projetoRepository.findOne({
-      where: { id: projetoId },
-      relations: ['evento'],
-    });
-    if (!projeto) {
-      this.removerArquivoTemporario(file);
-      throw new NotFoundException(`Projeto com ID ${projetoId} não foi encontrado.`);
-    }
-    return projeto;
+private async buscarEValidarProjeto(projetoId: number, file: Express.Multer.File | undefined): Promise<Projeto> {
+  const projeto = await this.projetoRepository.findOne({
+    where: { id: projetoId },
+    relations: ['evento', 'orientadores'], // ← carrega também os vínculos de orientador
+  });
+
+  if (!projeto) {
+    this.removerArquivoTemporario(file);
+    throw new NotFoundException(`Projeto com ID ${projetoId} não foi encontrado.`);
   }
+
+  // Verifica se existe pelo menos um orientador com status 'aceito'
+  const temOrientadorAceito = projeto.orientadores?.some(
+    (vinculo) => vinculo.status === 'aceito',
+  );
+
+  if (!temOrientadorAceito) {
+    this.removerArquivoTemporario(file); // remove o arquivo temporário, já que a requisição será rejeitada
+    throw new BadRequestException(
+      'O projeto não possui um orientador aceito. Não é possível enviar materiais sem orientador.',
+    );
+  }
+
+  return projeto;
+}
 
   private normalizarDataPeriodo(
     value?: Date | string | null,
