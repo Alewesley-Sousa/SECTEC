@@ -31,6 +31,7 @@ import {
   Trash2,
   UsersRound,
   X,
+  Info,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { MainLayout } from "../componentes/SideBarUniversal";
@@ -2277,6 +2278,9 @@ function UsuariosCoordenacao() {
 }
 
 function ProjetosCoordenacao() {
+  const [alunosOcupadosIds, setAlunosOcupadosIds] = useState<number[]>([]);
+  const [turmaFiltroEdicao, setTurmaFiltroEdicao] = useState("todas");
+  const [anoFiltroEdicao, setAnoFiltroEdicao] = useState("todos");
   const [projetos, setProjetos] = useState<ProjetoCoordenacaoListagem[]>([]);
   const [eventos, setEventos] = useState<EventoApi[]>([]);
   const [alunos, setAlunos] = useState<UsuarioApi[]>([]);
@@ -2303,6 +2307,24 @@ function ProjetosCoordenacao() {
     evento: "",
     alunosIds: [] as number[],
   });
+
+  function exibirInfoIntegrantes() {
+    Swal.fire({
+      icon: 'info',
+      title: 'Informações sobre integrantes',
+      html: `
+        <div style="text-align:left; font-size: 14px;">
+          <p><strong style="color:#dc2626;">🔴 Alunos em vermelho</strong><br/>
+          Já estão vinculados a outro projeto no evento atual. Não podem ser adicionados para evitar duplicidade.</p>
+          <hr style="margin:12px 0"/>
+          <p><strong style="color:#15803d;">✅ Checkbox já marcado</strong><br/>
+          São alunos que já fazem parte deste projeto como integrantes. Para removê-los, basta desmarcar o checkbox.</p>
+        </div>
+      `,
+      confirmButtonColor: '#15803d',
+      confirmButtonText: 'Entendi',
+    });
+  }
 
   async function carregarProjetos() {
     setCarregando(true);
@@ -2430,6 +2452,11 @@ function ProjetosCoordenacao() {
       alunosIds,
     });
     setEdicaoAberta(true);
+
+    // 🔍 Busca os alunos ocupados para este projeto
+    apiRequest<number[]>(`/projetos/alunos-ocupados?projetoId=${projeto.id}`)
+      .then((ids) => setAlunosOcupadosIds(ids))
+      .catch(() => setAlunosOcupadosIds([]));
   }
 
   function alternarAlunoIntegrante(id: number) {
@@ -2898,28 +2925,104 @@ function ProjetosCoordenacao() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 p-4">
-              <p className="text-xs font-black uppercase tracking-widest text-slate-500">Integrantes</p>
-              <p className="mt-1 text-xs font-semibold text-slate-400">Autor não entra em alunosIds. Grupo total: {formProjeto.alunosIds.length + 1}/7.</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-500">Integrantes</p>
+                <button
+                  type="button"
+                  onClick={exibirInfoIntegrantes}
+                  className="group relative inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-cyan-100 text-cyan-600 shadow-sm transition-all duration-300 hover:bg-cyan-200 hover:text-cyan-800 hover:shadow-md animate-pulse hover:animate-none"
+                  aria-label="Informações sobre integrantes"
+                >
+                  <Info size={13} />
+                  {/* Rastro de luz no hover */}
+                  <span className="absolute inset-0 rounded-full bg-cyan-400 opacity-0 transition-opacity duration-300 group-hover:opacity-20" />
+                </button>
+              </div>
+              <p className="mt-1 text-xs font-semibold text-slate-400">
+                Autor não entra em alunosIds. Grupo total: {formProjeto.alunosIds.length + 1}/7.
+              </p>
+
+              {/* Filtros de turma e ano */}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <select
+                  value={turmaFiltroEdicao}
+                  onChange={(e) => setTurmaFiltroEdicao(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
+                >
+                  <option value="todas">Todas as turmas</option>
+                  {[...new Set(alunos.map((a) => a.turma).filter(Boolean))]
+                    .sort()
+                    .map((turma) => (
+                      <option key={turma} value={turma}>
+                        {turma}
+                      </option>
+                    ))}
+                </select>
+
+                <select
+                  value={anoFiltroEdicao}
+                  onChange={(e) => setAnoFiltroEdicao(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
+                >
+                  <option value="todos">Todos os anos</option>
+                  {[...new Set(alunos.map((a) => a.ano).filter((ano): ano is number => ano !== undefined && ano !== null))]
+                    .sort((a, b) => a - b)
+                    .map((ano) => (
+                      <option key={ano} value={String(ano)}>
+                        {ano}º ano
+                      </option>
+                    ))}
+                </select>
+              </div>
+
               <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                 {alunos.length === 0 ? (
                   <p className="text-sm font-semibold text-slate-500">Lista de alunos indisponível.</p>
                 ) : (
                   alunos
-                    .filter((aluno) => String(aluno.id) !== String(projetoSelecionado.alunoAutor?.id))
-                    .map((aluno) => (
-                      <label key={aluno.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 transition hover:bg-sectec-50">
-                        <span>
-                          <span className="block text-sm font-black text-slate-800">{aluno.nome}</span>
-                          <span className="block text-xs font-semibold text-slate-500">{aluno.turma ?? "-"} {aluno.ano ? `· ${aluno.ano}` : ""}</span>
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={formProjeto.alunosIds.includes(Number(aluno.id))}
-                          onChange={() => alternarAlunoIntegrante(Number(aluno.id))}
-                          className="h-4 w-4 accent-sectec-700"
-                        />
-                      </label>
-                    ))
+                    .filter((aluno) => {
+                      // Remove o autor
+                      if (String(aluno.id) === String(projetoSelecionado?.alunoAutor?.id)) return false;
+                      // Filtro de turma
+                      if (turmaFiltroEdicao !== "todas" && aluno.turma !== turmaFiltroEdicao) return false;
+                      // Filtro de ano
+                      if (anoFiltroEdicao !== "todos" && String(aluno.ano ?? "") !== anoFiltroEdicao) return false;
+                      return true;
+                    })
+                    .map((aluno) => {
+                      const estaNoProjetoAtual = formProjeto.alunosIds.includes(Number(aluno.id));
+                      const estaOcupadoEmOutroProjeto = alunosOcupadosIds.includes(Number(aluno.id)) && !estaNoProjetoAtual;
+
+                      return (
+                        <label
+                          key={aluno.id}
+                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${
+                            estaOcupadoEmOutroProjeto
+                              ? "border-red-200 bg-red-50 cursor-not-allowed opacity-75"
+                              : "border-slate-100 bg-slate-50 hover:bg-sectec-50"
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-sm font-black text-slate-800 truncate">{aluno.nome}</span>
+                            <span className="block text-xs font-semibold text-slate-500">
+                              {aluno.turma ?? "-"} {aluno.ano ? `· ${aluno.ano}º ano` : ""}
+                              {estaOcupadoEmOutroProjeto && (
+                                <span className="ml-1.5 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                                  Já está em outro projeto
+                                </span>
+                              )}
+                            </span>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={estaNoProjetoAtual}
+                            disabled={estaOcupadoEmOutroProjeto}
+                            onChange={() => alternarAlunoIntegrante(Number(aluno.id))}
+                            className="h-4 w-4 accent-sectec-700 disabled:opacity-40"
+                          />
+                        </label>
+                      );
+                    })
                 )}
               </div>
             </div>
