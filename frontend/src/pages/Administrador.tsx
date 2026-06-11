@@ -608,7 +608,7 @@ function EventosCoordenacao() {
   const [projetosEventoSelecionado, setProjetosEventoSelecionado] = useState<ProjetoCoordenacaoListagem[]>([]);
   const [salvandoEvento, setSalvandoEvento] = useState(false);
   const [erroTecnico, setErroTecnico] = useState("");
-  
+
   const formularioEventoRef = useRef<HTMLDivElement | null>(null);
   const [step, setStep] = useState(1);
   const [isEditing, setIsEditing] = useState<number | null>(null);
@@ -732,7 +732,7 @@ function EventosCoordenacao() {
     setProjetosEventoSelecionado([]);
   }
 
-  
+
   function handleVerDetalhesTema(evento: EventoApi, tema?: TemaEventoApi) {
     const temas = evento.temas ?? [];
 
@@ -748,11 +748,10 @@ function EventosCoordenacao() {
           <hr style="margin:12px 0" />
           <p><strong>Temas:</strong></p>
           <ul style="padding-left:18px">
-            ${
-              temas.length
-                ? temas.map((item) => `<li>${escapeHtml(item.nome)}</li>`).join("")
-                : "<li>Nenhum tema cadastrado</li>"
-            }
+            ${temas.length
+          ? temas.map((item) => `<li>${escapeHtml(item.nome)}</li>`).join("")
+          : "<li>Nenhum tema cadastrado</li>"
+        }
           </ul>
         </div>
       `,
@@ -781,9 +780,9 @@ function EventosCoordenacao() {
   const anoSelecionado = !Number.isNaN(dataInicialDate.getTime()) ? dataInicialDate.getFullYear() : null;
   const temConflitoAno = anoSelecionado
     ? eventos.some((e) => {
-        if (isEditing === e.id) return false;
-        return new Date(e.prazoInicial).getFullYear() === anoSelecionado;
-      })
+      if (isEditing === e.id) return false;
+      return new Date(e.prazoInicial).getFullYear() === anoSelecionado;
+    })
     : false;
 
   function nextStep() {
@@ -1019,7 +1018,7 @@ function EventosCoordenacao() {
     <AdminPageShell>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-          
+
           <div ref={formularioEventoRef} className={`rounded-3xl border bg-white p-5 shadow-sm sm:p-6 flex flex-col ${isEditing ? "border-amber-200 ring-4 ring-amber-100" : "border-slate-200"}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <PanelTitle
@@ -1050,17 +1049,16 @@ function EventosCoordenacao() {
                 <div className="relative mb-8 pt-4">
                   <div className="absolute top-8 left-0 h-1 w-full bg-slate-100 rounded-full"></div>
                   <div className="absolute top-8 left-0 h-1 bg-sectec-500 rounded-full transition-all duration-500 ease-out" style={{ width: `${progresso}%` }}></div>
-                  
+
                   <div className="relative flex justify-between">
                     {etapas.map((etapa) => {
                       const ativa = step === etapa.id;
                       const concluida = step > etapa.id;
                       return (
                         <div key={etapa.id} className="flex flex-col items-center gap-2">
-                          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all duration-300 ${
-                            ativa ? "scale-110 border-sectec-600 bg-sectec-600 text-white shadow-lg shadow-sectec-200"
-                            : concluida ? "border-sectec-600 bg-sectec-600 text-white" : "border border-slate-300 bg-white text-slate-400"
-                          }`}>
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all duration-300 ${ativa ? "scale-110 border-sectec-600 bg-sectec-600 text-white shadow-lg shadow-sectec-200"
+                              : concluida ? "border-sectec-600 bg-sectec-600 text-white" : "border border-slate-300 bg-white text-slate-400"
+                            }`}>
                             {concluida ? <PiCheckCircle size={16} /> : etapa.id}
                           </span>
                           <span className={`text-[10px] uppercase font-black transition-colors ${ativa || concluida ? "text-sectec-700" : "text-slate-400"}`}>
@@ -1091,16 +1089,16 @@ function EventosCoordenacao() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className="text-xs font-black text-slate-500">
                           Prazo inicial
-                            <input type="date" value={formData.prazoInicial} onChange={(e) => atualizarForm("prazoInicial", e.target.value)} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
+                          <input type="date" value={formData.prazoInicial} onChange={(e) => atualizarForm("prazoInicial", e.target.value)} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
                         </label>
                         <label className="text-xs font-black text-slate-500">
                           Prazo final
-                            <input type="date" value={formData.prazoFinal} onChange={(e) => atualizarForm("prazoFinal", e.target.value)} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
+                          <input type="date" value={formData.prazoFinal} onChange={(e) => atualizarForm("prazoFinal", e.target.value)} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
                         </label>
                       </div>
                       {temConflitoAno && (
                         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 flex items-start gap-3">
-                          <PiWarningCircle className="mt-0.5 shrink-0" size={18} /> 
+                          <PiWarningCircle className="mt-0.5 shrink-0" size={18} />
                           <div>Já existe um evento cadastrado para {anoSelecionado}. Edite o existente ou escolha outro ano.</div>
                         </div>
                       )}
@@ -1155,11 +1153,11 @@ function EventosCoordenacao() {
 
               <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
                 <div className="flex gap-2">
-                   {isEditing ? (
+                  {isEditing ? (
                     <button type="button" onClick={handleCancelEdit} className="cursor-pointer h-11 px-4 text-sm font-bold text-slate-400 transition hover:text-slate-600">Cancelar edição</button>
-                   ) : <span />}
+                  ) : <span />}
                 </div>
-                
+
                 <div className="flex gap-2">
                   {step > 1 && (
                     <button type="button" onClick={prevStep} className="cursor-pointer inline-flex h-11 items-center justify-center rounded-2xl bg-white border border-slate-200 px-5 text-sm font-black text-slate-700 transition hover:bg-slate-50">
@@ -1192,21 +1190,21 @@ function EventosCoordenacao() {
             </div>
             <h3 className="text-sm font-black text-slate-900">Resumo {anoAtual}</h3>
             {eventoVigente ? (
-               <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-                 <strong className="block text-emerald-900 font-black text-sm">{eventoVigente.titulo}</strong>
-                 <p className="text-xs text-emerald-700 mt-1 font-semibold">{eventoVigente.temas?.length || 0} temas cadastrados</p>
-               </div>
+              <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                <strong className="block text-emerald-900 font-black text-sm">{eventoVigente.titulo}</strong>
+                <p className="text-xs text-emerald-700 mt-1 font-semibold">{eventoVigente.temas?.length || 0} temas cadastrados</p>
+              </div>
             ) : (
-               <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
-                 <strong className="block text-amber-900 font-bold text-xs">Nenhum evento cadastrado para {anoAtual}.</strong>
-               </div>
+              <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
+                <strong className="block text-amber-900 font-bold text-xs">Nenhum evento cadastrado para {anoAtual}.</strong>
+              </div>
             )}
           </aside>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
           <h2 className="text-sm font-black uppercase text-slate-800 mb-5">Eventos cadastrados</h2>
-          
+
           {carregando && <div className="text-sm font-medium text-slate-500">Carregando...</div>}
           {!carregando && erro && (
             <div className="space-y-3 rounded-2xl border border-red-100 bg-red-50 p-4">
@@ -1221,17 +1219,17 @@ function EventosCoordenacao() {
               </button>
             </div>
           )}
-          
+
           {!carregando && !erro && eventos.length === 0 && (
-             <div className="flex flex-col items-center justify-center py-12 text-center">
-               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-400 mb-4">
-                 <PiCalendarBlank size={28} />
-               </div>
-               <h3 className="text-sm font-black text-slate-900">Nenhum evento cadastrado</h3>
-               <p className="mt-1 text-sm font-medium text-slate-500">Crie o evento anual para liberar os temas e prazos da SECTEC.</p>
-             </div>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-400 mb-4">
+                <PiCalendarBlank size={28} />
+              </div>
+              <h3 className="text-sm font-black text-slate-900">Nenhum evento cadastrado</h3>
+              <p className="mt-1 text-sm font-medium text-slate-500">Crie o evento anual para liberar os temas e prazos da SECTEC.</p>
+            </div>
           )}
-          
+
           {!carregando && !erro && eventos.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {eventos.map((evento) => (
@@ -1244,7 +1242,7 @@ function EventosCoordenacao() {
                 >
                   <div className="flex justify-between items-start gap-2 mb-3">
                     <div className="flex items-center gap-2">
-                       <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">{new Date(evento.prazoInicial).getFullYear()}</span>
+                      <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">{new Date(evento.prazoInicial).getFullYear()}</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <Tooltip label="Ver detalhes">
@@ -1267,12 +1265,12 @@ function EventosCoordenacao() {
                       </Tooltip>
                     </div>
                   </div>
-                  
+
                   <h3 className="text-base font-black text-slate-900 leading-tight">{evento.titulo}</h3>
                   {evento.descricao && <p className="mt-1 text-xs font-semibold text-slate-500 line-clamp-2">{evento.descricao}</p>}
-                  
+
                   <div className="mt-3 text-[11px] font-semibold text-slate-400 bg-slate-50 rounded-xl p-2.5">
-                    De: <span className="text-slate-600">{formatarData(evento.prazoInicial)}</span> <br/>
+                    De: <span className="text-slate-600">{formatarData(evento.prazoInicial)}</span> <br />
                     Até: <span className="text-slate-600">{formatarData(evento.prazoFinal)}</span>
                   </div>
 
@@ -1312,7 +1310,7 @@ function EventosCoordenacao() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="mt-auto pt-3 border-t border-slate-100 flex gap-2">
                     <input value={temaInputs[evento.id] || ""} onChange={(e) => setTemaInputs((prev) => ({ ...prev, [evento.id]: e.target.value }))} placeholder="Novo tema..." className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
                     <button type="button" onClick={() => handleAdicionarTema(evento.id)} className="cursor-pointer inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-white transition hover:bg-slate-700"><PiPlus size={14} /></button>
@@ -1593,18 +1591,18 @@ function UsuariosCoordenacao() {
     const payload =
       cadastroForm.tipo === "aluno"
         ? {
-            nome,
-            email_institucional: email,
-            role_cargo: "aluno",
-            turma: cadastroForm.turma,
-            ano: Number(cadastroForm.ano),
-          }
+          nome,
+          email_institucional: email,
+          role_cargo: "aluno",
+          turma: cadastroForm.turma,
+          ano: Number(cadastroForm.ano),
+        }
         : {
-            nome,
-            email_institucional: email,
-            role_cargo: "orientador",
-            ...(cadastroForm.senha.trim() ? { senha: cadastroForm.senha.trim() } : {}),
-          };
+          nome,
+          email_institucional: email,
+          role_cargo: "orientador",
+          ...(cadastroForm.senha.trim() ? { senha: cadastroForm.senha.trim() } : {}),
+        };
 
     setSalvandoCadastro(true);
     try {
@@ -1809,15 +1807,15 @@ function UsuariosCoordenacao() {
   const podeFiltrarAno = abaAtiva !== "orientadores" && listaAtual.some((usuario) => usuario.ano !== undefined && usuario.ano !== null);
   const turmasDisponiveis = podeFiltrarTurma
     ? [
-        "todas",
-        ...Array.from(new Set(listaAtual.map((usuario) => usuario.turma).filter(Boolean))).sort(),
-      ] as string[]
+      "todas",
+      ...Array.from(new Set(listaAtual.map((usuario) => usuario.turma).filter(Boolean))).sort(),
+    ] as string[]
     : ["todas"];
   const anosDisponiveis = podeFiltrarAno
     ? [
-        "todos",
-        ...Array.from(new Set(listaAtual.map((usuario) => usuario.ano).filter((ano): ano is number => ano !== undefined && ano !== null))).sort((a, b) => a - b).map(String),
-      ]
+      "todos",
+      ...Array.from(new Set(listaAtual.map((usuario) => usuario.ano).filter((ano): ano is number => ano !== undefined && ano !== null))).sort((a, b) => a - b).map(String),
+    ]
     : ["todos"];
 
   const listaFiltrada = listaAtual.filter((usuario) => {
@@ -1929,9 +1927,8 @@ function UsuariosCoordenacao() {
                 setTurmaFiltro("todas");
                 setAnoFiltro("todos");
               }}
-              className={`group relative overflow-hidden rounded-3xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md ${
-                abaAtiva === card.target ? "border-slate-300 ring-4 ring-slate-100" : "border-slate-200"
-              }`}
+              className={`group relative overflow-hidden rounded-3xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md ${abaAtiva === card.target ? "border-slate-300 ring-4 ring-slate-100" : "border-slate-200"
+                }`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1960,11 +1957,10 @@ function UsuariosCoordenacao() {
                   key={aba.id}
                   type="button"
                   onClick={() => setAbaAtiva(aba.id as "alunos" | "orientadores" | "comissao")}
-                  className={`shrink-0 cursor-pointer px-4 py-2 text-sm font-black transition ${
-                    ativa
+                  className={`shrink-0 cursor-pointer px-4 py-2 text-sm font-black transition ${ativa
                       ? "rounded-xl bg-white text-sectec-700 shadow-sm"
                       : "text-slate-500 hover:bg-sectec-50 hover:text-sectec-700"
-                  }`}
+                    }`}
                 >
                   {aba.label}
                 </button>
@@ -1989,11 +1985,13 @@ function UsuariosCoordenacao() {
                   onChange={(event) => setTurmaFiltro(event.target.value)}
                   className="h-10 w-full min-w-0 cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-8 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100 lg:w-48"
                 >
-                  {turmasDisponiveis.map((turma) => (
-                    <option key={turma} value={turma}>
-                      {turma === "todas" ? "Todas as turmas" : turma}
-                    </option>
-                  ))}
+                  {turmasDisponiveis
+                    .filter((turma): turma is string => turma !== null && turma !== undefined)
+                    .map((turma) => (
+                      <option key={turma} value={turma}>
+                        {turma === "todas" ? "Todas as turmas" : turma}
+                      </option>
+                    ))}
                 </select>
               </label>
             )}
@@ -2761,35 +2759,35 @@ function ProjetosCoordenacao() {
                           Gestão do projeto
                         </div>
                         <div className="flex flex-wrap justify-end gap-2">
-                        <Tooltip label="Ver detalhes">
-                          <button type="button" onClick={() => abrirDetalhesProjeto(projeto)} aria-label="Ver detalhes" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-50">
-                            <Eye size={15} /> Ver
-                          </button>
-                        </Tooltip>
-                        <Tooltip label="Editar">
-                          <button type="button" onClick={() => abrirEdicaoProjeto(projeto)} aria-label="Editar" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100">
-                            <Pencil size={15} /> Editar
-                          </button>
-                        </Tooltip>
-                        <Tooltip label="Excluir">
-                          <button type="button" onClick={() => excluirProjeto(projeto)} aria-label="Excluir" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100">
-                            <Trash2 size={15} /> Excluir
-                          </button>
-                        </Tooltip>
-                        {projetoId && materialId && (
-                          <>
-                            <Tooltip label="Visualizar PDF">
-                              <button type="button" onClick={() => visualizarPdf(projetoId, materialId)} aria-label="Visualizar PDF" className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
-                                <Eye size={15} />
-                              </button>
-                            </Tooltip>
-                            <Tooltip label="Baixar PDF">
-                              <button type="button" onClick={() => baixarPdf(projetoId, materialId)} aria-label="Baixar PDF" className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
-                                <Download size={15} />
-                              </button>
-                            </Tooltip>
-                          </>
-                        )}
+                          <Tooltip label="Ver detalhes">
+                            <button type="button" onClick={() => abrirDetalhesProjeto(projeto)} aria-label="Ver detalhes" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-50">
+                              <Eye size={15} /> Ver
+                            </button>
+                          </Tooltip>
+                          <Tooltip label="Editar">
+                            <button type="button" onClick={() => abrirEdicaoProjeto(projeto)} aria-label="Editar" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100">
+                              <Pencil size={15} /> Editar
+                            </button>
+                          </Tooltip>
+                          <Tooltip label="Excluir">
+                            <button type="button" onClick={() => excluirProjeto(projeto)} aria-label="Excluir" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100">
+                              <Trash2 size={15} /> Excluir
+                            </button>
+                          </Tooltip>
+                          {projetoId && materialId && (
+                            <>
+                              <Tooltip label="Visualizar PDF">
+                                <button type="button" onClick={() => visualizarPdf(projetoId, materialId)} aria-label="Visualizar PDF" className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
+                                  <Eye size={15} />
+                                </button>
+                              </Tooltip>
+                              <Tooltip label="Baixar PDF">
+                                <button type="button" onClick={() => baixarPdf(projetoId, materialId)} aria-label="Baixar PDF" className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
+                                  <Download size={15} />
+                                </button>
+                              </Tooltip>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2953,7 +2951,7 @@ function ProjetosCoordenacao() {
                   {[...new Set(alunos.map((a) => a.turma).filter(Boolean))]
                     .sort()
                     .map((turma) => (
-                      <option key={turma} value={turma}>
+                      <option key={turma} value={turma ?? ""}>
                         {turma}
                       </option>
                     ))}
@@ -2996,11 +2994,10 @@ function ProjetosCoordenacao() {
                       return (
                         <label
                           key={aluno.id}
-                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${
-                            estaOcupadoEmOutroProjeto
+                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${estaOcupadoEmOutroProjeto
                               ? "border-red-200 bg-red-50 cursor-not-allowed opacity-75"
                               : "border-slate-100 bg-slate-50 hover:bg-sectec-50"
-                          }`}
+                            }`}
                         >
                           <span className="min-w-0">
                             <span className="block text-sm font-black text-slate-800 truncate">{aluno.nome}</span>
@@ -3176,9 +3173,8 @@ function Administrador() {
         whileHover={{ y: -3 }}
         transition={{ duration: 0.22, delay: index * 0.04 }}
         onClick={onClick}
-        className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md ${
-          onClick ? "cursor-pointer" : ""
-        }`}
+        className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md ${onClick ? "cursor-pointer" : ""
+          }`}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
