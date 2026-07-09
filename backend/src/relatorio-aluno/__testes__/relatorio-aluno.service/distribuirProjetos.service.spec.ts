@@ -145,9 +145,10 @@ describe('RelatorioAlunoService - distribuirProjetos', () => {
 
     const result = await service.distribuirProjetos();
 
-    expect(result.mensagem).toBe('Distribuição concluída com sucesso!');
+    expect(result.mensagem).toBe('Distribuição concluída com sucesso! Todos os alunos receberam a quantidade necessária de projetos.');
     expect(result.total_alunos).toBe(2);
     expect(result.total_projetos_atribuidos).toBeGreaterThan(0);
+    expect(result.alunos_nao_atendidos).toHaveLength(0);
     expect(result.alunos_processados).toHaveLength(2);
     expect(result.alunos_processados[0].status).toBe('distribuido');
   });
@@ -159,6 +160,7 @@ describe('RelatorioAlunoService - distribuirProjetos', () => {
 
     expect(result.mensagem).toBe('Nenhum aluno elegível para distribuição.');
     expect(result.total_alunos).toBe(0);
+    expect(result.alunos_nao_atendidos).toHaveLength(0);
     expect(result.alunos_processados).toHaveLength(0);
   });
 
@@ -195,12 +197,42 @@ describe('RelatorioAlunoService - distribuirProjetos', () => {
 
     expect(result.alunos_processados[0].status).toBe('ja_atribuido');
     expect(result.alunos_processados[0].mensagem).toBe('Aluno já possui todos os projetos atribuídos.');
+    expect(result.alunos_nao_atendidos).toHaveLength(0);
+  });
+
+  it('should handle aluno with insufficient projects', async () => {
+    // Aluno precisa de 3 projetos, mas só tem 2 disponíveis
+    const alunoComPoucosProjetos = {
+      ...mockAlunoRelatorio1,
+      quantidade_projetos: 3,
+    };
+
+    const mockProjetosLimitados = mockProjetos.slice(0, 2);
+
+    relatorioAlunoRepository.find.mockResolvedValue([alunoComPoucosProjetos]);
+    projetoRepository.find.mockResolvedValue(mockProjetosLimitados);
+    alunoRelatorioProjetosRepository.find.mockResolvedValue([]);
+    alunoRelatorioProjetosRepository.create.mockImplementation((data) => data);
+    alunoRelatorioProjetosRepository.save.mockResolvedValue({ id: 1 });
+    relatorioAlunoRepository.save.mockResolvedValue({});
+
+    const result = await service.distribuirProjetos();
+
+    // Verificar que o aluno ficou com status 'pendente'
+    expect(result.alunos_processados[0].status).toBe('pendente');
+    expect(result.alunos_processados[0].total_atribuido).toBe(2);
+    expect(result.alunos_processados[0].total_necessario).toBe(3);
+    expect(result.alunos_nao_atendidos).toHaveLength(1);
+    expect(result.alunos_nao_atendidos[0].aluno_nome).toBe('João Silva');
+    expect(result.alunos_nao_atendidos[0].faltam).toBe(1);
+    expect(result.mensagem).toBe('Distribuição concluída com alertas! Alguns alunos não receberam todos os projetos necessários.');
   });
 
   it('should distribute projects with cross-turma priority', async () => {
     const alunoInformatica = {
       ...mockAlunoRelatorio1,
       aluno: { ...mockAluno1, turma: UserTurma.INFORMATICA },
+      quantidade_projetos: 2,
     };
 
     relatorioAlunoRepository.find.mockResolvedValue([alunoInformatica]);
