@@ -17,6 +17,7 @@ import { PdfModule } from './pdf/pdf.module';
 import { OrientacoesModule } from './orientacoes/orientacoes.module';
 import { MateriaisModule } from './materiais/materiais.module';
 import { RelatorioModule } from './relatorio/relatorio.module';
+import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { RelatorioModule } from './relatorio/relatorio.module';
     OrientacoesModule,
     MateriaisModule,
     RelatorioModule,
+    RelatorioAlunoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

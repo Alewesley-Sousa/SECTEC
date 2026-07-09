@@ -7,7 +7,7 @@ import {
   Unique,
 } from 'typeorm';
 import { Evento } from './evento.entity'; // ajuste o caminho se necessário
-import { User } from 'src/users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('comissao_eventos')
 @Unique(['evento', 'user']) // Impede duplicar o mesmo aluno na comissão do mesmo evento

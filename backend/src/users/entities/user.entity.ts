@@ -1,7 +1,7 @@
 // user.entity.ts
-import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
-import { ProjetoAluno } from 'src/projetos/entities/projeto-aluno.entity';
-import { ProjetoOrientador } from 'src/projetos/entities/projeto-orientador.entity';
+import { TemaEvento } from '../../evento/entities/tema-evento.entity';
+import { ProjetoAluno } from '../../projetos/entities/projeto-aluno.entity';
+import { ProjetoOrientador } from '../../projetos/entities/projeto-orientador.entity';
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany, ManyToMany } from 'typeorm';
 // ... restante dos imports
 
