@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Req, Delete, Query, Put } from '@nestjs/common';
 import { RelatorioAlunoService } from './relatorio-aluno.service';
 import { CreateRelatorioAlunoDto, UpdateRelatorioAlunoDto, ListarRelatorioAlunoDto } from './dto';
 
@@ -57,5 +57,26 @@ export class RelatorioAlunoController {
   @Post('coordenador/alunos-relatorio/distribuir')
   async distribuirProjetos() {
     return this.relatorioAlunoService.distribuirProjetos();
+  }
+
+
+  /**
+ * ============================================================
+ *                ENDPOINTS PARA ALUNOs
+ * ============================================================
+ */
+
+
+  /**
+* Retorna a lista de projetos atribuídos ao aluno logado
+* com informações básicas (título, área, autores, etc.).
+* 
+* @param req - Requisição com o usuário logado (aluno)
+* @returns Lista de projetos atribuídos ao aluno
+*/
+  @Get('aluno/relatorio/meus-projetos')
+  async meusProjetos(@Req() req: any) {
+    const alunoId = req.user.id;
+    return this.relatorioAlunoService.meusProjetos(alunoId);
   }
 }

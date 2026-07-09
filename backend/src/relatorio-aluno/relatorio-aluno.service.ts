@@ -160,12 +160,12 @@ export class RelatorioAlunoService {
 
 
     /**
- * Dispara a distribuição automática de projetos para todos os alunos
- * que já têm quantidade_projetos > 0 e status = 'pendente'.
- * 
- * Distribuição cruzada: prioriza projetos de turmas diferentes,
- * com baixa probabilidade permite projetos da mesma turma.
- */
+     * Dispara a distribuição automática de projetos para todos os alunos
+     * que já têm quantidade_projetos > 0 e status = 'pendente'.
+     * 
+     * Distribuição cruzada: prioriza projetos de turmas diferentes,
+     * com baixa probabilidade permite projetos da mesma turma.
+     */
     async distribuirProjetos() {
         const anoAtual = new Date().getFullYear();
 
@@ -195,15 +195,15 @@ export class RelatorioAlunoService {
                 mensagem: 'Nenhum aluno elegível para distribuição.',
                 total_alunos: 0,
                 total_projetos_atribuidos: 0,
+                alunos_nao_atendidos: [],
                 alunos_processados: [],
             };
         }
 
-        // 3. Buscar projetos disponíveis (aprovados e do evento atual)
+        // 3. Buscar projetos do mesmo evento
         const projetosDisponiveis = await this.projetoRepository.find({
             where: {
                 evento: { id: eventoAtual.id },
-                // status: 'aprovado', // se tiver status de aprovação
             },
             relations: ['alunoAutor'],
         });
@@ -213,7 +213,6 @@ export class RelatorioAlunoService {
         }
 
         // 4. Para cada aluno, fazer a distribuição
-
         const resultados: {
             aluno_id: number;
             aluno_nome: string;
@@ -221,7 +220,16 @@ export class RelatorioAlunoService {
             status: string;
             projetos_atribuidos: any[];
             total_atribuido?: number;
+            total_necessario?: number;
             mensagem?: string;
+        }[] = [];
+
+        const alunosNaoAtendidos: {
+            aluno_id: number;
+            aluno_nome: string;
+            quantidade_necessaria: number;
+            quantidade_recebida: number;
+            faltam: number;
         }[] = [];
 
         for (const alunoRelatorio of alunosElegiveis) {
@@ -240,19 +248,37 @@ export class RelatorioAlunoService {
                 (p) => !idsProjetosAtribuidos.includes(p.id),
             );
 
-            // Se não houver projetos suficientes, atribuir o que tiver
+            // Calcular quantos projetos ainda faltam
+            const projetosFaltando = quantidade_projetos - projetosAtribuidos.length;
             const quantidadeParaAtribuir = Math.min(
-                quantidade_projetos - projetosAtribuidos.length,
+                projetosFaltando,
                 projetosDisponiveisParaAluno.length,
             );
 
+            // Se não houver projetos para atribuir
             if (quantidadeParaAtribuir <= 0) {
+                const recebeuTodos = projetosAtribuidos.length >= quantidade_projetos;
+
+                if (!recebeuTodos) {
+                    alunosNaoAtendidos.push({
+                        aluno_id: aluno.id,
+                        aluno_nome: aluno.nome,
+                        quantidade_necessaria: quantidade_projetos,
+                        quantidade_recebida: projetosAtribuidos.length,
+                        faltam: quantidade_projetos - projetosAtribuidos.length,
+                    });
+                }
+
                 resultados.push({
                     aluno_id: aluno.id,
                     aluno_nome: aluno.nome,
-                    status: 'ja_atribuido',
+                    status: recebeuTodos ? 'ja_atribuido' : 'pendente',
                     projetos_atribuidos: projetosAtribuidos,
-                    mensagem: 'Aluno já possui todos os projetos atribuídos.',
+                    total_atribuido: projetosAtribuidos.length,
+                    total_necessario: quantidade_projetos,
+                    mensagem: recebeuTodos
+                        ? 'Aluno já possui todos os projetos atribuídos.'
+                        : `Aluno recebeu apenas ${projetosAtribuidos.length} de ${quantidade_projetos} projetos. Faltam ${quantidade_projetos - projetosAtribuidos.length} projetos.`,
                 });
                 continue;
             }
@@ -286,27 +312,65 @@ export class RelatorioAlunoService {
                 });
             }
 
-            // 7. Atualizar status do aluno para DISTRIBUIDO
-            alunoRelatorio.status = StatusRelatorio.DISTRIBUIDO;
+            // 7. Verificar se o aluno recebeu todos os projetos necessários
+            const totalAposAtribuicao = projetosAtribuidos.length + atribuicoes.length;
+            const recebeuTodos = totalAposAtribuicao >= quantidade_projetos;
+
+            // 8. Atualizar status do aluno
+            alunoRelatorio.status = recebeuTodos
+                ? StatusRelatorio.DISTRIBUIDO
+                : StatusRelatorio.PENDENTE;
+
             await this.relatorioAlunoRepository.save(alunoRelatorio);
+
+            // 9. Se não recebeu todos, adicionar à lista de não atendidos
+            if (!recebeuTodos) {
+                alunosNaoAtendidos.push({
+                    aluno_id: aluno.id,
+                    aluno_nome: aluno.nome,
+                    quantidade_necessaria: quantidade_projetos,
+                    quantidade_recebida: totalAposAtribuicao,
+                    faltam: quantidade_projetos - totalAposAtribuicao,
+                });
+            }
+
+            const todosProjetos = [...projetosAtribuidos, ...atribuicoes];
 
             resultados.push({
                 aluno_id: aluno.id,
                 aluno_nome: aluno.nome,
                 turma_aluno: aluno.turma,
-                status: 'distribuido',
-                projetos_atribuidos: atribuicoes,
-                total_atribuido: atribuicoes.length,
+                status: recebeuTodos ? 'distribuido' : 'pendente',
+                projetos_atribuidos: todosProjetos,
+                total_atribuido: totalAposAtribuicao,
+                total_necessario: quantidade_projetos,
+                mensagem: recebeuTodos
+                    ? 'Todos os projetos atribuídos com sucesso!'
+                    : `Aluno recebeu apenas ${totalAposAtribuicao} de ${quantidade_projetos} projetos. Faltam ${quantidade_projetos - totalAposAtribuicao} projetos.`,
             });
         }
 
+        // 10. Montar resposta
+        const totalAtribuidos = resultados.reduce(
+            (acc, r) => acc + (r.total_atribuido || 0),
+            0,
+        );
+
+        if (alunosNaoAtendidos.length > 0) {
+            return {
+                mensagem: 'Distribuição concluída com alertas! Alguns alunos não receberam todos os projetos necessários.',
+                total_alunos: alunosElegiveis.length,
+                total_projetos_atribuidos: totalAtribuidos,
+                alunos_nao_atendidos: alunosNaoAtendidos,
+                alunos_processados: resultados,
+            };
+        }
+
         return {
-            mensagem: 'Distribuição concluída com sucesso!',
+            mensagem: 'Distribuição concluída com sucesso! Todos os alunos receberam a quantidade necessária de projetos.',
             total_alunos: alunosElegiveis.length,
-            total_projetos_atribuidos: resultados.reduce(
-                (acc, r) => acc + (r.total_atribuido || 0),
-                0,
-            ),
+            total_projetos_atribuidos: totalAtribuidos,
+            alunos_nao_atendidos: [],
             alunos_processados: resultados,
         };
     }
@@ -387,5 +451,83 @@ export class RelatorioAlunoService {
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
         return shuffled;
+    }
+
+
+    /**
+ * Retorna a lista de projetos atribuídos ao aluno logado
+ * com informações básicas (título, área, autores, etc.).
+ * 
+ * @param alunoId - ID do aluno logado
+ * @returns Lista de projetos atribuídos ao aluno
+ */
+    async meusProjetos(alunoId: number) {
+        const anoAtual = new Date().getFullYear();
+
+        // 1. Buscar evento ativo do ano atual
+        const eventoAtual = await this.eventoRepository
+            .createQueryBuilder('evento')
+            .where('evento.ativo = :ativo', { ativo: true })
+            .andWhere('YEAR(evento.created_at) = :ano', { ano: anoAtual })
+            .getOne();
+
+        if (!eventoAtual) {
+            throw new NotFoundException(`Nenhum evento ativo encontrado para o ano ${anoAtual}.`);
+        }
+
+        // 2. Buscar o relatório do aluno no evento atual
+        const relatorioAluno = await this.relatorioAlunoRepository.findOne({
+            where: {
+                aluno_id: alunoId,
+                evento_id: eventoAtual.id,
+            },
+            relations: ['aluno'],
+        });
+
+        if (!relatorioAluno) {
+            throw new NotFoundException('Aluno não encontrado na modalidade relatório.');
+        }
+
+        // 3. Buscar os projetos atribuídos a este aluno
+        const projetosAtribuidos = await this.alunoRelatorioProjetosRepository.find({
+            where: { aluno_relatorio_id: relatorioAluno.id },
+            relations: ['projeto', 'projeto.alunoAutor', 'projeto.projetoAlunos', 'projeto.projetoAlunos.aluno'],
+        });
+
+        // 4. Mapear resultados
+        const data = projetosAtribuidos.map((pa) => ({
+            id: pa.projeto.id,
+            titulo: pa.projeto.titulo,
+            descricao: pa.projeto.descricao,
+            area: pa.projeto.tema?.nome || 'Área não definida',
+            autores: [
+                {
+                    id: pa.projeto.alunoAutor.id,
+                    nome: pa.projeto.alunoAutor.nome,
+                    turma: pa.projeto.alunoAutor.turma,
+                    tipo: 'autor_principal',
+                },
+                ...(pa.projeto.projetoAlunos?.map((paAluno) => ({
+                    id: paAluno.aluno.id,
+                    nome: paAluno.aluno.nome,
+                    turma: paAluno.aluno.turma,
+                    tipo: 'coautor',
+                })) || []),
+            ],
+            visualizado: pa.visualizado,
+            data_atribuicao: pa.data_atribuicao,
+        }));
+
+        return {
+            aluno: {
+                id: relatorioAluno.aluno.id,
+                nome: relatorioAluno.aluno.nome,
+                turma: relatorioAluno.aluno.turma,
+            },
+            status: relatorioAluno.status,
+            quantidade_projetos: relatorioAluno.quantidade_projetos,
+            total_atribuidos: data.length,
+            projetos: data,
+        };
     }
 }
