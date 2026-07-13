@@ -14,3 +14,4 @@ import './__testes__/relatorio-aluno.service/distribuirProjetos.service.spec';
  */
 
 import './__testes__/relatorio-aluno.service/meusProjetos.service.spec';
+import './__testes__/relatorio-aluno.service/meuStatus.service.spec';

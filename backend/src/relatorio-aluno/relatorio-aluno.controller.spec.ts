@@ -14,3 +14,4 @@ import './__testes__/relatorio-aluno.controller/distribuirProjetos.controller.sp
  */
 
 import './__testes__/relatorio-aluno.controller/meusProjetos.controller.spec';
+import './__testes__/relatorio-aluno.controller/meuStatus.controller.spec';

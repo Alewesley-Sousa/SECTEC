@@ -530,4 +530,57 @@ export class RelatorioAlunoService {
             projetos: data,
         };
     }
+
+
+    // src/relatorio/relatorio-aluno.service.ts
+
+    /**
+     * Retorna o status atual do aluno na modalidade relatório.
+     * 
+     * @param alunoId - ID do aluno logado
+     * @returns Status, quantidade de projetos e quantidade visualizada
+     */
+    async meuStatus(alunoId: number) {
+        const anoAtual = new Date().getFullYear();
+
+        // 1. Buscar evento ativo do ano atual
+        const eventoAtual = await this.eventoRepository
+            .createQueryBuilder('evento')
+            .where('evento.ativo = :ativo', { ativo: true })
+            .andWhere('YEAR(evento.created_at) = :ano', { ano: anoAtual })
+            .getOne();
+
+        if (!eventoAtual) {
+            throw new NotFoundException(`Nenhum evento ativo encontrado para o ano ${anoAtual}.`);
+        }
+
+        // 2. Buscar o relatório do aluno no evento atual
+        const relatorioAluno = await this.relatorioAlunoRepository.findOne({
+            where: {
+                aluno_id: alunoId,
+                evento_id: eventoAtual.id,
+            },
+            relations: ['aluno'],
+        });
+
+        if (!relatorioAluno) {
+            throw new NotFoundException('Aluno não encontrado na modalidade relatório.');
+        }
+
+        // 3. Buscar os projetos atribuídos (para contar visualizados)
+        const projetosAtribuidos = await this.alunoRelatorioProjetosRepository.find({
+            where: { aluno_relatorio_id: relatorioAluno.id },
+        });
+
+        const totalVisualizados = projetosAtribuidos.filter((p) => p.visualizado).length;
+
+        return {
+            status: relatorioAluno.status,
+            quantidade_projetos: relatorioAluno.quantidade_projetos,
+            total_atribuidos: projetosAtribuidos.length,
+            total_visualizados: totalVisualizados,
+            data_ativacao: relatorioAluno.data_ativacao,
+            data_envio: relatorioAluno.data_envio,
+        };
+    }
 }
