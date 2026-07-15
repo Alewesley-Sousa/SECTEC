@@ -15,7 +15,6 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'frontend', 'dist'));
 
   const seedService = app.select(UsersModule).get(UsersSeed);
-  await seedService.run();
 
   app.enableCors();
 
