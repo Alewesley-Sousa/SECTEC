@@ -1,20 +1,29 @@
-// src/relatorio/dto/update-relatorio-aluno.dto.ts
-import { IsInt, IsOptional, IsEnum, Min } from 'class-validator';
+// dto/update-relatorio-aluno.dto.ts
+import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
 import { StatusRelatorio } from '../entities/relatorio-aluno.entity';
 
-/**
- * DTO para atualização de um registro de relatório de aluno
- * 
- * Usado pela coordenação para definir a quantidade de projetos
- * ou alterar o status manualmente.
- */
 export class UpdateRelatorioAlunoDto {
+  @ApiProperty({
+    description: 'Quantidade de projetos que o aluno deve receber',
+    example: 3,
+    minimum: 0,
+    maximum: 10,
+    required: false,
+  })
+  @IsOptional()
   @IsInt()
   @Min(0)
-  @IsOptional()
+  @Max(10)
   quantidade_projetos?: number;
 
-  @IsEnum(StatusRelatorio)
+  @ApiProperty({
+    description: 'Status do aluno na modalidade relatório',
+    enum: StatusRelatorio,
+    example: StatusRelatorio.DISTRIBUIDO,
+    required: false,
+  })
   @IsOptional()
+  @IsEnum(StatusRelatorio)
   status?: StatusRelatorio;
 }
