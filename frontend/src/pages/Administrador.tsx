@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import RelatorioAlunosCoordenacao from "./services/coordenacao/components/RelatorioAlunosCoordenacao";
 import { AnimatePresence, motion } from "motion/react";
 import {
   PiArrowUpRight,
@@ -1057,7 +1058,7 @@ function EventosCoordenacao() {
                       return (
                         <div key={etapa.id} className="flex flex-col items-center gap-2">
                           <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all duration-300 ${ativa ? "scale-110 border-sectec-600 bg-sectec-600 text-white shadow-lg shadow-sectec-200"
-                              : concluida ? "border-sectec-600 bg-sectec-600 text-white" : "border border-slate-300 bg-white text-slate-400"
+                            : concluida ? "border-sectec-600 bg-sectec-600 text-white" : "border border-slate-300 bg-white text-slate-400"
                             }`}>
                             {concluida ? <PiCheckCircle size={16} /> : etapa.id}
                           </span>
@@ -1958,8 +1959,8 @@ function UsuariosCoordenacao() {
                   type="button"
                   onClick={() => setAbaAtiva(aba.id as "alunos" | "orientadores" | "comissao")}
                   className={`shrink-0 cursor-pointer px-4 py-2 text-sm font-black transition ${ativa
-                      ? "rounded-xl bg-white text-sectec-700 shadow-sm"
-                      : "text-slate-500 hover:bg-sectec-50 hover:text-sectec-700"
+                    ? "rounded-xl bg-white text-sectec-700 shadow-sm"
+                    : "text-slate-500 hover:bg-sectec-50 hover:text-sectec-700"
                     }`}
                 >
                   {aba.label}
@@ -2995,8 +2996,8 @@ function ProjetosCoordenacao() {
                         <label
                           key={aluno.id}
                           className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${estaOcupadoEmOutroProjeto
-                              ? "border-red-200 bg-red-50 cursor-not-allowed opacity-75"
-                              : "border-slate-100 bg-slate-50 hover:bg-sectec-50"
+                            ? "border-red-200 bg-red-50 cursor-not-allowed opacity-75"
+                            : "border-slate-100 bg-slate-50 hover:bg-sectec-50"
                             }`}
                         >
                           <span className="min-w-0">
@@ -3226,6 +3227,7 @@ function Administrador() {
   if (pathname.endsWith("/usuarios")) return <UsuariosCoordenacao />;
   if (pathname.endsWith("/eventos")) return <EventosCoordenacao />;
   if (pathname.endsWith("/projetos")) return <ProjetosCoordenacao />;
+  if (pathname === "/dashboard/coordenacao/gestao-relatorio-alunos") return <RelatorioAlunosCoordenacao />;
 
   return (
     <MainLayout userRole="coordenador">
@@ -3358,8 +3360,14 @@ function Administrador() {
 
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
                 <QuickAction label="Alunos sem projeto" onClick={() => irParaRelatorio("alunos-sem-projeto")} />
-                <QuickAction label="Comissão por evento" onClick={() => irParaRelatorio("comissao-por-evento")} />
                 <QuickAction label="Eixos temáticos" onClick={() => irParaRelatorio("eixos-tematicos")} />
+                <QuickAction
+                  label="Gestão de Relatórios"
+                  onClick={() => {
+                    console.log("Navegando para gestao-relatorio-alunos");
+                    navigate("/dashboard/coordenacao/gestao-relatorio-alunos");
+                  }}
+                />
                 <QuickAction label="Projetos por turma" onClick={() => irParaRelatorio("projetos-por-turma")} />
               </div>
             </section>

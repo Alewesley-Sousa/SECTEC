@@ -290,177 +290,226 @@ export class RelatorioAlunoController {
 
 
 
-/**
- * Atualiza a quantidade de projetos em lote para alunos da modalidade relatório
- * (Apenas coordenadores podem executar)
- */
-@Put('coordenador/alunos-relatorio/quantidade')
-@ApiOperation({
-  summary: 'Atualiza quantidade de projetos em lote',
-  description: 'Permite atualizar a quantidade de projetos para todos os alunos ou para uma lista específica.'
-})
-@ApiBody({
-  type: AtualizarQuantidadeEmLoteDto,
-  examples: {
-    'Atualizar para todos (geral = true)': {
-      summary: 'Aplicar para todos os alunos',
-      value: {
-        quantidade_projetos: 2,
-        geral: true,
-      }
-    },
-    'Atualizar para lista específica (geral = false)': {
-      summary: 'Aplicar para alunos específicos',
-      value: {
-        quantidade_projetos: 3,
-        geral: false,
-        ids: [1, 2, 5, 10]
-      }
-    }
-  }
-})
-@ApiResponse({
-  status: 200,
-  description: 'Quantidade atualizada com sucesso',
-  schema: {
-    example: {
-      mensagem: '4 aluno(s) atualizado(s) com sucesso.',
-      quantidade_definida: 2,
-      alunos_atualizados: [
-        {
-          id: 1,
-          aluno: { id: 10, nome: 'João Silva', email: 'joao@aluno.com', turma: 'informatica' },
+  /**
+   * Atualiza a quantidade de projetos em lote para alunos da modalidade relatório
+   * (Apenas coordenadores podem executar)
+   */
+  @Put('coordenador/alunos-relatorio/quantidade')
+  @ApiOperation({
+    summary: 'Atualiza quantidade de projetos em lote',
+    description: 'Permite atualizar a quantidade de projetos para todos os alunos ou para uma lista específica.'
+  })
+  @ApiBody({
+    type: AtualizarQuantidadeEmLoteDto,
+    examples: {
+      'Atualizar para todos (geral = true)': {
+        summary: 'Aplicar para todos os alunos',
+        value: {
           quantidade_projetos: 2,
-          total_atribuidos: 1,
-          status: 'pendente'
+          geral: true,
         }
-      ]
+      },
+      'Atualizar para lista específica (geral = false)': {
+        summary: 'Aplicar para alunos específicos',
+        value: {
+          quantidade_projetos: 3,
+          geral: false,
+          ids: [1, 2, 5, 10]
+        }
+      }
     }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Quantidade atualizada com sucesso',
+    schema: {
+      example: {
+        mensagem: '4 aluno(s) atualizado(s) com sucesso.',
+        quantidade_definida: 2,
+        alunos_atualizados: [
+          {
+            id: 1,
+            aluno: { id: 10, nome: 'João Silva', email: 'joao@aluno.com', turma: 'informatica' },
+            quantidade_projetos: 2,
+            total_atribuidos: 1,
+            status: 'pendente'
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Requisição inválida' })
+  @ApiResponse({ status: 404, description: 'Relatórios não encontrados' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar esta ação' })
+  async atualizarQuantidadeEmLote(
+    @Body() dto: AtualizarQuantidadeEmLoteDto,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
+    }
+    return this.relatorioAlunoService.atualizarQuantidadeEmLote(
+      dto.quantidade_projetos,
+      dto.geral,
+      dto.ids,
+    );
   }
-})
-@ApiResponse({ status: 400, description: 'Requisição inválida' })
-@ApiResponse({ status: 404, description: 'Relatórios não encontrados' })
-@ApiResponse({ status: 401, description: 'Não autorizado' })
-@ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar esta ação' })
-async atualizarQuantidadeEmLote(
-  @Body() dto: AtualizarQuantidadeEmLoteDto,
-  @GetUser('role') role: string,
-) {
-  if (role !== 'coordenador') {
-    throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
-  }
-  return this.relatorioAlunoService.atualizarQuantidadeEmLote(
-    dto.quantidade_projetos,
-    dto.geral,
-    dto.ids,
-  );
-}
 
-
-
-/**
- * ============================================================
- *                ENDPOINTS PARA ALUNOS
- * ============================================================
- */
-
-/**
- * Retorna a lista de projetos atribuídos ao aluno logado.
- */
-@Get('aluno/relatorio/meus-projetos')
-@ApiOperation({
-  summary: 'Lista projetos atribuídos ao aluno',
-  description: 'Retorna todos os projetos que foram atribuídos ao aluno logado para relatório.'
-})
-@ApiResponse({
-  status: 200,
-  description: 'Lista de projetos retornada com sucesso',
-  schema: {
-    example: {
-      aluno: { id: 1, nome: 'João Silva', turma: 'informatica' },
-      status: 'distribuido',
-      quantidade_projetos: 2,
-      total_atribuidos: 2,
-      projetos: [
+  /**
+   * Lista projetos disponíveis para atribuição manual a um aluno
+   * (Apenas coordenadores podem executar)
+   */
+  @Get('coordenador/:relatorioId/projetos-disponiveis')
+  @ApiOperation({
+    summary: 'Lista projetos disponíveis para atribuição a um aluno',
+    description: 'Retorna projetos do mesmo evento que ainda não foram atribuídos ao aluno. Suporta busca por título, descrição ou autor.'
+  })
+  @ApiParam({
+    name: 'relatorioId',
+    type: Number,
+    description: 'ID do registro em relatorio_aluno',
+    example: 1
+  })
+  @ApiQuery({
+    name: 'search',
+    type: String,
+    required: false,
+    description: 'Termo para buscar por título, descrição ou nome do autor'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de projetos disponíveis retornada com sucesso',
+    schema: {
+      example: [
         {
-          id: 1,
-          titulo: 'Projeto A',
-          descricao: 'Descrição do projeto',
-          area: 'Ciências da Natureza',
-          autores: [
-            { id: 3, nome: 'Carlos', turma: 'enfermagem', tipo: 'autor_principal' }
-          ],
-          visualizado: false,
-          data_atribuicao: '2026-07-09T10:00:00.000Z'
+          id: 5,
+          titulo: 'Projeto X',
+          descricao: 'Descrição do projeto X',
+          tema: { id: 2, nome: 'Ciências' },
+          alunoAutor: { id: 15, nome: 'Maria Silva', turma: 'informatica' }
         }
       ]
     }
-  }
-})
-@ApiResponse({ status: 404, description: 'Aluno não encontrado na modalidade relatório' })
-@ApiResponse({ status: 401, description: 'Não autorizado' })
-async meusProjetos(
-  @GetUser('userId') userId: number,
-  @GetUser('role') role: string,
-) {
-  if (role !== 'aluno') {
-    throw new ForbiddenException('Apenas alunos podem acessar esta rota.');
-  }
-  return this.relatorioAlunoService.meusProjetos(userId);
-}
-
-/**
- * Retorna o status atual do aluno na modalidade relatório.
- */
-@Get('aluno/relatorio/status')
-@ApiOperation({
-  summary: 'Retorna status do aluno na modalidade relatório',
-  description: 'Retorna status atual, quantidade de projetos e quantos já foram visualizados.'
-})
-@ApiResponse({
-  status: 200,
-  description: 'Status retornado com sucesso',
-  schema: {
-    example: {
-      status: 'distribuido',
-      quantidade_projetos: 3,
-      total_atribuidos: 3,
-      total_visualizados: 2,
-      data_ativacao: '2026-07-01T00:00:00.000Z',
-      data_envio: null
+  })
+  @ApiResponse({ status: 404, description: 'Relatório não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar esta ação' })
+  async obterProjetosDisponiveis(
+    @Param('relatorioId', ParseIntPipe) relatorioId: number,
+    @GetUser('role') role: string,
+    @Query('search') search?: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
     }
+    return this.relatorioAlunoService.obterProjetosDisponiveis(relatorioId, search);
   }
-})
-@ApiResponse({ status: 404, description: 'Aluno não encontrado na modalidade relatório' })
-@ApiResponse({ status: 401, description: 'Não autorizado' })
-async meuStatus(
-  @GetUser('userId') userId: number,
-  @GetUser('role') role: string,
-) {
-  if (role !== 'aluno') {
-    throw new ForbiddenException('Apenas alunos podem acessar esta rota.');
-  }
-  return this.relatorioAlunoService.meuStatus(userId);
-}
 
-/**
-* Endpoint para execução manual da verificação de alunos sem projetos
-* (Apenas coordenadores podem executar)
-*/
-@Post('coordenador/verificar-alunos-sem-projetos')
-@ApiOperation({
-  summary: 'Verifica alunos sem projetos e cria registros em relatorio_aluno',
-  description: 'Executa manualmente a verificação de alunos que não possuem projetos.'
-})
-@ApiResponse({ status: 200, description: 'Processamento concluído com sucesso' })
-@ApiResponse({ status: 401, description: 'Não autorizado' })
-@ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar esta ação' })
-async verificarAlunosSemProjetos(
-  @GetUser('role') role: string,
-) {
-  if (role !== 'coordenador') {
-    throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
+
+  /**
+   * ============================================================
+   *                ENDPOINTS PARA ALUNOS
+   * ============================================================
+   */
+
+  /**
+   * Retorna a lista de projetos atribuídos ao aluno logado.
+   */
+  @Get('aluno/relatorio/meus-projetos')
+  @ApiOperation({
+    summary: 'Lista projetos atribuídos ao aluno',
+    description: 'Retorna todos os projetos que foram atribuídos ao aluno logado para relatório.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de projetos retornada com sucesso',
+    schema: {
+      example: {
+        aluno: { id: 1, nome: 'João Silva', turma: 'informatica' },
+        status: 'distribuido',
+        quantidade_projetos: 2,
+        total_atribuidos: 2,
+        projetos: [
+          {
+            id: 1,
+            titulo: 'Projeto A',
+            descricao: 'Descrição do projeto',
+            area: 'Ciências da Natureza',
+            autores: [
+              { id: 3, nome: 'Carlos', turma: 'enfermagem', tipo: 'autor_principal' }
+            ],
+            visualizado: false,
+            data_atribuicao: '2026-07-09T10:00:00.000Z'
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Aluno não encontrado na modalidade relatório' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async meusProjetos(
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'aluno') {
+      throw new ForbiddenException('Apenas alunos podem acessar esta rota.');
+    }
+    return this.relatorioAlunoService.meusProjetos(userId);
   }
-  return this.relatorioAlunoService.verificarAlunosSemProjetos();
-}
+
+  /**
+   * Retorna o status atual do aluno na modalidade relatório.
+   */
+  @Get('aluno/relatorio/status')
+  @ApiOperation({
+    summary: 'Retorna status do aluno na modalidade relatório',
+    description: 'Retorna status atual, quantidade de projetos e quantos já foram visualizados.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Status retornado com sucesso',
+    schema: {
+      example: {
+        status: 'distribuido',
+        quantidade_projetos: 3,
+        total_atribuidos: 3,
+        total_visualizados: 2,
+        data_ativacao: '2026-07-01T00:00:00.000Z',
+        data_envio: null
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Aluno não encontrado na modalidade relatório' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async meuStatus(
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'aluno') {
+      throw new ForbiddenException('Apenas alunos podem acessar esta rota.');
+    }
+    return this.relatorioAlunoService.meuStatus(userId);
+  }
+
+  /**
+  * Endpoint para execução manual da verificação de alunos sem projetos
+  * (Apenas coordenadores podem executar)
+  */
+  @Post('coordenador/verificar-alunos-sem-projetos')
+  @ApiOperation({
+    summary: 'Verifica alunos sem projetos e cria registros em relatorio_aluno',
+    description: 'Executa manualmente a verificação de alunos que não possuem projetos.'
+  })
+  @ApiResponse({ status: 200, description: 'Processamento concluído com sucesso' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar esta ação' })
+  async verificarAlunosSemProjetos(
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
+    }
+    return this.relatorioAlunoService.verificarAlunosSemProjetos();
+  }
 }

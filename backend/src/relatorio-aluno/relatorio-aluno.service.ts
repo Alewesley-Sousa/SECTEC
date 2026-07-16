@@ -916,79 +916,140 @@ export class RelatorioAlunoService implements OnModuleInit {
         geral: boolean,
         ids?: number[],
     ) {
-        // 1. Buscar evento ativo do ano atual
-        const anoAtual = new Date().getFullYear();
-        const eventoAtual = await this.eventoRepository
-            .createQueryBuilder('evento')
-            .where('evento.status = :status', { status: EventoStatus.ATIVO })
-            .andWhere('YEAR(evento.criadoEm) = :ano', { ano: anoAtual })
-            .getOne();
+        try {
+            const anoAtual = new Date().getFullYear();
+            const eventoAtual = await this.eventoRepository
+                .createQueryBuilder('evento')
+                .where('evento.status = :status', { status: EventoStatus.ATIVO })
+                .andWhere('YEAR(evento.criadoEm) = :ano', { ano: anoAtual })
+                .getOne();
 
-        if (!eventoAtual) {
-            throw new NotFoundException(`Nenhum evento ativo encontrado para o ano ${anoAtual}.`);
-        }
-
-        let relatoriosParaAtualizar: RelatorioAluno[];
-
-        if (geral) {
-            // Buscar todos os relatórios do evento
-            relatoriosParaAtualizar = await this.relatorioAlunoRepository.find({
-                where: { evento_id: eventoAtual.id },
-                relations: ['aluno', 'projetosAtribuidos'],
-            });
-        } else {
-            // Buscar apenas os relatórios com os IDs fornecidos
-            if (!ids || ids.length === 0) {
-                throw new BadRequestException('É necessário fornecer uma lista de IDs quando geral = false.');
+            if (!eventoAtual) {
+                throw new NotFoundException(`Nenhum evento ativo encontrado para o ano ${anoAtual}.`);
             }
 
-            relatoriosParaAtualizar = await this.relatorioAlunoRepository.find({
-                where: { id: In(ids), evento_id: eventoAtual.id },
-                relations: ['aluno', 'projetosAtribuidos'],
-            });
+            let relatoriosParaAtualizar: RelatorioAluno[];
 
-            // Verificar se todos os IDs existem
-            const idsEncontrados = relatoriosParaAtualizar.map(r => r.id);
-            const idsNaoEncontrados = ids.filter(id => !idsEncontrados.includes(id));
-            if (idsNaoEncontrados.length > 0) {
-                throw new NotFoundException(
-                    `Relatórios com IDs [${idsNaoEncontrados.join(', ')}] não encontrados para o evento atual.`
-                );
+            if (geral) {
+                relatoriosParaAtualizar = await this.relatorioAlunoRepository.find({
+                    where: { evento_id: eventoAtual.id },
+                    relations: ['aluno', 'projetosAtribuidos'],
+                });
+            } else {
+                if (!ids || ids.length === 0) {
+                    throw new BadRequestException('É necessário fornecer uma lista de IDs quando geral = false.');
+                }
+
+                // Certifique-se de que In está importado do typeorm
+                relatoriosParaAtualizar = await this.relatorioAlunoRepository.find({
+                    where: {
+                        id: In(ids),
+                        evento_id: eventoAtual.id,
+                    },
+                    relations: ['aluno', 'projetosAtribuidos'],
+                });
+
+                const idsEncontrados = relatoriosParaAtualizar.map(r => r.id);
+                const idsNaoEncontrados = ids.filter(id => !idsEncontrados.includes(id));
+                if (idsNaoEncontrados.length > 0) {
+                    throw new NotFoundException(
+                        `Relatórios com IDs [${idsNaoEncontrados.join(', ')}] não encontrados para o evento atual.`
+                    );
+                }
             }
+
+            const resultados: any[] = [];
+            for (const relatorio of relatoriosParaAtualizar) {
+                relatorio.quantidade_projetos = quantidade;
+                const totalAtribuidos = relatorio.projetosAtribuidos?.length || 0;
+                relatorio.status = totalAtribuidos >= quantidade
+                    ? StatusRelatorio.DISTRIBUIDO
+                    : StatusRelatorio.PENDENTE;
+
+                await this.relatorioAlunoRepository.save(relatorio);
+
+                resultados.push({
+                    id: relatorio.id,
+                    aluno: {
+                        id: relatorio.aluno.id,
+                        nome: relatorio.aluno.nome,
+                        email: relatorio.aluno.email_institucional,
+                        turma: relatorio.aluno.turma,
+                    },
+                    quantidade_projetos: relatorio.quantidade_projetos,
+                    total_atribuidos: totalAtribuidos,
+                    status: relatorio.status,
+                });
+            }
+
+            return {
+                mensagem: `${resultados.length} aluno(s) atualizado(s) com sucesso.`,
+                quantidade_definida: quantidade,
+                alunos_atualizados: resultados,
+            };
+        } catch (error) {
+            // Log do erro para depuração
+            console.error('Erro ao atualizar quantidade em lote:', error);
+
+            // Se for uma exceção conhecida, relançar
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+
+            // Caso contrário, lançar uma exceção genérica com detalhes
+            throw new BadRequestException(
+                `Erro ao atualizar quantidade em lote: ${error.message || 'Erro interno do servidor'}`
+            );
+        }
+    }
+
+
+
+    /**
+ * Lista projetos disponíveis para atribuição a um aluno específico
+ * (projetos do mesmo evento que ainda não foram atribuídos a ele)
+ * 
+ * @param relatorioId - ID do registro em relatorio_aluno
+ * @param search - Termo opcional para buscar por título, descrição ou autor
+ * @returns Lista de projetos disponíveis
+ */
+    async obterProjetosDisponiveis(relatorioId: number, search?: string) {
+        // 1. Buscar o relatório com evento e projetos já atribuídos
+        const relatorio = await this.relatorioAlunoRepository.findOne({
+            where: { id: relatorioId },
+            relations: ['evento', 'projetosAtribuidos', 'projetosAtribuidos.projeto'],
+        });
+
+        if (!relatorio) {
+            throw new NotFoundException(`Relatório com ID ${relatorioId} não encontrado.`);
         }
 
-        // 2. Atualizar a quantidade de projetos para cada relatório
-        const resultados: any[] = [];
-        for (const relatorio of relatoriosParaAtualizar) {
-            // Atualizar a quantidade
-            relatorio.quantidade_projetos = quantidade;
+        // 2. Extrair IDs dos projetos já atribuídos
+        const idsAtribuidos = relatorio.projetosAtribuidos.map(pa => pa.projeto.id);
 
-            // Recalcular status baseado na nova quantidade
-            const totalAtribuidos = relatorio.projetosAtribuidos?.length || 0;
-            relatorio.status = totalAtribuidos >= quantidade
-                ? StatusRelatorio.DISTRIBUIDO
-                : StatusRelatorio.PENDENTE;
+        // 3. Construir query para projetos do mesmo evento, excluindo os já atribuídos
+        const query = this.projetoRepository
+            .createQueryBuilder('projeto')
+            .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
+            .leftJoinAndSelect('projeto.tema', 'tema')
+            .where('projeto.evento_id = :eventoId', { eventoId: relatorio.evento.id });
 
-            await this.relatorioAlunoRepository.save(relatorio);
-
-            resultados.push({
-                id: relatorio.id,
-                aluno: {
-                    id: relatorio.aluno.id,
-                    nome: relatorio.aluno.nome,
-                    email: relatorio.aluno.email_institucional,
-                    turma: relatorio.aluno.turma,
-                },
-                quantidade_projetos: relatorio.quantidade_projetos,
-                total_atribuidos: totalAtribuidos,
-                status: relatorio.status,
-            });
+        if (idsAtribuidos.length > 0) {
+            query.andWhere('projeto.id NOT IN (:...idsAtribuidos)', { idsAtribuidos });
         }
 
-        return {
-            mensagem: `${resultados.length} aluno(s) atualizado(s) com sucesso.`,
-            quantidade_definida: quantidade,
-            alunos_atualizados: resultados,
-        };
+        // 4. Aplicar busca textual, se fornecida
+        if (search && search.trim()) {
+            const termo = `%${search.trim()}%`;
+            query.andWhere(
+                '(projeto.titulo ILIKE :termo OR projeto.descricao ILIKE :termo OR alunoAutor.nome ILIKE :termo)',
+                { termo }
+            );
+        }
+
+        // 5. Ordenar por título
+        query.orderBy('projeto.titulo', 'ASC');
+
+        return query.getMany();
     }
 }
