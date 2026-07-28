@@ -1,10 +1,18 @@
-import { Controller, Get, Post, Body, Patch, Param, Req, Delete, Query, Put, UseGuards, ForbiddenException, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Req, Delete, Query, Put, UseGuards, ForbiddenException, ParseIntPipe, UseInterceptors, UploadedFile, StreamableFile, Res } from '@nestjs/common';
 import { RelatorioAlunoService } from './relatorio-aluno.service';
-import { CreateRelatorioAlunoDto, UpdateRelatorioAlunoDto, ListarRelatorioAlunoDto, AtribuirProjetosDto, RemoverProjetosDto, AtualizarQuantidadeEmLoteDto } from './dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
+import { CreateRelatorioAlunoDto, UpdateRelatorioAlunoDto, ListarRelatorioAlunoDto, AtribuirProjetosDto, RemoverProjetosDto, AtualizarQuantidadeEmLoteDto, EnviarRelatorioMaterialDto, DevolverMaterialDto } from './dto';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { StatusRelatorio } from './entities/relatorio-aluno.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../auth/decorators/roles.decorator'; // ou do arquivo correto
+import { TipoRelatorioMaterial } from './entities/relatorio-material.entity';
+import { mkdirSync } from 'fs';
+import { extname, join } from 'path';
+import { Response } from 'express';
 
 @ApiTags('Relatório - Alunos')
 @ApiBearerAuth()
@@ -40,6 +48,74 @@ export class RelatorioAlunoController {
   ) {
     return this.relatorioAlunoService.listarAlunosRelatorio(filtros);
   }
+
+  /**
+   * Atualiza a quantidade de projetos em lote para alunos da modalidade relatório
+   * (Apenas coordenadores podem executar)
+   */
+  @Put('coordenador/alunos-relatorio/quantidade')
+  @ApiOperation({
+    summary: 'Atualiza quantidade de projetos em lote',
+    description: 'Permite atualizar a quantidade de projetos para todos os alunos ou para uma lista específica.'
+  })
+  @ApiBody({
+    type: AtualizarQuantidadeEmLoteDto,
+    examples: {
+      'Atualizar para todos (geral = true)': {
+        summary: 'Aplicar para todos os alunos',
+        value: {
+          quantidade_projetos: 2,
+          geral: true,
+        }
+      },
+      'Atualizar para lista específica (geral = false)': {
+        summary: 'Aplicar para alunos específicos',
+        value: {
+          quantidade_projetos: 3,
+          geral: false,
+          ids: [1, 2, 5, 10]
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Quantidade atualizada com sucesso',
+    schema: {
+      example: {
+        mensagem: '4 aluno(s) atualizado(s) com sucesso.',
+        quantidade_definida: 2,
+        alunos_atualizados: [
+          {
+            id: 1,
+            aluno: { id: 10, nome: 'João Silva', email: 'joao@aluno.com', turma: 'informatica' },
+            quantidade_projetos: 2,
+            total_atribuidos: 1,
+            status: 'pendente'
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Requisição inválida' })
+  @ApiResponse({ status: 404, description: 'Relatórios não encontrados' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar esta ação' })
+  async atualizarQuantidadeEmLote(
+    @Body() dto: AtualizarQuantidadeEmLoteDto,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
+    }
+    return this.relatorioAlunoService.atualizarQuantidadeEmLote(
+      dto.quantidade_projetos,
+      dto.geral,
+      dto.ids,
+      dto.forcarReducao
+    );
+  }
+
 
   /**
    * Atualiza os dados de um aluno na modalidade relatório.
@@ -287,75 +363,6 @@ export class RelatorioAlunoController {
   }
 
 
-
-
-
-  /**
-   * Atualiza a quantidade de projetos em lote para alunos da modalidade relatório
-   * (Apenas coordenadores podem executar)
-   */
-  @Put('coordenador/alunos-relatorio/quantidade')
-  @ApiOperation({
-    summary: 'Atualiza quantidade de projetos em lote',
-    description: 'Permite atualizar a quantidade de projetos para todos os alunos ou para uma lista específica.'
-  })
-  @ApiBody({
-    type: AtualizarQuantidadeEmLoteDto,
-    examples: {
-      'Atualizar para todos (geral = true)': {
-        summary: 'Aplicar para todos os alunos',
-        value: {
-          quantidade_projetos: 2,
-          geral: true,
-        }
-      },
-      'Atualizar para lista específica (geral = false)': {
-        summary: 'Aplicar para alunos específicos',
-        value: {
-          quantidade_projetos: 3,
-          geral: false,
-          ids: [1, 2, 5, 10]
-        }
-      }
-    }
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Quantidade atualizada com sucesso',
-    schema: {
-      example: {
-        mensagem: '4 aluno(s) atualizado(s) com sucesso.',
-        quantidade_definida: 2,
-        alunos_atualizados: [
-          {
-            id: 1,
-            aluno: { id: 10, nome: 'João Silva', email: 'joao@aluno.com', turma: 'informatica' },
-            quantidade_projetos: 2,
-            total_atribuidos: 1,
-            status: 'pendente'
-          }
-        ]
-      }
-    }
-  })
-  @ApiResponse({ status: 400, description: 'Requisição inválida' })
-  @ApiResponse({ status: 404, description: 'Relatórios não encontrados' })
-  @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar esta ação' })
-  async atualizarQuantidadeEmLote(
-    @Body() dto: AtualizarQuantidadeEmLoteDto,
-    @GetUser('role') role: string,
-  ) {
-    if (role !== 'coordenador') {
-      throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
-    }
-    return this.relatorioAlunoService.atualizarQuantidadeEmLote(
-      dto.quantidade_projetos,
-      dto.geral,
-      dto.ids,
-    );
-  }
-
   /**
    * Lista projetos disponíveis para atribuição manual a um aluno
    * (Apenas coordenadores podem executar)
@@ -406,7 +413,93 @@ export class RelatorioAlunoController {
     return this.relatorioAlunoService.obterProjetosDisponiveis(relatorioId, search);
   }
 
+  // relatorio-aluno.controller.ts (adicionar na seção "ENDPOINTS PARA COORDENAÇÃO")
 
+  /**
+   * Lista os materiais enviados por todos os alunos da modalidade relatório
+   * (Apenas coordenadores podem acessar)
+   */
+  @Get('coordenador/materiais')
+  @ApiOperation({
+    summary: 'Lista materiais enviados pelos alunos',
+    description: 'Retorna alunos com seus materiais (vídeos e PDFs) para análise.'
+  })
+  @ApiQuery({ name: 'status', enum: StatusRelatorio, required: false })
+  @ApiQuery({ name: 'nome', type: String, required: false })
+  @ApiQuery({ name: 'page', type: Number, required: false, example: 1 })
+  @ApiQuery({ name: 'limit', type: Number, required: false, example: 10 })
+  async listarMateriaisCoordenador(
+    @Query('status') status?: StatusRelatorio,
+    @Query('nome') nome?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @GetUser('role') role?: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem acessar.');
+    }
+    return this.relatorioAlunoService.listarMateriaisCoordenador({ status, nome, page, limit });
+  }
+
+  // relatorio-aluno.controller.ts
+
+  @Get('coordenador/materiais/:id/pdf')
+  @ApiOperation({
+    summary: 'Serve o arquivo PDF do material',
+    description: 'Retorna o arquivo PDF para visualização no navegador. Apenas coordenadores.'
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'ID do material' })
+  @ApiResponse({ status: 200, description: 'Arquivo PDF servido com sucesso' })
+  @ApiResponse({ status: 404, description: 'Material não encontrado ou não é PDF' })
+  @ApiResponse({ status: 403, description: 'Apenas coordenadores podem acessar' })
+  async servirPdfMaterial(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('role') role: string,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem acessar.');
+    }
+    const { buffer, nomeArquivo } = await this.relatorioAlunoService.obterPdfMaterial(id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${nomeArquivo}"`);
+    res.setHeader('Content-Length', buffer.length);
+    return new StreamableFile(buffer);
+  }
+
+  @Put('coordenador/materiais/:id/devolver')
+  @ApiOperation({ summary: 'Devolve um material com justificativa' })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiBody({ type: DevolverMaterialDto })
+  async devolverMaterial(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: DevolverMaterialDto,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'coordenador') throw new ForbiddenException('Apenas coordenadores podem devolver materiais.');
+    return this.relatorioAlunoService.devolverMaterialCoordenador(id, dto.opiniao);
+  }
+
+  @Put('coordenador/alunos-relatorio/:id/finalizar')
+  @ApiOperation({
+    summary: 'Finaliza a avaliação de um aluno',
+    description: 'Marca o relatório do aluno como finalizado, indicando que a coordenação concluiu a análise dos materiais enviados.'
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'ID do relatorio_aluno' })
+  @ApiResponse({ status: 200, description: 'Relatório finalizado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Status atual não permite finalização' })
+  @ApiResponse({ status: 404, description: 'Relatório não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas coordenadores podem executar' })
+  async finalizarAvaliacao(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem finalizar avaliações.');
+    }
+    return this.relatorioAlunoService.finalizarAvaliacao(id);
+  }
   /**
    * ============================================================
    *                ENDPOINTS PARA ALUNOS
@@ -511,5 +604,56 @@ export class RelatorioAlunoController {
       throw new ForbiddenException('Apenas coordenadores podem executar esta ação.');
     }
     return this.relatorioAlunoService.verificarAlunosSemProjetos();
+  }
+
+
+  @Post('aluno/relatorio/enviar')
+  @Roles(UserRole.ALUNO)
+  @ApiOperation({ summary: 'Envia um material (vídeo ou PDF) para o relatório do aluno' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ type: EnviarRelatorioMaterialDto })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadDir = join(process.cwd(), 'tmp');
+          mkdirSync(uploadDir, { recursive: true });
+          cb(null, uploadDir);
+        },
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+    }),
+  )
+  async enviarMaterialRelatorio(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: EnviarRelatorioMaterialDto,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'aluno') throw new ForbiddenException('Apenas alunos podem enviar materiais.');
+    const conteudo = dto.tipo === 'link' ? (dto.conteudo ?? '') : (file?.path ?? '');
+    return this.relatorioAlunoService.enviarMaterialRelatorio(userId, dto.tipo as TipoRelatorioMaterial, conteudo, file);
+  }
+
+  @Delete('aluno/relatorio/cancelar/:id')
+  @Roles(UserRole.ALUNO)
+  @ApiOperation({ summary: 'Cancela o envio de um material do relatório' })
+  async cancelarMaterialRelatorio(
+    @Param('id', ParseIntPipe) materialId: number,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'aluno') throw new ForbiddenException('Apenas alunos podem cancelar materiais.');
+    return this.relatorioAlunoService.cancelarMaterialRelatorio(materialId, userId);
+  }
+
+  @Get('aluno/relatorio/meus-materiais')
+  @Roles(UserRole.ALUNO)
+  async meusMateriais(@GetUser('userId') userId: number, @GetUser('role') role: string) {
+    if (role !== 'aluno') throw new ForbiddenException('Apenas alunos podem acessar.');
+    return this.relatorioAlunoService.meusMateriais(userId);
   }
 }

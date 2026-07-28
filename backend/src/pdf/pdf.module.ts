@@ -12,6 +12,6 @@ import { Projeto } from '../projetos/entities/projeto.entity';
   ],
   controllers: [PdfController],
   providers: [PdfService, GoogleDriveService],
-  exports: [PdfService],
+  exports: [PdfService, GoogleDriveService], 
 })
 export class PdfModule {}

@@ -64,13 +64,13 @@ export class GoogleDriveService {
       id: response.data.id,
       webViewLink: response.data.webViewLink,
     };
-  }     
-  
-  
-    /**
-   * Obtém o Stream de um arquivo do Google Drive para download
-   * @param driveFileId ID do arquivo na nuvem do Google
-   */
+  }
+
+
+  /**
+ * Obtém o Stream de um arquivo do Google Drive para download
+ * @param driveFileId ID do arquivo na nuvem do Google
+ */
   async downloadFileStream(driveFileId: string): Promise<Readable> {
     try {
       const response = await this.drive.files.get(
@@ -80,43 +80,43 @@ export class GoogleDriveService {
         },
         { responseType: 'stream' }, // Configura o Axios interno para retornar um Stream do Node.js
       );
-      
+
       return response.data as Readable;
     } catch (error) {
       throw new Error(`Erro ao buscar stream no Google Drive: ${error.message}`);
     }
   }
-  
-  
-  
-  async updateFile(
-  driveFileId: string,
-  fileName: string,
-  fileStream: Readable,
-  mimeType: string,
-) {
-  try {
-    // Atualiza os metadados (nome) e o corpo do arquivo (mídia)
-    const response = await this.drive.files.update({
-      fileId: driveFileId,
-      requestBody: {
-        name: fileName, // Mantém ou atualiza o nome padrão padrãoizado
-      },
-      media: {
-        mimeType: mimeType,
-        body: fileStream,
-      },
-      fields: 'id, webViewLink',
-    });
 
-    return {
-      id: response.data.id,
-      webViewLink: response.data.webViewLink,
-    };
-  } catch (error) {
-    throw new Error(`Erro ao atualizar arquivo no Google Drive: ${error.message}`);
+
+
+  async updateFile(
+    driveFileId: string,
+    fileName: string,
+    fileStream: Readable,
+    mimeType: string,
+  ) {
+    try {
+      // Atualiza os metadados (nome) e o corpo do arquivo (mídia)
+      const response = await this.drive.files.update({
+        fileId: driveFileId,
+        requestBody: {
+          name: fileName, // Mantém ou atualiza o nome padrão padrãoizado
+        },
+        media: {
+          mimeType: mimeType,
+          body: fileStream,
+        },
+        fields: 'id, webViewLink',
+      });
+
+      return {
+        id: response.data.id,
+        webViewLink: response.data.webViewLink,
+      };
+    } catch (error) {
+      throw new Error(`Erro ao atualizar arquivo no Google Drive: ${error.message}`);
+    }
   }
-}
 
 
 
@@ -134,6 +134,92 @@ export class GoogleDriveService {
       });
     } catch (error) {
       throw new Error(`Erro ao deletar arquivo no Google Drive: ${error.message}`);
+    }
+  }
+
+
+  // google-drive.service.ts
+  async downloadFile(fileId: string): Promise<Buffer> {
+    const response = await this.drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      response.data.on('data', (chunk: Buffer) => chunks.push(chunk));
+      response.data.on('end', () => resolve(Buffer.concat(chunks)));
+      response.data.on('error', reject);
+    });
+  }
+
+  // google-drive.service.ts (adicionar ao final da classe)
+
+  /**
+   * Torna um arquivo publicamente acessível (qualquer pessoa com o link pode visualizar).
+   */
+  async makeFilePublic(fileId: string): Promise<void> {
+    await this.drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+  }
+
+  /**
+   * Upload de PDF de relatório com nome padronizado, permissão pública e retorno dos links.
+   * Remove o arquivo local após o envio.
+   */
+  async uploadRelatorioPdf(
+    file: Express.Multer.File,
+    alunoNome: string,
+    alunoId: number,
+  ): Promise<{ id: string; previewLink: string }> {
+    const fs = require('fs');
+    const path = require('path');
+
+    const filePath = file.path;
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error('Arquivo PDF não foi recebido corretamente.');
+    }
+
+    const extensao = path.extname(file.originalname);
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const nomeAluno = (alunoNome ?? 'aluno')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9 ]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .toLowerCase();
+    const driveFileName = `${ano}-${mes}-relatorio-${nomeAluno}-${alunoId}${extensao}`;
+
+    const fileStream = fs.createReadStream(filePath);
+
+    try {
+      const driveResponse = await this.uploadFile(
+        driveFileName,
+        fileStream,
+        file.mimetype,
+        process.env.GOOGLE_DRIVE_FOLDER_ID,
+      );
+
+      await this.makeFilePublic(driveResponse.id);
+
+      const previewLink = `https://drive.google.com/file/d/${driveResponse.id}/preview`;
+
+      return {
+        id: driveResponse.id,
+        previewLink,
+      };
+    } finally {
+      // Remove arquivo temporário
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
   }
 }

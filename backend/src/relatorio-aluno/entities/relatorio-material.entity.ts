@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   Unique,
+  OneToMany,
 } from 'typeorm';
 import { RelatorioAluno } from './relatorio-aluno.entity';
 
@@ -64,4 +65,7 @@ export class RelatorioMaterial {
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
+
+  @OneToMany(() => RelatorioMaterial, (material) => material.relatorioAluno)
+  materiais!: RelatorioMaterial[];
 }

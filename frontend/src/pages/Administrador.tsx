@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RelatorioAlunosCoordenacao from "./services/coordenacao/components/RelatorioAlunosCoordenacao";
 import { AnimatePresence, motion } from "motion/react";
+import { Pagination } from '../componentes/PaginationUniversal';
 import {
   PiArrowUpRight,
   PiBookOpen,
@@ -2306,6 +2307,9 @@ function ProjetosCoordenacao() {
     evento: "",
     alunosIds: [] as number[],
   });
+  // Paginação
+const [paginaAtual, setPaginaAtual] = useState(1);
+const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
 
   function exibirInfoIntegrantes() {
     Swal.fire({
@@ -2415,6 +2419,18 @@ function ProjetosCoordenacao() {
       return bateBusca && bateEvento && bateTurma && bateStatusOrientacao;
     });
   }, [busca, eventoFiltro, projetos, statusOrientacaoFiltro, turmaFiltro]);
+
+  const totalProjetosFiltrados = projetosFiltrados.length;
+  const totalPaginas = Math.max(1, Math.ceil(totalProjetosFiltrados / ITENS_POR_PAGINA));
+  const projetosPaginados = projetosFiltrados.slice(
+    (paginaAtual - 1) * ITENS_POR_PAGINA,
+    paginaAtual * ITENS_POR_PAGINA,
+  );
+
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [busca, eventoFiltro, turmaFiltro, statusOrientacaoFiltro]);
+
 
   const eventoSelecionadoNoForm = eventos.find((evento) => String(evento.id) === formProjeto.evento);
   const temasDoEventoSelecionado = eventoSelecionadoNoForm?.temas ?? [];
@@ -2701,7 +2717,7 @@ function ProjetosCoordenacao() {
 
           {!carregando && !erro && projetosFiltrados.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {projetosFiltrados.map((projeto, index) => {
+              {projetosPaginados.map((projeto, index) => {
                 const autor = getAutorProjeto(projeto);
                 const integrantes = getIntegrantesProjeto(projeto);
                 const projetoId = getProjetoId(projeto);
@@ -2798,6 +2814,13 @@ function ProjetosCoordenacao() {
             </div>
           )}
         </div>
+        <Pagination
+          page={paginaAtual}
+          totalPages={totalPaginas}
+          onPageChange={setPaginaAtual}
+          total={totalProjetosFiltrados}
+          limit={ITENS_POR_PAGINA}
+        />
       </section>
 
       <PainelDetalhes aberto={detalhesAberto} titulo={projetoSelecionado?.titulo ?? "Detalhes do projeto"} onClose={() => setDetalhesAberto(false)}>

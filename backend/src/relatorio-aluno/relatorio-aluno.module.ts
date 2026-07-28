@@ -7,22 +7,23 @@ import { RelatorioAluno } from './entities/relatorio-aluno.entity'; // ajuste o 
 import { AlunoRelatorioProjetos } from './entities/aluno-relatorio-projetos.entity';
 import { Evento } from '../evento/entities/evento.entity'; // caminho real
 import { Projeto } from '../projetos/entities/projeto.entity'; // caminho real
+import { RelatorioMaterial } from './entities/relatorio-material.entity';
 import { ScheduleModule } from '@nestjs/schedule';
 import { User } from '../users/entities/user.entity';
 import { Cron } from '@nestjs/schedule';
 import { Logger } from '@nestjs/common';
-
+import { PdfModule } from '../pdf/pdf.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       RelatorioAluno,
       AlunoRelatorioProjetos,
+      RelatorioMaterial,
       Evento,
       Projeto,
       User,
-      // Se o serviço também usar RelatorioMaterial, adicione aqui:
-      // RelatorioMaterial,
     ]),
+    PdfModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [RelatorioAlunoController],

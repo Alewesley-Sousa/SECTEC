@@ -10,4 +10,6 @@ export * from './avaliar-relatorio-material.dto';
 export * from './listar-relatorio-aluno.dto';
 export * from './atribuir-projetos.dto';
 export * from './remover-projetos.dto';
-export * from './atualizar-quantidade-em-lote.dto'
+export * from './atualizar-quantidade-em-lote.dto';
+export * from './EnviarRelatorioMaterialDto.dto';
+export * from './devolver-material.dto';

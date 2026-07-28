@@ -43,11 +43,13 @@ export type UsuarioApi = {
 
 export class ApiError extends Error {
   status: number;
+  data?: any;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, data?: any) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -90,12 +92,29 @@ export async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    throw new ApiError(await readError(response), response.status);
+    let errorData: any;
+    let message = "Não foi possível concluir a solicitação.";
+
+    try {
+      errorData = await response.json();
+      if (typeof errorData?.message === "string") {
+        message = errorData.message;
+      } else if (Array.isArray(errorData?.message)) {
+        message = errorData.message.join(" ");
+      }
+    } catch {
+      // A resposta pode não ser JSON – errorData permanece undefined
+    }
+
+    throw new ApiError(message, response.status, errorData);
   }
 
   if (response.status === 204) return undefined as T;
   if (!response.headers.get("content-type")?.includes("application/json")) {
-    throw new ApiError("Este endpoint não retornou JSON. Verifique se a rota existe no backend publicado.", response.status);
+    throw new ApiError(
+      "Este endpoint não retornou JSON. Verifique se a rota existe no backend publicado.",
+      response.status
+    );
   }
 
   return response.json() as Promise<T>;

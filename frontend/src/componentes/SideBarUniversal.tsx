@@ -15,6 +15,7 @@ import {
   LogOut,
   Users,
   GraduationCap,
+  FileText
 } from "lucide-react";
 
 import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
@@ -79,11 +80,10 @@ export function Sidebar({
       animate={mobile ? { x: 0 } : { width: expanded ? 256 : 80 }}
       exit={mobile ? { x: -320 } : undefined}
       transition={{ type: "spring", stiffness: 260, damping: 28 }}
-      className={`${
-        mobile
+      className={`${mobile
           ? "fixed inset-y-0 left-0 z-50 w-72 flex"
           : "fixed inset-y-0 left-0 z-20 hidden h-dvh min-h-dvh shrink-0 lg:flex"
-      } bg-[#0b4d2c] text-white border-r border-white/5 flex-col shadow-2xl overflow-visible`}
+        } bg-[#0b4d2c] text-white border-r border-white/5 flex-col shadow-2xl overflow-visible`}
     >
       {!mobile && (
         <motion.button
@@ -112,9 +112,8 @@ export function Sidebar({
       <div className="p-5 sm:p-6 border-b border-white/5 overflow-hidden">
         <motion.div
           layout
-          className={`flex items-center gap-3 ${
-            expanded ? "justify-start" : "justify-center"
-          }`}
+          className={`flex items-center gap-3 ${expanded ? "justify-start" : "justify-center"
+            }`}
         >
           <motion.div
             layout
@@ -163,9 +162,8 @@ export function Sidebar({
               >
                 <details className="group" open={item.isActive}>
                   <summary
-                    className={`flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm font-semibold transition cursor-pointer list-none hover:bg-white/10 ${
-                      isActive ? "bg-white/15 text-white" : "text-white/70"
-                    }`}
+                    className={`flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm font-semibold transition cursor-pointer list-none hover:bg-white/10 ${isActive ? "bg-white/15 text-white" : "text-white/70"
+                      }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="opacity-80 shrink-0">{item.icon}</span>
@@ -211,11 +209,10 @@ export function Sidebar({
               <Link
                 to={item.href || "#"}
                 onClick={onClose}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                  isActive
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-semibold transition ${isActive
                     ? "bg-white/15 text-white shadow-inner"
                     : "text-white/70 hover:bg-white/10 hover:text-white"
-                }`}
+                  }`}
               >
                 <span className="opacity-80 shrink-0">{item.icon}</span>
 
@@ -243,9 +240,8 @@ export function Sidebar({
           whileHover={{ scale: expanded ? 1.02 : 1.1 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleLogout}
-          className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition cursor-pointer text-white/70 hover:bg-white/10 hover:text-white ${
-            !expanded ? "justify-center p-3" : "py-3 px-4"
-          }`}
+          className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition cursor-pointer text-white/70 hover:bg-white/10 hover:text-white ${!expanded ? "justify-center p-3" : "py-3 px-4"
+            }`}
           title="Sair do sistema"
         >
           <span className="shrink-0"><LogOut size={20} /></span>
@@ -272,9 +268,8 @@ export function Sidebar({
             <Link
               to={settingsItem?.href || "#"}
               onClick={onClose}
-              className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition text-white/70 hover:bg-white/10 hover:text-white ${
-                !expanded ? "justify-center p-3" : "py-3 px-4"
-              }`}
+              className={`flex items-center gap-3 w-full rounded-xl text-sm font-semibold transition text-white/70 hover:bg-white/10 hover:text-white ${!expanded ? "justify-center p-3" : "py-3 px-4"
+                }`}
               title="Configurações"
             >
               <span className="opacity-80 shrink-0">
@@ -335,8 +330,8 @@ export function MainLayout({
     userRole === "coordenador" || userRole === "comissao"
       ? "coordenacao"
       : userRole === "orientador"
-      ? "orientador"
-      : "aluno";
+        ? "orientador"
+        : "aluno";
 
   const dashboardPrefix = `/dashboard/${rolePath}`;
 
@@ -349,6 +344,7 @@ export function MainLayout({
     [`${dashboardPrefix}/eventos`]: "Eventos",
     [`${dashboardPrefix}/projetos`]: "Projetos",
     [`${dashboardPrefix}/relatorio-alunos`]: "Status dos Alunos",
+    [`${dashboardPrefix}/gestao-relatorio-alunos`]: "Gestão de Relatórios",
     [`${dashboardPrefix}/configuracoes`]: "Configurações",
   };
 
@@ -414,54 +410,62 @@ export function MainLayout({
   ];
 
   const coordenadorMenu: NavItem[] = [
-  {
-    id: "coordenacao-painel",
-    label: "Painel",
-    icon: <LayoutDashboard size={20} />,
-    href: dashboardPrefix,
-    isActive: location.pathname === dashboardPrefix,
-    roles: ["coordenador", "comissao"],
-  },
-  {
-    id: "coordenacao-eventos",
-    label: "Eventos",
-    icon: <CalendarDays size={20} />,
-    href: `${dashboardPrefix}/eventos`,
-    isActive: location.pathname === `${dashboardPrefix}/eventos`,
-    roles: ["coordenador", "comissao"],
-  },
-  {
-    id: "coordenacao-projetos",
-    label: "Projetos",
-    icon: <ClipboardList size={20} />,
-    href: `${dashboardPrefix}/projetos`,
-    isActive: location.pathname === `${dashboardPrefix}/projetos`,
-    roles: ["coordenador", "comissao"],
-  },
-  {
-    id: "coordenacao-usuarios",
-    label: "Usuários",
-    icon: <Users size={20} />,
-    href: `${dashboardPrefix}/usuarios`,
-    isActive: location.pathname === `${dashboardPrefix}/usuarios`,
-    roles: ["coordenador", "comissao"],
-  },
-  {
-    id: "coordenacao-relatorio-alunos",
-    label: "Status dos Alunos",
-    icon: <GraduationCap size={20} />,
-    href: `${dashboardPrefix}/relatorio-alunos`,
-    isActive: location.pathname === `${dashboardPrefix}/relatorio-alunos`,
-    roles: ["coordenador", "comissao"],
-  },
-];
+    {
+      id: "coordenacao-painel",
+      label: "Painel",
+      icon: <FileText size={20} />,
+      href: dashboardPrefix,
+      isActive: location.pathname === dashboardPrefix,
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-eventos",
+      label: "Eventos",
+      icon: <CalendarDays size={20} />,
+      href: `${dashboardPrefix}/eventos`,
+      isActive: location.pathname === `${dashboardPrefix}/eventos`,
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-projetos",
+      label: "Projetos",
+      icon: <ClipboardList size={20} />,
+      href: `${dashboardPrefix}/projetos`,
+      isActive: location.pathname === `${dashboardPrefix}/projetos`,
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-usuarios",
+      label: "Usuários",
+      icon: <Users size={20} />,
+      href: `${dashboardPrefix}/usuarios`,
+      isActive: location.pathname === `${dashboardPrefix}/usuarios`,
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-relatorio-alunos",
+      label: "Status dos Alunos",
+      icon: <GraduationCap size={20} />,
+      href: `${dashboardPrefix}/relatorio-alunos`,
+      isActive: location.pathname === `${dashboardPrefix}/relatorio-alunos`,
+      roles: ["coordenador", "comissao"],
+    },
+    {
+      id: "coordenacao-gestao-relatorio-alunos",
+      label: "Gestão de Relatórios",
+      icon: <ClipboardList size={20} />,
+      href: `${dashboardPrefix}/gestao-relatorio-alunos`,
+      isActive: location.pathname === `${dashboardPrefix}/gestao-relatorio-alunos`,
+      roles: ["coordenador"],
+    },
+  ];
 
   const menuConfig =
     userRole === "orientador"
       ? orientadorMenu
       : userRole === "coordenador" || userRole === "comissao"
-      ? coordenadorMenu
-      : alunoMenu;
+        ? coordenadorMenu
+        : alunoMenu;
 
   return (
     <div className="flex min-h-screen bg-[#f4f9f6] w-full font-sans antialiased overflow-x-hidden">
@@ -497,9 +501,8 @@ export function MainLayout({
       </AnimatePresence>
 
       <main
-        className={`flex-1 flex flex-col min-h-screen min-w-0 transition-[padding] duration-300 ${
-          sidebarExpanded ? "lg:pl-64" : "lg:pl-20"
-        }`}
+        className={`flex-1 flex flex-col min-h-screen min-w-0 transition-[padding] duration-300 ${sidebarExpanded ? "lg:pl-64" : "lg:pl-20"
+          }`}
       >
         <motion.header
           initial={{ y: -18, opacity: 0 }}

@@ -1685,6 +1685,7 @@ export function TurmasOrientador() {
   const [temaFiltro, setTemaFiltro] = useState<number | "todos">("todos");
   const [turmaFiltro, setTurmaFiltro] = useState("todas");
   const [anoFiltro, setAnoFiltro] = useState("todos");
+  const [turmasExpandidas, setTurmasExpandidas] = useState<Set<string>>(new Set());
 
   const temasDisponiveis = useMemo(() => {
     const mapa = new Map<number, string>();
@@ -1695,6 +1696,7 @@ export function TurmasOrientador() {
       .map(([id, nome]) => ({ id, nome }))
       .sort((a, b) => a.nome.localeCompare(b.nome));
   }, [equipesData]);
+
   const turmasDisponiveis = useMemo(
     () => Array.from(new Set(equipesData.map((equipe) => equipe.turmaNome))).sort(),
     [equipesData]
@@ -1703,17 +1705,38 @@ export function TurmasOrientador() {
     () => Array.from(new Set(equipesData.map((equipe) => equipe.ano))).sort(),
     [equipesData]
   );
+
   const equipesFiltradas = useMemo(
     () =>
       equipesData.filter((equipe) => {
         const bateTema = temaFiltro === "todos" || equipe.temaId === temaFiltro;
         const bateTurma = turmaFiltro === "todas" || equipe.turmaNome === turmaFiltro;
         const bateAno = anoFiltro === "todos" || equipe.ano === anoFiltro;
-
         return bateTema && bateTurma && bateAno;
       }),
     [anoFiltro, equipesData, temaFiltro, turmaFiltro]
   );
+
+  const equipesPorTurma = useMemo(() => {
+    const mapa = new Map<string, Equipe[]>();
+    equipesFiltradas.forEach((equipe) => {
+      const chave = equipe.turmaNome;
+      if (!mapa.has(chave)) mapa.set(chave, []);
+      mapa.get(chave)!.push(equipe);
+    });
+    return Array.from(mapa.entries())
+      .map(([turma, equipes]) => ({ turma, equipes, ano: equipes[0]?.ano ?? "" }))
+      .sort((a, b) => a.turma.localeCompare(b.turma));
+  }, [equipesFiltradas]);
+
+  function toggleTurma(turma: string) {
+    setTurmasExpandidas((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(turma)) newSet.delete(turma);
+      else newSet.add(turma);
+      return newSet;
+    });
+  }
 
   return (
     <PageShell
@@ -1721,88 +1744,189 @@ export function TurmasOrientador() {
       title="Minhas turmas"
       description="Resumo das turmas vinculadas, quantidade de equipes e alunos envolvidos."
     >
-      <Card>
-        <div className="mb-5">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Filtros</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">Filtrar equipes</h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Tema</span>
-            <select
-              value={String(temaFiltro)}
-              onChange={(event) => {
-                const value = event.target.value;
-                setTemaFiltro(value === "todos" ? "todos" : Number(value));
-              }}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
-            >
-              <option value="todos">Todos</option>
-              {temasDisponiveis.map((tema) => (
-                <option key={tema.id} value={tema.id}>
-                  {tema.nome}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Turma</span>
-            <select
-              value={turmaFiltro}
-              onChange={(event) => setTurmaFiltro(event.target.value)}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
-            >
-              <option value="todas">Todas</option>
-              {turmasDisponiveis.map((turma) => (
-                <option key={turma} value={turma}>
-                  {turma}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Ano</span>
-            <select
-              value={anoFiltro}
-              onChange={(event) => setAnoFiltro(event.target.value)}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
-            >
-              <option value="todos">Todos</option>
-              {anosDisponiveis.map((ano) => (
-                <option key={ano} value={ano}>
-                  {ano}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="mb-5 flex items-center justify-between gap-3">
+      {/* Filtros */}
+      <Card className="bg-gradient-to-r from-sectec-50 to-white border-sectec-100 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Mapa de orientação</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">Equipes por turma</h2>
-            <p className="mt-1 text-sm font-medium text-slate-500">{equipesFiltradas.length} equipe(s) encontrada(s)</p>
-          </div>
-          <Search className="text-slate-300" />
-        </div>
-
-        <div>
-          {equipesFiltradas.length > 0 ? (
-            <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
-              {equipesFiltradas.map((equipe) => (
-                <EquipeCollapseCard key={equipe.id} equipe={equipe} />
-              ))}
+            <div className="flex items-center gap-2 mb-2">
+              <SlidersHorizontal size={16} className="text-sectec-600" />
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-sectec-700">Filtros</p>
             </div>
-          ) : (
-            <EmptyState text="Nenhuma equipe encontrada." />
-          )}
+            <h2 className="text-lg font-bold text-slate-900">Filtrar equipes</h2>
+            <p className="mt-1 text-sm font-medium text-slate-500">
+              {equipesFiltradas.length} equipe(s) • {equipesPorTurma.length} turma(s)
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+            <label className="space-y-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Tema</span>
+              <select
+                value={String(temaFiltro)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setTemaFiltro(value === "todos" ? "todos" : Number(value));
+                }}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
+              >
+                <option value="todos">Todos os temas</option>
+                {temasDisponiveis.map((tema) => (
+                  <option key={tema.id} value={tema.id}>
+                    {tema.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Turma</span>
+              <select
+                value={turmaFiltro}
+                onChange={(event) => setTurmaFiltro(event.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
+              >
+                <option value="todas">Todas as turmas</option>
+                {turmasDisponiveis.map((turma) => (
+                  <option key={turma} value={turma}>
+                    {turma}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Ano</span>
+              <select
+                value={anoFiltro}
+                onChange={(event) => setAnoFiltro(event.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
+              >
+                <option value="todos">Todos os anos</option>
+                {anosDisponiveis.map((ano) => (
+                  <option key={ano} value={ano}>
+                    {ano}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       </Card>
+
+      {/* Lista de turmas expansíveis */}
+      <div className="space-y-4">
+        {equipesPorTurma.length === 0 ? (
+          <Card>
+            <EmptyState text="Nenhuma turma encontrada com os filtros atuais." />
+          </Card>
+        ) : (
+          equipesPorTurma.map(({ turma, equipes, ano }) => {
+            const expandida = turmasExpandidas.has(turma);
+            const totalAlunos = equipes.reduce((total, eq) => total + eq.integrantes, 0);
+
+            return (
+              <Card key={turma} className="overflow-hidden border-slate-200">
+                {/* Cabeçalho clicável */}
+                <button
+                  type="button"
+                  onClick={() => toggleTurma(turma)}
+                  className="w-full text-left bg-gradient-to-r from-sectec-50/80 to-white px-5 py-4 border-b border-sectec-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-sectec-50/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <motion.div
+                      animate={{ rotate: expandida ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ChevronDown size={18} className="text-sectec-600" />
+                    </motion.div>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sectec-600 to-emerald-800 text-white text-lg font-bold shadow-sm shadow-sectec-200">
+                      {turma.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-lg">{turma}</h3>
+                      <p className="text-sm text-slate-500">
+                        {ano} • {equipes.length} equipe(s)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="blue">
+                      <Users size={12} className="mr-1" />
+                      {totalAlunos} alunos
+                    </Badge>
+                    <Badge tone="green">
+                      <FolderOpen size={12} className="mr-1" />
+                      {equipes.length} projetos
+                    </Badge>
+                  </div>
+                </button>
+
+                {/* Grade de equipes expansível */}
+                <AnimatePresence initial={false}>
+                  {expandida && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {equipes.map((equipe) => (
+                          <div
+                            key={equipe.id}
+                            className="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:border-sectec-300 hover:-translate-y-0.5"
+                          >
+                            <h4 className="font-semibold text-slate-900 leading-snug line-clamp-2 group-hover:text-sectec-700 transition-colors mb-3">
+                              {equipe.nome}
+                            </h4>
+
+                            <p className="text-sm text-slate-500 mb-3 line-clamp-2">{equipe.tema}</p>
+
+                            <div className="flex items-center justify-between text-xs text-slate-400 mb-3">
+                              <div className="flex items-center gap-1.5">
+                                <Users size={12} />
+                                <span className="font-medium">
+                                  Líder: {equipe.lider} • {equipe.integrantes} integrantes
+                                </span>
+                              </div>
+                              <span className="inline-flex items-center rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                                {equipe.eixo}
+                              </span>
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-100">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">
+                                Participantes
+                              </p>
+                              <div className="flex -space-x-1.5 overflow-hidden">
+                                {equipe.integrantesNomes.slice(0, 6).map((nome) => (
+                                  <div
+                                    key={nome}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-sectec-100 to-sectec-200 text-[10px] font-bold text-sectec-700 ring-2 ring-white"
+                                    title={nome}
+                                  >
+                                    {nome.charAt(0).toUpperCase()}
+                                  </div>
+                                ))}
+                                {equipe.integrantesNomes.length > 6 && (
+                                  <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600 ring-2 ring-white">
+                                    +{equipe.integrantesNomes.length - 6}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Card>
+            );
+          })
+        )}
+      </div>
     </PageShell>
   );
 }

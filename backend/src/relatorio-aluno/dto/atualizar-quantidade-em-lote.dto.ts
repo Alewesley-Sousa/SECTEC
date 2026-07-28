@@ -33,4 +33,13 @@ export class AtualizarQuantidadeEmLoteDto {
   @ArrayMinSize(1)
   @IsInt({ each: true })
   ids?: number[];
+
+  @ApiProperty({
+    description: 'permite forçar a redução da quantidade de projetos para os alunos, mesmo que eles já tenham projetos atribuídos. Se false, não será possível reduzir a quantidade de projetos se o aluno já tiver projetos atribuídos.',
+    example: false,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  forcarReducao?: boolean;
 }

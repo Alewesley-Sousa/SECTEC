@@ -84,50 +84,50 @@ export async function distribuirProjetos(): Promise<DistribuirProjetosResponse> 
 }
 
 export type AtribuirProjetosResponse = {
-  mensagem: string;
-  data: {
-    id: number;
-    aluno: { id: number; nome: string; email: string; turma: string };
-    quantidade_projetos: number;
-    total_atribuidos: number;
-    status: string;
-    projetos: Array<{
-      id: number;
-      titulo: string;
-      area: string;
-      visualizado: boolean;
-      data_atribuicao: string;
-    }>;
-  };
+    mensagem: string;
+    data: {
+        id: number;
+        aluno: { id: number; nome: string; email: string; turma: string };
+        quantidade_projetos: number;
+        total_atribuidos: number;
+        status: string;
+        projetos: Array<{
+            id: number;
+            titulo: string;
+            area: string;
+            visualizado: boolean;
+            data_atribuicao: string;
+        }>;
+    };
 };
 
 export async function atribuirProjetosManualmente(
-  relatorioId: number,
-  projetosIds: number[]
+    relatorioId: number,
+    projetosIds: number[]
 ): Promise<AtribuirProjetosResponse> {
-  return apiRequest<AtribuirProjetosResponse>(
-    `/relatorio-aluno/coordenador/${relatorioId}/projetos`,
-    { method: 'POST', body: { projetosIds } }
-  );
+    return apiRequest<AtribuirProjetosResponse>(
+        `/relatorio-aluno/coordenador/${relatorioId}/projetos`,
+        { method: 'POST', body: { projetosIds } }
+    );
 }
 
 
 export type RemoverProjetosResponse = {
-  mensagem: string;
-  data: {
-    id: number;
-    aluno: { id: number; nome: string; email: string; turma: string };
-    quantidade_projetos: number;
-    total_atribuidos: number;
-    status: string;
-    projetos: Array<{
-      id: number;
-      titulo: string;
-      area: string;
-      visualizado: boolean;
-      data_atribuicao: string;
-    }>;
-  };
+    mensagem: string;
+    data: {
+        id: number;
+        aluno: { id: number; nome: string; email: string; turma: string };
+        quantidade_projetos: number;
+        total_atribuidos: number;
+        status: string;
+        projetos: Array<{
+            id: number;
+            titulo: string;
+            area: string;
+            visualizado: boolean;
+            data_atribuicao: string;
+        }>;
+    };
 };
 
 export async function removerProjetosManualmente(
@@ -135,9 +135,9 @@ export async function removerProjetosManualmente(
     projetosIds: number[]
 ): Promise<RemoverProjetosResponse> {
     return apiRequest<RemoverProjetosResponse>(
-    `/relatorio-aluno/coordenador/${relatorioId}/projetos`,
-    { method: 'DELETE', body: { projetosIds } }
-);
+        `/relatorio-aluno/coordenador/${relatorioId}/projetos`,
+        { method: 'DELETE', body: { projetosIds } }
+    );
 }
 
 
@@ -158,36 +158,50 @@ export type AtualizarQuantidadeEmLoteResponse = {
 export async function atualizarQuantidadeEmLote(
     quantidade: number,
     geral: boolean,
-    ids?: number[]
+    ids?: number[],
+    forcarReducao?: boolean   // ← novo parâmetro
 ): Promise<AtualizarQuantidadeEmLoteResponse> {
+    const body: any = {
+        quantidade_projetos: quantidade,
+        geral,
+    };
+
+    if (!geral && ids && Array.isArray(ids) && ids.length > 0) {
+        body.ids = ids;
+    }
+
+    if (forcarReducao !== undefined) {
+        body.forcarReducao = forcarReducao;
+    }
+
     return apiRequest<AtualizarQuantidadeEmLoteResponse>(
         '/relatorio-aluno/coordenador/alunos-relatorio/quantidade',
-        { method: 'PUT', body: { quantidade_projetos: quantidade, geral, ids } }
+        { method: 'PUT', body }
     );
 }
 
 
 
 export type ProjetoDisponivel = {
-  id: number;
-  titulo: string;
-  descricao?: string;
-  tema?: { id: number; nome: string } | null;
-  alunoAutor?: {
     id: number;
-    nome: string;
-    turma: string;
-  } | null;
+    titulo: string;
+    descricao?: string;
+    tema?: { id: number; nome: string } | null;
+    alunoAutor?: {
+        id: number;
+        nome: string;
+        turma: string;
+    } | null;
 };
 
 export async function obterProjetosDisponiveis(
-  relatorioId: number,
-  search?: string
+    relatorioId: number,
+    search?: string
 ): Promise<ProjetoDisponivel[]> {
-  const params = new URLSearchParams();
-  if (search) params.append('search', search);
-  const url = `/relatorio-aluno/coordenador/${relatorioId}/projetos-disponiveis${params.toString() ? '?' + params.toString() : ''}`;
-  return apiRequest<ProjetoDisponivel[]>(url);
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    const url = `/relatorio-aluno/coordenador/${relatorioId}/projetos-disponiveis${params.toString() ? '?' + params.toString() : ''}`;
+    return apiRequest<ProjetoDisponivel[]>(url);
 }
 
 // src/services/coordenacao/relatorios.ts
