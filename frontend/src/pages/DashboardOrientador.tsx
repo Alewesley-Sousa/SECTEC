@@ -13,6 +13,9 @@ import {
   Trash2,
   Users,
   X,
+  Calendar,
+  Loader2,
+  Video
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -1259,7 +1262,12 @@ function EquipeCollapseCard({
             />
             <h3 className="break-words font-bold text-slate-900">{equipe.nome}</h3>
           </div>
-          <p className="mt-1 break-words text-sm font-medium leading-6 text-slate-500">{equipe.tema}</p>
+          <p
+            className={`mt-1 break-words text-sm font-medium leading-6 text-slate-500 ${aberta ? '' : 'line-clamp-2'
+              }`}
+          >
+            {equipe.tema}
+          </p>
           <p className="mt-2 text-xs font-semibold text-slate-400">
             {equipe.turma} · {equipe.eixo} · líder: {equipe.lider}
           </p>
@@ -1329,6 +1337,7 @@ function DashboardOrientador() {
   const [projetoDetalhe, setProjetoDetalhe] = useState<ProjetoApi | null>(null);
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
   const [erroDetalhe, setErroDetalhe] = useState("");
+  const [descricaoExpandida, setDescricaoExpandida] = useState(false);
   const equipesData = backend.equipes;
   const projetosData = backend.projetos;
   const temasSelecionados = useMemo(
@@ -1505,50 +1514,23 @@ function DashboardOrientador() {
     >
       <Notice message={avisoEixos} />
 
-      <TemasChecklist
-        temas={temasBackend.temas}
-        selecionadosIds={temasBackend.selecionadosIds}
-        eventoTitulo={temasBackend.eventoTitulo}
-        carregando={temasBackend.carregando}
-        salvando={temasBackend.salvando}
-        contagemPorTema={(temaId) => countByTema(projetosData, temaId)}
-        onChange={temasBackend.setSelecionadosIds}
-        onSave={salvarTemas}
-      />
-
-      <FiltroTemaOrientador
-        temas={temasSelecionados}
-        temaAtivoId={temaFiltro}
-        contagemPorTema={(temaId) => (temaId === "todos" ? projetosPorTemasSelecionados.length : countByTema(projetosPorTemasSelecionados, temaId))}
-        onChange={setTemaFiltro}
-      />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard
-          label="Pendentes"
-          value={String(solicitacoesPendentes)}
-          detail="solicitações para analisar"
-          icon={<Clock3 size={18} />}
-          tone="yellow"
-        />
-        <StatCard
-          label="Orientando"
-          value={String(equipesFiltradas.length)}
-          detail={eixosSelecionadosLabel}
-          icon={<FolderOpen size={18} />}
-          tone="blue"
-        />
-        <StatCard
-          label="Atenção"
-          value={String(riscosAltos + solicitacoesReprovadas)}
-          detail={`${riscosAltos} equipe(s) e ${solicitacoesReprovadas} solicitação(ões)`}
-          icon={<Users size={18} />}
-          tone="red"
+      {/* Eixos Temáticos (mobile) */}
+      <div className="block xl:hidden">
+        <TemasChecklist
+          temas={temasBackend.temas}
+          selecionadosIds={temasBackend.selecionadosIds}
+          eventoTitulo={temasBackend.eventoTitulo}
+          carregando={temasBackend.carregando}
+          salvando={temasBackend.salvando}
+          contagemPorTema={(temaId) => countByTema(projetosData, temaId)}
+          onChange={temasBackend.setSelecionadosIds}
+          onSave={salvarTemas}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <Card>
+      <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] xl:gap-5">
+        {/* Coluna principal (solicitações) */}
+        <Card className="order-2 xl:order-1">
           <div className="mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Solicitações</p>
@@ -1645,19 +1627,34 @@ function DashboardOrientador() {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 content-start gap-5">
-          <ProjetoDetalheCard
-            projeto={projetoDetalhe}
-            carregando={carregandoDetalhe}
-            erro={erroDetalhe}
-            onClose={fecharDetalheProjeto}
-          />
+        {/* Coluna lateral (equipes + filtros/eixos no desktop) */}
+        <div className="order-1 xl:order-2 grid grid-cols-1 content-start gap-5">
+          {/* Eixos temáticos (desktop) */}
+          <div className="hidden xl:block">
+            <TemasChecklist
+              temas={temasBackend.temas}
+              selecionadosIds={temasBackend.selecionadosIds}
+              eventoTitulo={temasBackend.eventoTitulo}
+              carregando={temasBackend.carregando}
+              salvando={temasBackend.salvando}
+              contagemPorTema={(temaId) => countByTema(projetosData, temaId)}
+              onChange={temasBackend.setSelecionadosIds}
+              onSave={salvarTemas}
+            />
+            <FiltroTemaOrientador
+              temas={temasSelecionados}
+              temaAtivoId={temaFiltro}
+              contagemPorTema={(temaId) => (temaId === "todos" ? projetosPorTemasSelecionados.length : countByTema(projetosPorTemasSelecionados, temaId))}
+              onChange={setTemaFiltro}
+            />
+          </div>
 
+          {/* ⭐ EQUIPES – apenas últimas 3, sem botão Detalhes */}
           <Card>
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Equipes</p>
-                <h2 className="mt-1 text-lg font-bold text-slate-900">Minhas equipes</h2>
+                <h2 className="mt-1 text-lg font-bold text-slate-900">Últimas equipes</h2>
                 <p className="mt-1 text-sm font-medium text-slate-500">Aceitas recentemente.</p>
               </div>
               <Badge tone="blue">{equipesFiltradas.length}</Badge>
@@ -1665,8 +1662,13 @@ function DashboardOrientador() {
 
             {equipesFiltradas.length > 0 ? (
               <div className="space-y-3">
-                {equipesFiltradas.slice(0, 4).map((equipe) => (
-                  <EquipeCollapseCard key={equipe.id} equipe={equipe} onDetalhes={abrirDetalheProjeto} compacta />
+                {equipesFiltradas.slice(0, 3).map((equipe) => (
+                  <EquipeCollapseCard
+                    key={equipe.id}
+                    equipe={equipe}
+                    compacta
+                  // sem onDetalhes → sem botão "Detalhes"
+                  />
                 ))}
               </div>
             ) : (
@@ -1675,6 +1677,217 @@ function DashboardOrientador() {
           </Card>
         </div>
       </div>
+
+      {/* Filtro de tema (mobile) */}
+      <div className="block xl:hidden mt-5">
+        <FiltroTemaOrientador
+          temas={temasSelecionados}
+          temaAtivoId={temaFiltro}
+          contagemPorTema={(temaId) => (temaId === "todos" ? projetosPorTemasSelecionados.length : countByTema(projetosPorTemasSelecionados, temaId))}
+          onChange={setTemaFiltro}
+        />
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-3 mt-5">
+        <StatCard
+          label="Pendentes"
+          value={String(solicitacoesPendentes)}
+          detail="solicitações para analisar"
+          icon={<Clock3 size={18} />}
+          tone="yellow"
+        />
+        <StatCard
+          label="Orientando"
+          value={String(equipesFiltradas.length)}
+          detail={eixosSelecionadosLabel}
+          icon={<FolderOpen size={18} />}
+          tone="blue"
+        />
+        <StatCard
+          label="Atenção"
+          value={String(riscosAltos + solicitacoesReprovadas)}
+          detail={`${riscosAltos} equipe(s) e ${solicitacoesReprovadas} solicitação(ões)`}
+          icon={<Users size={18} />}
+          tone="red"
+          className="col-span-2 xl:col-span-1"
+        />
+      </div>
+
+      {/* ⭐ MODAL DE DETALHES DO PROJETO */}
+      <AnimatePresence>
+        {(projetoDetalhe || carregandoDetalhe || erroDetalhe) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/60 backdrop-blur-sm p-0 sm:p-4"
+            onClick={() => {
+              fecharDetalheProjeto();
+              setDescricaoExpandida(false); // reseta ao fechar
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+              className="w-full max-w-xl max-h-[85vh] sm:max-h-[90vh] overflow-hidden rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Cabeçalho com gradiente */}
+              <div className="relative shrink-0 bg-gradient-to-br from-sectec-700 via-sectec-600 to-emerald-800 px-5 py-5 sm:px-6 sm:py-6">
+                <div className="absolute inset-0 bg-white/5" />
+                <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+                <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-white/5 blur-xl" />
+
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/20 backdrop-blur-sm">
+                      <FileText size={20} className="text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/60">
+                        Detalhes do projeto
+                      </p>
+                      <h2 className="mt-0.5 text-base sm:text-lg font-bold text-white leading-snug line-clamp-2">
+                        {carregandoDetalhe ? 'Carregando...' : projetoDetalhe?.titulo ?? 'Projeto'}
+                      </h2>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      fecharDetalheProjeto();
+                      setDescricaoExpandida(false);
+                    }}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                    aria-label="Fechar"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Corpo scrollável */}
+              <div className="flex-1 overflow-y-auto bg-slate-50/80">
+                {erroDetalhe ? (
+                  <div className="p-5">
+                    <EmptyState text={erroDetalhe} />
+                  </div>
+                ) : carregandoDetalhe ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-14">
+                    <Loader2 size={32} className="animate-spin text-sectec-600" />
+                    <p className="text-sm font-medium text-slate-500">Buscando dados do projeto...</p>
+                  </div>
+                ) : projetoDetalhe ? (
+                  <div className="p-5 space-y-5">
+                    {/* Cards de informação rápida */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Turma</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-800">{turmaFromProjeto(projetoDetalhe)}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Tema</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-800">{temaNomeFromProjeto(projetoDetalhe)}</p>
+                      </div>
+                    </div>
+
+                    {/* Aluno autor + evento */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Autor</p>
+                        <div className="mt-1.5 flex items-center gap-2.5">
+                          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sectec-100 text-xs font-bold text-sectec-700">
+                            {(projetoDetalhe.alunoAutor?.nome ?? '?').charAt(0).toUpperCase()}
+                          </div>
+                          <p className="text-sm font-semibold text-slate-800 truncate">
+                            {projetoDetalhe.alunoAutor?.nome ?? 'Não informado'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Evento</p>
+                        <p className="mt-1.5 text-sm font-semibold text-slate-800">
+                          {projetoDetalhe.evento?.titulo ?? projetoDetalhe.evento?.id ?? 'Não informado'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Descrição truncada com "Ver mais/Ver menos" */}
+                    <div>
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Descrição</p>
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+                        <p
+                          className={`text-sm leading-relaxed text-slate-600 break-words text-justify ${descricaoExpandida ? '' : 'line-clamp-4'
+                            }`}
+                        >
+                          {projetoDetalhe.descricao || 'Sem descrição cadastrada.'}
+                        </p>
+                        {(projetoDetalhe.descricao?.length ?? 0) > 200 && (
+                          <button
+                            type="button"
+                            onClick={() => setDescricaoExpandida(!descricaoExpandida)}
+                            className="mt-2 text-xs font-semibold text-sectec-600 hover:text-sectec-800 transition-colors"
+                          >
+                            {descricaoExpandida ? 'Ver menos' : 'Ver mais'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Integrantes (com scroll se muitos) */}
+                    <div>
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                        Integrantes ({integrantesNomesFromProjeto(projetoDetalhe).length})
+                      </p>
+                      {integrantesNomesFromProjeto(projetoDetalhe).length > 0 ? (
+                        <div className="max-h-[11.5rem] overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">
+                            {integrantesNomesFromProjeto(projetoDetalhe).map((nome) => (
+                              <div
+                                key={nome}
+                                className="flex items-center gap-2.5 rounded-lg bg-slate-50 px-3 py-2.5"
+                              >
+                                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sectec-100 to-sectec-200 text-xs font-bold text-sectec-700">
+                                  {nome.charAt(0).toUpperCase()}
+                                </div>
+                                <p className="text-sm font-semibold text-slate-700 truncate">{nome}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400">Nenhum integrante extra retornado.</p>
+                      )}
+                    </div>
+
+                    {/* Data de criação */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <Calendar size={13} />
+                      <span>Criado em {formatBackendDate(projetoDetalhe.criadoEm)}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Rodapé com botão */}
+              <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    fecharDetalheProjeto();
+                    setDescricaoExpandida(false);
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  Fechar
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageShell>
   );
 }
@@ -1934,8 +2147,9 @@ export function TurmasOrientador() {
 export function EntregasOrientador() {
   const backend = useOrientadorBackendData();
   const entregasBackend = useEntregasBackendData(backend.orientacoes, backend.carregando);
-  const [filtro, setFiltro] = useState<"todas" | StatusEntrega>("todas");
+  const [filtro, setFiltro] = useState<"todas" | StatusEntrega>("pendente");
   const [gruposAbertos, setGruposAbertos] = useState<string[]>([]);
+  const [modalVideoUrl, setModalVideoUrl] = useState<string | null>(null);
   const entregasData = entregasBackend.entregas;
 
   const entregasFiltradas = useMemo(() => {
@@ -1968,9 +2182,25 @@ export function EntregasOrientador() {
     );
   }
 
+  function extrairYouTubeId(url: string): string | null {
+    const regex =
+      /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.+&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})(?:[?&].*)?$/i;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  }
+
+  function abrirVideoModal(url: string) {
+    const id = extrairYouTubeId(url);
+    setModalVideoUrl(id ? `https://www.youtube.com/embed/${id}` : url);
+  }
+
+  function fecharVideoModal() {
+    setModalVideoUrl(null);
+  }
+
   function abrirArquivo(entrega: Entrega) {
     if (entrega.tipo === "link" && entrega.conteudo) {
-      window.open(entrega.conteudo, "_blank", "noopener,noreferrer");
+      abrirVideoModal(entrega.conteudo);
       return;
     }
 
@@ -2018,141 +2248,192 @@ export function EntregasOrientador() {
   }
 
   return (
-    <PageShell
-      eyebrow="Entregas"
-      title="Arquivos para revisar"
-      description="Fila de relatórios, protótipos, banners e evidências enviados pelas equipes."
-    >
-      <Card>
-        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Revisão</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">Fila de entregas</h2>
+    <>
+      <PageShell
+        eyebrow="Entregas"
+        title="Arquivos para revisar"
+        description="Fila de relatórios, protótipos, banners e evidências enviados pelas equipes."
+      >
+        <Card>
+          <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Revisão</p>
+              <h2 className="mt-1 text-lg font-bold text-slate-900">Fila de entregas</h2>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(["todas", "pendente", "recusada", "revisada"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setFiltro(item)}
+                  className={cx(
+                    "rounded-md px-3 py-1.5 text-xs font-semibold transition",
+                    filtro === item
+                      ? "bg-sectec-700 text-white"
+                      : "bg-slate-100 text-slate-500 hover:bg-sectec-50 hover:text-sectec-700"
+                  )}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {(["todas", "pendente", "recusada", "revisada"] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setFiltro(item)}
-                className={cx(
-                  "rounded-md px-3 py-1.5 text-xs font-semibold transition",
-                  filtro === item
-                    ? "bg-sectec-700 text-white"
-                    : "bg-slate-100 text-slate-500 hover:bg-sectec-50 hover:text-sectec-700"
-                )}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
+          {gruposEntrega.length === 0 ? (
+            <EmptyState text="Nenhuma entrega encontrada neste filtro." />
+          ) : (
+            <div className="space-y-3">
+              <AnimatePresence mode="popLayout">
+                {gruposEntrega.map((grupo) => {
+                  const aberto = gruposAbertos.includes(grupo.id);
+                  const pendentes = grupo.entregas.filter((entrega) => entrega.status === "pendente").length;
 
-        {gruposEntrega.length === 0 ? (
-          <EmptyState text="Nenhuma entrega encontrada neste filtro." />
-        ) : (
-          <div className="space-y-3">
-            <AnimatePresence mode="popLayout">
-              {gruposEntrega.map((grupo) => {
-                const aberto = gruposAbertos.includes(grupo.id);
-                const pendentes = grupo.entregas.filter((entrega) => entrega.status === "pendente").length;
-
-                return (
-                  <motion.div
-                    key={grupo.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className="rounded-lg border border-slate-200"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleGrupo(grupo.id)}
-                      className="flex w-full flex-col gap-3 p-4 text-left sm:flex-row sm:items-center sm:justify-between"
+                  return (
+                    <motion.div
+                      key={grupo.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="rounded-lg border border-slate-200"
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <ChevronDown
-                            size={17}
-                            className={cx("shrink-0 text-slate-400 transition", aberto && "rotate-180")}
-                          />
-                          <h3 className="break-words font-bold text-slate-900">{grupo.equipe}</h3>
-                        </div>
-                        <p className="mt-1 break-words text-sm font-medium text-slate-500">
-                          {grupo.aluno} · {grupo.turma}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge tone="blue">{grupo.entregas.length} arquivo(s)</Badge>
-                        {pendentes > 0 ? <Badge tone="yellow">{pendentes} pendente(s)</Badge> : null}
-                      </div>
-                    </button>
-
-                    <AnimatePresence initial={false}>
-                      {aberto ? (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden border-t border-slate-100"
-                        >
-                          <div className="space-y-3 p-4">
-                            {grupo.entregas.map((entrega) => (
-                              <div key={entrega.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                  <div className="min-w-0">
-                                    <div className="flex items-start gap-2">
-                                      <FileText size={16} className="mt-0.5 shrink-0 text-slate-400" />
-                                      <p className="break-all font-semibold text-slate-900">{entrega.arquivo}</p>
-                                    </div>
-                                    <p className="mt-2 text-sm font-medium text-slate-500">
-                                      {entrega.etapa} · enviado em {entrega.data}
-                                    </p>
-                                  </div>
-                                  <Badge tone={entregaTone(entrega.status)}>{entrega.status}</Badge>
-                                </div>
-
-                                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                                  <Button
-                                    variant="secondary"
-                                    disabled={!podeAbrirArquivo(entrega)}
-                                    onClick={() => abrirArquivo(entrega)}
-                                  >
-                                    <Download size={15} />
-                                    {entrega.tipo === "link" ? "Abrir link" : "Baixar"}
-                                  </Button>
-                                  <Button
-                                    variant="secondary"
-                                    disabled={entrega.status !== "pendente"}
-                                    onClick={() => revisarEntrega(entrega.id, "aprovado")}
-                                  >
-                                    <Check size={15} />
-                                    Aprovar
-                                  </Button>
-                                  <Button
-                                    variant="danger"
-                                    disabled={entrega.status !== "pendente"}
-                                    onClick={() => revisarEntrega(entrega.id, "recusado")}
-                                  >
-                                    <X size={15} />
-                                    Reprovar
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
+                      <button
+                        type="button"
+                        onClick={() => toggleGrupo(grupo.id)}
+                        className="flex w-full flex-col gap-3 p-4 text-left sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <ChevronDown
+                              size={17}
+                              className={cx("shrink-0 text-slate-400 transition", aberto && "rotate-180")}
+                            />
+                            <h3 className="break-words font-bold text-slate-900">{grupo.equipe}</h3>
                           </div>
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
+                          <p className="mt-1 break-words text-sm font-medium text-slate-500">
+                            {grupo.aluno} · {grupo.turma}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge tone="blue">{grupo.entregas.length} arquivo(s)</Badge>
+                          {pendentes > 0 ? <Badge tone="yellow">{pendentes} pendente(s)</Badge> : null}
+                        </div>
+                      </button>
+
+                      <AnimatePresence initial={false}>
+                        {aberto ? (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden border-t border-slate-100"
+                          >
+                            <div className="space-y-3 p-4">
+                              {grupo.entregas.map((entrega) => (
+                                <div key={entrega.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex items-start gap-2">
+                                        <FileText size={16} className="mt-0.5 shrink-0 text-slate-400" />
+                                        <p className="break-all font-semibold text-slate-900">{entrega.arquivo}</p>
+                                      </div>
+                                      <p className="mt-2 text-sm font-medium text-slate-500">
+                                        {entrega.etapa} · enviado em {entrega.data}
+                                      </p>
+                                    </div>
+                                    <Badge tone={entregaTone(entrega.status)}>{entrega.status}</Badge>
+                                  </div>
+
+                                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                                    <Button
+                                      variant="secondary"
+                                      disabled={!podeAbrirArquivo(entrega)}
+                                      onClick={() => abrirArquivo(entrega)}
+                                    >
+                                      {entrega.tipo === "link" ? <Video size={15} /> : <Download size={15} />}
+                                      {entrega.tipo === "link" ? "Visualizar" : "Baixar"}
+                                    </Button>
+                                    <Button
+                                      variant="secondary"
+                                      disabled={entrega.status !== "pendente"}
+                                      onClick={() => revisarEntrega(entrega.id, "aprovado")}
+                                    >
+                                      <Check size={15} />
+                                      Aprovar
+                                    </Button>
+                                    <Button
+                                      variant="danger"
+                                      disabled={entrega.status !== "pendente"}
+                                      onClick={() => revisarEntrega(entrega.id, "recusado")}
+                                    >
+                                      <X size={15} />
+                                      Reprovar
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          )}
+        </Card>
+      </PageShell>
+
+      {/* Modal de visualização de vídeo */}
+      <AnimatePresence>
+        {modalVideoUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4"
+            onClick={fecharVideoModal}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+              className="w-full max-w-3xl bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative bg-gradient-to-r from-sectec-700 to-emerald-800 px-6 py-4 sm:px-8 sm:py-5">
+                <div className="absolute inset-0 bg-white/5" />
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-white/20 backdrop-blur-sm text-red-300">
+                      <Video size={20} />
+                    </div>
+                    <h3 className="text-sm font-bold text-white">Vídeo do Relatório</h3>
+                  </div>
+                  <button
+                    onClick={fecharVideoModal}
+                    className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="aspect-video w-full">
+                <iframe
+                  src={modalVideoUrl}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Vídeo do relatório"
+                />
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </Card>
-    </PageShell>
+      </AnimatePresence>
+    </>
   );
 }
 
