@@ -1,7 +1,7 @@
 // services/coordenacao/components/GestaoProjetosRelatorio.tsx
 import { motion } from 'motion/react';
 import { PiFunnel, PiMagnifyingGlass, PiPlus } from 'react-icons/pi';
-import { Eye, Pencil, Save, Loader2, X } from 'lucide-react';
+import { Eye, Pencil, Save, Loader2, X, User } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { Pagination } from '../../../../componentes/PaginationUniversal'; // ajuste o caminho conforme sua estrutura
 
@@ -64,7 +64,7 @@ export function GestaoProjetosRelatorio({
   carregando,
   erro,
   carregarDados,
-  limit = 10, // valor padrão
+  limit = 10,
   distribuicao,
   atribuicao,
   quantidadeInd,
@@ -134,7 +134,7 @@ export function GestaoProjetosRelatorio({
         </select>
       </div>
 
-      {/* Tabela */}
+      {/* Tabela / Cards responsivos */}
       <motion.div
         className="mt-6 overflow-hidden rounded-2xl border border-slate-200 min-h-[300px]"
         animate={{ opacity: carregando ? 0.8 : 1 }}
@@ -153,102 +153,195 @@ export function GestaoProjetosRelatorio({
         )}
         {erro && <div className="p-4 text-center text-red-600">{erro}</div>}
         {!carregando && !erro && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-sm">
-              <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">Nome</th>
-                  <th className="px-4 py-3">E-mail</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Quantidade</th>
-                  <th className="px-4 py-3">Atribuídos</th>
-                  <th className="px-4 py-3 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {alunos.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-black text-slate-900">{item.aluno.nome}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.aluno.email}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block rounded-full px-2 py-1 text-xs font-black uppercase ${
-                        item.status === 'distribuido' ? 'bg-emerald-100 text-emerald-800' :
+          <>
+            {/* Desktop: tabela normal */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">Nome</th>
+                    <th className="px-4 py-3">E-mail</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Quantidade</th>
+                    <th className="px-4 py-3">Atribuídos</th>
+                    <th className="px-4 py-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {alunos.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-black text-slate-900">{item.aluno.nome}</td>
+                      <td className="px-4 py-3 text-slate-600">{item.aluno.email}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block rounded-full px-2 py-1 text-xs font-black uppercase ${item.status === 'distribuido' ? 'bg-emerald-100 text-emerald-800' :
+                            item.status === 'pendente' ? 'bg-amber-100 text-amber-800' :
+                              item.status === 'enviado' ? 'bg-blue-100 text-blue-800' :
+                                'bg-slate-100 text-slate-600'
+                          }`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {quantidadeInd.editandoId === item.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={quantidadeInd.novoValor ?? item.quantidade_projetos}
+                              onChange={(e) => quantidadeInd.setNovoValor(Number(e.target.value))}
+                              className="w-20 rounded-xl border border-slate-200 px-2 py-1 text-sm"
+                            />
+                            <button
+                              onClick={() => quantidadeInd.salvar(item.id)}
+                              className="text-emerald-600 hover:text-emerald-800"
+                            >
+                              <Save size={16} />
+                            </button>
+                            <button
+                              onClick={() => { quantidadeInd.setEditandoId(null); quantidadeInd.setNovoValor(null); }}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="font-bold">{item.quantidade_projetos}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-700">{item.projetos_atribuidos?.length || 0}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Tooltip label="Ver projetos">
+                            <button
+                              onClick={() => visualizacao.abrir(item)}
+                              className="rounded-xl border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                            >
+                              <Eye size={16} />
+                            </button>
+                          </Tooltip>
+                          {quantidadeInd.editandoId !== item.id && (
+                            <>
+                              <Tooltip label="Atribuir projetos">
+                                <button
+                                  onClick={() => atribuicao.abrir(item)}
+                                  className="rounded-xl border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 hover:bg-emerald-100"
+                                >
+                                  <PiPlus size={16} />
+                                </button>
+                              </Tooltip>
+                              <button
+                                onClick={() => {
+                                  quantidadeInd.setEditandoId(item.id);
+                                  quantidadeInd.setNovoValor(item.quantidade_projetos);
+                                }}
+                                className="rounded-xl border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {alunos.length === 0 && (
+                    <tr><td colSpan={6} className="p-6 text-center text-slate-500">Nenhum aluno encontrado.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile: cards empilhados */}
+            <div className="sm:hidden divide-y divide-slate-100">
+              {alunos.length === 0 && (
+                <div className="p-6 text-center text-slate-500">Nenhum aluno encontrado.</div>
+              )}
+              {alunos.map((item) => (
+                <div key={item.id} className="p-4 space-y-3">
+                  {/* Nome e status */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <User size={16} className="text-slate-400 shrink-0" />
+                      <span className="font-black text-slate-900 truncate">{item.aluno.nome}</span>
+                    </div>
+                    <span className={`inline-block rounded-full px-2 py-1 text-xs font-black uppercase ${item.status === 'distribuido' ? 'bg-emerald-100 text-emerald-800' :
                         item.status === 'pendente' ? 'bg-amber-100 text-amber-800' :
-                        item.status === 'enviado' ? 'bg-blue-100 text-blue-800' :
-                        'bg-slate-100 text-slate-600'
+                          item.status === 'enviado' ? 'bg-blue-100 text-blue-800' :
+                            'bg-slate-100 text-slate-600'
                       }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
+                      {item.status}
+                    </span>
+                  </div>
+
+                  {/* E-mail */}
+                  <p className="text-xs text-slate-500 break-all">{item.aluno.email}</p>
+
+                  {/* Quantidade e atribuídos */}
+                  <div className="flex items-center gap-4 text-sm">
+                    <div>
+                      <span className="text-slate-500">Qtd:</span>{' '}
                       {quantidadeInd.editandoId === item.id ? (
-                        <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-2 ml-1">
                           <input
                             type="number"
                             min="0"
                             value={quantidadeInd.novoValor ?? item.quantidade_projetos}
                             onChange={(e) => quantidadeInd.setNovoValor(Number(e.target.value))}
-                            className="w-20 rounded-xl border border-slate-200 px-2 py-1 text-sm"
+                            className="w-16 rounded-xl border border-slate-200 px-2 py-0.5 text-sm"
                           />
-                          <button
-                            onClick={() => quantidadeInd.salvar(item.id)}
-                            className="text-emerald-600 hover:text-emerald-800"
-                          >
+                          <button onClick={() => quantidadeInd.salvar(item.id)} className="text-emerald-600">
                             <Save size={16} />
                           </button>
-                          <button
-                            onClick={() => { quantidadeInd.setEditandoId(null); quantidadeInd.setNovoValor(null); }}
-                            className="text-slate-400 hover:text-slate-600"
-                          >
+                          <button onClick={() => { quantidadeInd.setEditandoId(null); quantidadeInd.setNovoValor(null); }} className="text-slate-400">
                             <X size={16} />
                           </button>
-                        </div>
+                        </span>
                       ) : (
-                        <span className="font-bold">{item.quantidade_projetos}</span>
+                        <span className="font-bold text-slate-700 ml-1">{item.quantidade_projetos}</span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-slate-700">{item.projetos_atribuidos?.length || 0}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Tooltip label="Ver projetos">
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Atribuídos:</span>{' '}
+                      <span className="font-bold text-slate-700">{item.projetos_atribuidos?.length || 0}</span>
+                    </div>
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <Tooltip label="Ver projetos">
+                      <button
+                        onClick={() => visualizacao.abrir(item)}
+                        className="rounded-xl border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </Tooltip>
+                    {quantidadeInd.editandoId !== item.id && (
+                      <>
+                        <Tooltip label="Atribuir projetos">
                           <button
-                            onClick={() => visualizacao.abrir(item)}
-                            className="rounded-xl border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                            onClick={() => atribuicao.abrir(item)}
+                            className="rounded-xl border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 hover:bg-emerald-100"
                           >
-                            <Eye size={16} />
+                            <PiPlus size={16} />
                           </button>
                         </Tooltip>
-                        {quantidadeInd.editandoId !== item.id && (
-                          <>
-                            <Tooltip label="Atribuir projetos">
-                              <button
-                                onClick={() => atribuicao.abrir(item)}
-                                className="rounded-xl border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 hover:bg-emerald-100"
-                              >
-                                <PiPlus size={16} />
-                              </button>
-                            </Tooltip>
-                            <button
-                              onClick={() => {
-                                quantidadeInd.setEditandoId(item.id);
-                                quantidadeInd.setNovoValor(item.quantidade_projetos);
-                              }}
-                              className="rounded-xl border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {alunos.length === 0 && (
-                  <tr><td colSpan={6} className="p-6 text-center text-slate-500">Nenhum aluno encontrado.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                        <button
+                          onClick={() => {
+                            quantidadeInd.setEditandoId(item.id);
+                            quantidadeInd.setNovoValor(item.quantidade_projetos);
+                          }}
+                          className="rounded-xl border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </motion.div>
 
@@ -260,6 +353,27 @@ export function GestaoProjetosRelatorio({
         total={total}
         limit={limit}
       />
+      {/* Botões de rolagem rápida (mobile) */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-2 sm:hidden z-40">
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-white border border-slate-200 shadow-lg text-slate-600 hover:bg-slate-50 active:scale-95 transition"
+          aria-label="Ir para o topo"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m18 15-6-6-6 6" />
+          </svg>
+        </button>
+        <button
+          onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-white border border-slate-200 shadow-lg text-slate-600 hover:bg-slate-50 active:scale-95 transition"
+          aria-label="Ir para o final"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      </div>
     </motion.section>
   );
 }
