@@ -555,22 +555,29 @@ export class RelatorioAlunoService implements OnModuleInit {
     }
 
     private async obterAlunosSemProjetos(): Promise<User[]> {
-        // ❌ Só busca alunos que estão em 'projeto_alunos' (integrantes)
-        const alunosComProjetos = await this.userRepository
-            .createQueryBuilder('user')
-            .innerJoin('projeto_alunos', 'pa', 'pa.aluno_id = user.id')
-            .where('user.role_cargo = :role', { role: 'aluno' })
-            .andWhere('user.ativo = :ativo', { ativo: true })
-            .getMany();
+        const eventoAtual = await this.obterEventoAtivo();
 
-        const idsComProjetos = alunosComProjetos.map((a) => a.id);
-
-        // Retorna alunos que NÃO estão em projeto_alunos
         return this.userRepository
             .createQueryBuilder('user')
+            .leftJoin(
+                'projetos',
+                'p_autor',
+                'p_autor.aluno_autor_id = user.id AND p_autor.evento_id = :eventoId'
+            )
+            .leftJoin(
+                'projeto_alunos',
+                'pa',
+                'pa.aluno_id = user.id'
+            )
+            .leftJoin(
+                'projetos',
+                'p_integrante',
+                'p_integrante.id = pa.projeto_id AND p_integrante.evento_id = :eventoId'
+            )
             .where('user.role_cargo = :role', { role: 'aluno' })
             .andWhere('user.ativo = :ativo', { ativo: true })
-            .andWhere('user.id NOT IN (:...ids)', { ids: idsComProjetos.length ? idsComProjetos : [0] })
+            .andWhere('p_autor.id IS NULL AND p_integrante.id IS NULL')
+            .setParameter('eventoId', eventoAtual.id)
             .getMany();
     }
 
