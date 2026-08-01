@@ -555,6 +555,7 @@ export class RelatorioAlunoService implements OnModuleInit {
     }
 
     private async obterAlunosSemProjetos(): Promise<User[]> {
+        // ❌ Só busca alunos que estão em 'projeto_alunos' (integrantes)
         const alunosComProjetos = await this.userRepository
             .createQueryBuilder('user')
             .innerJoin('projeto_alunos', 'pa', 'pa.aluno_id = user.id')
@@ -563,6 +564,8 @@ export class RelatorioAlunoService implements OnModuleInit {
             .getMany();
 
         const idsComProjetos = alunosComProjetos.map((a) => a.id);
+
+        // Retorna alunos que NÃO estão em projeto_alunos
         return this.userRepository
             .createQueryBuilder('user')
             .where('user.role_cargo = :role', { role: 'aluno' })
