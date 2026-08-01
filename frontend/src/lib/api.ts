@@ -62,17 +62,6 @@ function getToken() {
   return localStorage.getItem("token");
 }
 
-async function readError(response: Response) {
-  try {
-    const data = await response.json();
-    if (typeof data?.message === "string") return data.message;
-    if (Array.isArray(data?.message)) return data.message.join(" ");
-  } catch {
-    // Some backend errors may not be JSON.
-  }
-
-  return "Não foi possível concluir a solicitação.";
-}
 
 export async function apiRequest<T>(
   path: string,

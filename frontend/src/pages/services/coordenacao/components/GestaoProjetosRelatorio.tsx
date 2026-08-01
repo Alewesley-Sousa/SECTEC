@@ -4,15 +4,7 @@ import { PiFunnel, PiMagnifyingGlass, PiPlus } from 'react-icons/pi';
 import { Eye, Pencil, Save, Loader2, X, User } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { Pagination } from '../../../../componentes/PaginationUniversal'; // ajuste o caminho conforme sua estrutura
-
-// Tipos
-export interface AlunoRelatorioItem {
-  id: number;
-  aluno: { nome: string; email: string };
-  status: string;
-  quantidade_projetos: number;
-  projetos_atribuidos?: any[];
-}
+import type { AlunoRelatorioItem } from '../relatorios';  //
 
 interface GestaoProjetosRelatorioProps {
   alunos: AlunoRelatorioItem[];
@@ -26,7 +18,6 @@ interface GestaoProjetosRelatorioProps {
   setNomeFiltro: (nome: string) => void;
   carregando: boolean;
   erro: string;
-  carregarDados: () => void;
   limit?: number; // itens por página (opcional, padrão 10)
 
   distribuicao: {
@@ -63,7 +54,6 @@ export function GestaoProjetosRelatorio({
   setNomeFiltro,
   carregando,
   erro,
-  carregarDados,
   limit = 10,
   distribuicao,
   atribuicao,

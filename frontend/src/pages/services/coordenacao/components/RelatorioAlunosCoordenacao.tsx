@@ -1,9 +1,7 @@
 // frontend/src/pages/services/coordenacao/components/RelatorioAlunosCoordenacao.tsx
 import { useState } from 'react';
-import { motion } from 'motion/react';
 import { MainLayout } from '../../../../componentes/SideBarUniversal';
-import { PiPlus } from 'react-icons/pi';
-import { RefreshCw, Loader2, Pencil } from 'lucide-react';
+import { RefreshCw, Loader2 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { GestaoProjetosRelatorio } from './GestaoProjetosRelatorio';
 import { ModalAtribuirProjetos } from './ModalAtribuirProjetos';
@@ -96,7 +94,6 @@ export default function RelatorioAlunosCoordenacao() {
                             setNomeFiltro={relatorio.setNomeFiltro}
                             carregando={relatorio.carregando}
                             erro={relatorio.erro}
-                            carregarDados={relatorio.carregarDados}
                             distribuicao={distribuicao}
                             atribuicao={atribuicao}
                             quantidadeInd={quantidadeInd}
