@@ -12,7 +12,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Serve arquivos estáticos
- app.useStaticAssets(join(__dirname, '..', '..', 'frontend', 'dist'));
+  app.useStaticAssets(join(process.cwd(), 'frontend', 'dist'));
 
   const seedService = app.select(UsersModule).get(UsersSeed);
 
@@ -33,7 +33,7 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   // Fallback para o React Router — qualquer rota não-API serve o index.html
-  const distPath = join(__dirname, '..', '..', 'frontend', 'dist', 'index.html');
+  const distPath = join(process.cwd(), 'frontend', 'dist', 'index.html');
   app.use((req: any, res: any, next: any) => {
     if (!req.path.startsWith('/api') && !req.path.startsWith('/docs')) {
       res.sendFile(distPath);
