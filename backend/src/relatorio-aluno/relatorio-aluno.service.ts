@@ -743,19 +743,41 @@ export class RelatorioAlunoService implements OnModuleInit {
         const eventoAtual = await this.obterEventoAtivo();
 
         return await this.relatorioAlunoRepository.manager.transaction(async (manager) => {
-            const relatorios = await this.obterRelatoriosParaLote(eventoAtual.id, geral, ids, manager);
+            const todosRelatorios = await this.obterRelatoriosParaLote(eventoAtual.id, geral, ids, manager);
 
-            // 🔒 Validação: não permite alterar quantidade se algum relatório já está finalizado ou enviado
-            for (const relatorio of relatorios) {
+            // 🔍 Separa os que já estão finalizados/enviados (não podem ser alterados)
+            const ignorados: RelatorioAluno[] = [];
+            const validos: RelatorioAluno[] = [];
+
+            for (const relatorio of todosRelatorios) {
                 if (relatorio.status === StatusRelatorio.FINALIZADO || relatorio.status === StatusRelatorio.ENVIADO) {
-                    throw new BadRequestException(
-                        `Não é permitido alterar a quantidade de projetos de um relatório finalizado ou já enviado (aluno ${relatorio.aluno.nome}).`
+                    this.logger.warn(
+                        `⏭️ Ignorando aluno ${relatorio.aluno.nome} (ID ${relatorio.id}) - status "${relatorio.status}" impede alteração.`
                     );
+                    ignorados.push(relatorio);
+                } else {
+                    validos.push(relatorio);
                 }
             }
 
-            const alunosComExcesso = this.identificarAlunosComExcesso(relatorios, quantidade);
+            // Se não houver nenhum válido, retorna aviso
+            if (validos.length === 0) {
+                return {
+                    mensagem: 'Nenhum aluno pôde ser atualizado (todos estão com status FINALIZADO ou ENVIADO).',
+                    quantidade_definida: quantidade,
+                    alunos_atualizados: [],
+                    alunos_ignorados: ignorados.map(r => ({
+                        id: r.id,
+                        nome: r.aluno.nome,
+                        status: r.status,
+                    })),
+                };
+            }
 
+            // Continua apenas com os válidos
+            const alunosComExcesso = this.identificarAlunosComExcesso(validos, quantidade);
+
+            // Se houver excesso e o parâmetro forcarReducao não estiver ativo, barra
             if (alunosComExcesso.length > 0) {
                 if (!forcarReducao) {
                     throw new BadRequestException({
@@ -765,22 +787,46 @@ export class RelatorioAlunoService implements OnModuleInit {
                     });
                 }
 
-                await this.removerProjetosExcedentes(relatorios, quantidade, manager);
-                const idsRelatorios = relatorios.map((r) => r.id);
-                const relatoriosAtualizados = await this.obterRelatoriosParaLote(eventoAtual.id, false, idsRelatorios, manager);
-                const resultados = await this.atualizarRelatoriosEmMassa(relatoriosAtualizados, quantidade, manager);
+                // Remove os projetos excedentes (apenas dos válidos)
+                await this.removerProjetosExcedentes(validos, quantidade, manager);
+
+                // Recarrega os relatórios atualizados (apenas os IDs válidos)
+                const idsValidos = validos.map(r => r.id);
+                const relatoriosAtualizados = await this.obterRelatoriosParaLote(eventoAtual.id, false, idsValidos, manager);
+
+                // Novamente filtra (caso algum tenha mudado de status durante a remoção – improvável, mas seguro)
+                const recarregadosValidos = relatoriosAtualizados.filter(
+                    r => r.status !== StatusRelatorio.FINALIZADO && r.status !== StatusRelatorio.ENVIADO
+                );
+
+                const resultados = await this.atualizarRelatoriosEmMassa(recarregadosValidos, quantidade, manager);
+
                 return {
                     mensagem: `${resultados.length} aluno(s) atualizado(s) com sucesso. Os projetos excedentes foram removidos.`,
                     quantidade_definida: quantidade,
                     alunos_atualizados: resultados,
+                    alunos_ignorados: ignorados.map(r => ({
+                        id: r.id,
+                        nome: r.aluno.nome,
+                        status: r.status,
+                        motivo: 'Status finalizado ou enviado',
+                    })),
                 };
             }
 
-            const resultados = await this.atualizarRelatoriosEmMassa(relatorios, quantidade, manager);
+            // Caso sem excesso: aplica a atualização em massa nos válidos
+            const resultados = await this.atualizarRelatoriosEmMassa(validos, quantidade, manager);
+
             return {
                 mensagem: `${resultados.length} aluno(s) atualizado(s) com sucesso.`,
                 quantidade_definida: quantidade,
                 alunos_atualizados: resultados,
+                alunos_ignorados: ignorados.map(r => ({
+                    id: r.id,
+                    nome: r.aluno.nome,
+                    status: r.status,
+                    motivo: 'Status finalizado ou enviado',
+                })),
             };
         });
     }

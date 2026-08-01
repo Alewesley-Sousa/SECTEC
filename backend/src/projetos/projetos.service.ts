@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryRunner, Repository, Between, In } from 'typeorm';
 
+import { TipoMaterial } from '../materiais/entities/projeto-material.entity';
 import { AuditoriaService } from 'src/auditoria/auditoria.service';
 import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
 import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
@@ -40,7 +41,7 @@ export class ProjetosService {
 
     private readonly dataSource: DataSource,
     private readonly auditoriaService: AuditoriaService,
-  ) {}
+  ) { }
 
   // =========================================================================
   // MÉTODO DE CRIAÇÃO (CORE)
@@ -52,7 +53,7 @@ export class ProjetosService {
    */
   async create(dto: CreateProjetoDto, userId: number): Promise<Projeto> {
     const ultimoEvento = await this.buscarUltimoEvento();
-    
+
     // Validações de negócio de escopo e regras de grupo
     await this.validarEventoETema(ultimoEvento.id, dto.temaId);
     this.validateGroupSize(dto.alunosIds);
@@ -123,44 +124,44 @@ export class ProjetosService {
    * seja ele o aluno autor ou um dos integrantes da equipe.
    */
   async findProjetoAtualPorAluno(userId: number): Promise<Projeto | null> {
-  try {
-    const eventoAtual = await this.buscarUltimoEvento();
+    try {
+      const eventoAtual = await this.buscarUltimoEvento();
 
-    // 1. Primeiro busca apenas o ID do projeto sem filtrar as relações
-    const projetoBase = await this.projetoRepository
-      .createQueryBuilder('projeto')
-      .leftJoin('projeto.evento', 'evento')
-      .leftJoin('projeto.alunoAutor', 'autor')
-      .leftJoin('projeto.projetoAlunos', 'pa')
-      .leftJoin('pa.aluno', 'aluno')
-      .where('evento.id = :eventoId', { eventoId: eventoAtual.id })
-      .andWhere(
-        '(autor.id = :userId OR aluno.id = :userId)',
-        { userId }
-      )
-      .select('projeto.id')
-      .getOne();
+      // 1. Primeiro busca apenas o ID do projeto sem filtrar as relações
+      const projetoBase = await this.projetoRepository
+        .createQueryBuilder('projeto')
+        .leftJoin('projeto.evento', 'evento')
+        .leftJoin('projeto.alunoAutor', 'autor')
+        .leftJoin('projeto.projetoAlunos', 'pa')
+        .leftJoin('pa.aluno', 'aluno')
+        .where('evento.id = :eventoId', { eventoId: eventoAtual.id })
+        .andWhere(
+          '(autor.id = :userId OR aluno.id = :userId)',
+          { userId }
+        )
+        .select('projeto.id')
+        .getOne();
 
-    if (!projetoBase) return null;
+      if (!projetoBase) return null;
 
-    // 2. Depois carrega o projeto completo pelo ID sem filtros nas relações
-    const projeto = await this.projetoRepository.findOne({
-      where: { id: projetoBase.id },
-      relations: this.getProjetoRelations(),
-      select: this.getProjetoSelectFields(),
-    });
+      // 2. Depois carrega o projeto completo pelo ID sem filtros nas relações
+      const projeto = await this.projetoRepository.findOne({
+        where: { id: projetoBase.id },
+        relations: this.getProjetoRelations(),
+        select: this.getProjetoSelectFields(),
+      });
 
-    if (!projeto) return null;
+      if (!projeto) return null;
 
-    this.filtrarOrientadoresAceitos(projeto);
-    return projeto;
-  } catch (error) {
-    if (error instanceof NotFoundException) {
-      return null;
+      this.filtrarOrientadoresAceitos(projeto);
+      return projeto;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return null;
+      }
+      throw error;
     }
-    throw error;
   }
-}
 
   /**
    * Retorna todos os projetos criados por um aluno autor específico.
@@ -308,7 +309,7 @@ export class ProjetosService {
       'PROJETO_REMOVIDO',
       `Projeto #${id} removido por usuario com cargo "${role}". Titulo: "${projeto.titulo}".`,
     );
-  }     
+  }
 
   async addIntegrantes(
     id: number,
@@ -400,7 +401,7 @@ export class ProjetosService {
     return this.findOne(id);
   }
 
-async gerenciarOrientador(
+  async gerenciarOrientador(
     id: number,
     orientadorId: number,
     userId: number,
@@ -581,9 +582,9 @@ async gerenciarOrientador(
   /**
    * Realiza as validações individuais de compatibilidade de tema e cria a solicitação pendente.
    */
-    /**
-   * Realiza as validações individuais de compatibilidade de tema e cria a solicitação pendente.
-   */
+  /**
+ * Realiza as validações individuais de compatibilidade de tema e cria a solicitação pendente.
+ */
   private async enviarSolicitacaoIndividual(
     projeto: Projeto,
     userId: number,
@@ -643,26 +644,26 @@ async gerenciarOrientador(
    * Localiza o evento ativo do ano corrente filtrando pela data de início das inscrições.
    */
   private async buscarUltimoEvento(): Promise<Evento> {
-  const anoAtual = new Date().getFullYear();
-  const inicioAno = new Date(`${anoAtual}-01-01T00:00:00`);
-  const fimAno = new Date(`${anoAtual}-12-31T23:59:59`);
+    const anoAtual = new Date().getFullYear();
+    const inicioAno = new Date(`${anoAtual}-01-01T00:00:00`);
+    const fimAno = new Date(`${anoAtual}-12-31T23:59:59`);
 
-  const evento = await this.eventoRepository
-    .createQueryBuilder('evento')
-    .leftJoinAndSelect('evento.temas', 'temas')
-    .where('evento.status = :status', { status: EventoStatus.ATIVO })
-    .andWhere('evento.prazo_inicial BETWEEN :inicioAno AND :fimAno', { inicioAno, fimAno })
-    .orderBy('evento.criado_em', 'DESC')
-    .getOne();
+    const evento = await this.eventoRepository
+      .createQueryBuilder('evento')
+      .leftJoinAndSelect('evento.temas', 'temas')
+      .where('evento.status = :status', { status: EventoStatus.ATIVO })
+      .andWhere('evento.prazo_inicial BETWEEN :inicioAno AND :fimAno', { inicioAno, fimAno })
+      .orderBy('evento.criado_em', 'DESC')
+      .getOne();
 
-  if (!evento) {
-    throw new NotFoundException(
-      `Nenhum evento ativo encontrado para o ano de ${anoAtual}.`
-    );
+    if (!evento) {
+      throw new NotFoundException(
+        `Nenhum evento ativo encontrado para o ano de ${anoAtual}.`
+      );
+    }
+
+    return evento;
   }
-
-  return evento;
-}
   /**
    * Garante que o tamanho da equipe segue as diretrizes acadêmicas (entre 3 e 7 integrantes).
    */
@@ -736,13 +737,13 @@ async gerenciarOrientador(
     const filtroProjetoIntegrante = projetoIdIgnorado ? 'AND p.id != ?' : '';
     const params = projetoIdIgnorado
       ? [
-          eventoId,
-          ...idsUnicos,
-          projetoIdIgnorado,
-          eventoId,
-          ...idsUnicos,
-          projetoIdIgnorado,
-        ]
+        eventoId,
+        ...idsUnicos,
+        projetoIdIgnorado,
+        eventoId,
+        ...idsUnicos,
+        projetoIdIgnorado,
+      ]
       : [eventoId, ...idsUnicos, eventoId, ...idsUnicos];
 
     const ocupados = await this.dataSource.query(
@@ -917,20 +918,20 @@ async gerenciarOrientador(
   /**
    * Centraliza a filtragem de orientadores de um projeto para expor apenas solicitações relevantes ao aluno.
    */
- private filtrarOrientadoresAceitos(projeto: Projeto) {
-  if (projeto.orientadores) {
-    projeto.orientadores = projeto.orientadores.filter(
-      (relacao) => relacao.status === 'aceito' || relacao.status === 'recusado' || relacao.status === 'pendente'
-    );
-  } else {
-    projeto.orientadores = [];
+  private filtrarOrientadoresAceitos(projeto: Projeto) {
+    if (projeto.orientadores) {
+      projeto.orientadores = projeto.orientadores.filter(
+        (relacao) => relacao.status === 'aceito' || relacao.status === 'recusado' || relacao.status === 'pendente'
+      );
+    } else {
+      projeto.orientadores = [];
+    }
   }
-}
-  
-  
-    /**
-   * Busca o orientador que aceitou a solicitação para um projeto específico.
-   */
+
+
+  /**
+ * Busca o orientador que aceitou a solicitação para um projeto específico.
+ */
   async getOrientadorAceitoByProjetoId(projetoId: number): Promise<ProjetoOrientador | null> {
     const vinculo = await this.projetoOrientadorRepository.findOne({
       where: {
@@ -999,7 +1000,7 @@ async gerenciarOrientador(
         respondidoEm: true,
         orientador: { id: true, nome: true, email_institucional: true },
       },
-      
+
       materiais: {
         id: true,
         tipo: true,
@@ -1120,17 +1121,17 @@ async gerenciarOrientador(
    */
   // src/projetos/projetos.service.ts
 
-async findAlunosOcupados(projetoIdAtual?: number): Promise<number[]> {
-  try {
-    // Busca o evento atual primeiro
-    const eventoAtual = await this.buscarUltimoEvento();
-    
-    if (!eventoAtual) {
-      return [];
-    }
+  async findAlunosOcupados(projetoIdAtual?: number): Promise<number[]> {
+    try {
+      // Busca o evento atual primeiro
+      const eventoAtual = await this.buscarUltimoEvento();
 
-    // Query para buscar todos os alunos ocupados no evento atual
-    const query = `
+      if (!eventoAtual) {
+        return [];
+      }
+
+      // Query para buscar todos os alunos ocupados no evento atual
+      const query = `
       SELECT DISTINCT aluno_id FROM (
         SELECT aluno_autor_id as aluno_id FROM projetos 
         WHERE evento_id = ? AND aluno_autor_id IS NOT NULL
@@ -1140,12 +1141,12 @@ async findAlunosOcupados(projetoIdAtual?: number): Promise<number[]> {
         WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL
       ) AS alunos_ocupados
     `;
-    
-    let params: any[] = [eventoAtual.id, eventoAtual.id];
-    
-    // Se for para edição, exclui o projeto atual
-    if (projetoIdAtual) {
-      const queryComExclusao = `
+
+      let params: any[] = [eventoAtual.id, eventoAtual.id];
+
+      // Se for para edição, exclui o projeto atual
+      if (projetoIdAtual) {
+        const queryComExclusao = `
         SELECT DISTINCT aluno_id FROM (
           SELECT aluno_autor_id as aluno_id FROM projetos 
           WHERE evento_id = ? AND aluno_autor_id IS NOT NULL AND id != ?
@@ -1155,19 +1156,140 @@ async findAlunosOcupados(projetoIdAtual?: number): Promise<number[]> {
           WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL AND p.id != ?
         ) AS alunos_ocupados
       `;
-      params = [eventoAtual.id, projetoIdAtual, eventoAtual.id, projetoIdAtual];
-      
-      const rows = await this.dataSource.query(queryComExclusao, params);
+        params = [eventoAtual.id, projetoIdAtual, eventoAtual.id, projetoIdAtual];
+
+        const rows = await this.dataSource.query(queryComExclusao, params);
+        return rows.map((row: any) => Number(row.aluno_id));
+      }
+
+      const rows = await this.dataSource.query(query, params);
       return rows.map((row: any) => Number(row.aluno_id));
+
+    } catch (error) {
+      console.error('Erro ao buscar alunos ocupados:', error);
+      // Retorna array vazio em caso de erro para não quebrar o frontend
+      return [];
     }
-    
-    const rows = await this.dataSource.query(query, params);
-    return rows.map((row: any) => Number(row.aluno_id));
-    
-  } catch (error) {
-    console.error('Erro ao buscar alunos ocupados:', error);
-    // Retorna array vazio em caso de erro para não quebrar o frontend
-    return [];
   }
-}
+
+
+  // =========================================================================
+  // MÉTODO PÚBLICO DE LISTAGEM COM FILTROS E PAGINAÇÃO
+  // =========================================================================
+
+  async findAllPublic(
+    filters: {
+      search?: string;
+      curso?: string;
+      eixo?: string;
+      evento?: string;
+    },
+    page: number = 1,
+    limit: number = 8,
+  ) {
+    const queryBuilder = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.alunoAutor', 'autor')
+      .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
+      .leftJoinAndSelect('projetoAlunos.aluno', 'integrante')
+      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect('projeto.evento', 'evento')
+      .leftJoinAndSelect('projeto.materiais', 'materiais');
+
+    // Aplicar filtros
+    if (filters.search) {
+      queryBuilder.andWhere(
+        '(projeto.titulo LIKE :search OR autor.nome LIKE :search OR integrante.nome LIKE :search)',
+        { search: `%${filters.search}%` },
+      );
+    }
+
+    if (filters.curso) {
+      // Supondo que o User tenha um campo 'curso' (string)
+      // Caso seja uma relação, ajuste o join e o campo
+      queryBuilder.andWhere(
+        '(autor.curso = :curso OR integrante.curso = :curso)',
+        { curso: filters.curso },
+      );
+    }
+
+    if (filters.eixo) {
+      queryBuilder.andWhere('tema.nome LIKE :eixo', {
+        eixo: `%${filters.eixo}%`,
+      });
+    }
+
+    if (filters.evento) {
+      queryBuilder.andWhere('evento.titulo LIKE :evento', {
+        evento: `%${filters.evento}%`,
+      });
+    }
+
+    // Paginação
+    const total = await queryBuilder.getCount();
+    const projetos = await queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    // Mapear resultado
+    const data = projetos.map((projeto) => {
+      // Montar equipe (autor + integrantes)
+      const equipe: { id: number; nome: string; role: 'autor' | 'integrante' }[] = [];
+      if (projeto.alunoAutor) {
+        equipe.push({
+          id: projeto.alunoAutor.id,
+          nome: projeto.alunoAutor.nome,
+          role: 'autor',
+        });
+      }
+      if (projeto.projetoAlunos) {
+        projeto.projetoAlunos.forEach((pa) => {
+          if (pa.aluno) {
+            equipe.push({
+              id: pa.aluno.id,
+              nome: pa.aluno.nome,
+              role: 'integrante',
+            });
+          }
+        });
+      }
+
+      // Buscar vídeo e banner
+      let video: string | false = false;
+      let hasBanner = false;
+      if (projeto.materiais) {
+        projeto.materiais.forEach((material) => {
+          if (material.tipo === TipoMaterial.LINK) {
+            video = material.conteudo || false;
+          }
+          if (material.tipo === TipoMaterial.PDF) {
+            hasBanner = true;
+          }
+        });
+      }
+
+      return {
+        id: projeto.id,
+        titulo: projeto.titulo,
+        descricao: projeto.descricao,
+        tema: projeto.tema
+          ? { id: projeto.tema.id, nome: projeto.tema.nome }
+          : null,
+        equipe,
+        video,
+        hasBanner,
+      };
+    });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
 }

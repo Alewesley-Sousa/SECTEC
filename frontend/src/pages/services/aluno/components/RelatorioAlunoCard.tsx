@@ -13,6 +13,7 @@ import {
   cancelarMaterialRelatorio,
 } from '../relatorios';
 import Swal from 'sweetalert2';
+import { Pagination } from '../../../../componentes/PaginationUniversal';
 
 type ProjetoRelatorio = {
   id: number;
@@ -79,6 +80,20 @@ export function RelatorioAlunoCard({
   const inputFileRef = useRef<HTMLInputElement>(null);
 
   const [modoEdicao, setModoEdicao] = useState(false);
+
+  const ITEMS_POR_PAGINA = 3;
+  const [paginaAtual, setPaginaAtual] = useState(1);
+
+  // Reseta a página quando a lista de projetos mudar (ex.: nova distribuição)
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [projetosRelatorio.length]);
+
+  const totalPaginas = Math.ceil(projetosRelatorio.length / ITEMS_POR_PAGINA);
+  const projetosPagina = projetosRelatorio.slice(
+    (paginaAtual - 1) * ITEMS_POR_PAGINA,
+    paginaAtual * ITEMS_POR_PAGINA
+  );
 
   useEffect(() => {
     setVideoMaterialId(videoMaterialIdInicial);
@@ -281,147 +296,147 @@ export function RelatorioAlunoCard({
   }
 
   // ─── Estado: Finalizado (prioridade sobre outras verificações) ───
-// ─── Estado: Finalizado ───
-if (dadosRelatorio.status === 'finalizado') {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      className="relative overflow-hidden rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-purple-50/70 to-white p-6 sm:p-8 md:p-10 text-center shadow-xl shadow-indigo-100/50"
-    >
-      {/* Fundo decorativo */}
-      <div className="absolute inset-0 pointer-events-none">
-        <motion.div
-          animate={{ scale: [1, 1.08, 1], opacity: [0.5, 0.7, 0.5] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-gradient-to-br from-purple-200/60 to-indigo-300/40 blur-2xl"
-        />
-        <motion.div
-          animate={{ scale: [1, 1.12, 1], opacity: [0.4, 0.65, 0.4] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-          className="absolute -bottom-10 -left-10 w-36 h-36 rounded-full bg-gradient-to-tr from-violet-200/50 to-fuchsia-200/30 blur-2xl"
-        />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-b from-amber-100/20 to-transparent blur-3xl" />
-      </div>
-
-      {/* Partículas decorativas sutis */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {[...Array(6)].map((_, i) => (
+  // ─── Estado: Finalizado ───
+  if (dadosRelatorio.status === 'finalizado') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        className="relative overflow-hidden rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-purple-50/70 to-white p-6 sm:p-8 md:p-10 text-center shadow-xl shadow-indigo-100/50"
+      >
+        {/* Fundo decorativo */}
+        <div className="absolute inset-0 pointer-events-none">
           <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 60, x: 0 }}
-            animate={{
-              opacity: [0, 0.6, 0],
-              y: [-20, -100],
-              x: [0, (i % 2 === 0 ? 30 : -30)],
-            }}
-            transition={{
-              duration: 3 + i * 0.5,
-              repeat: Infinity,
-              delay: i * 0.8,
-              ease: 'easeOut',
-            }}
-            className="absolute w-2 h-2 rounded-full bg-purple-300/50"
-            style={{
-              left: `${15 + i * 14}%`,
-              bottom: '10%',
-            }}
+            animate={{ scale: [1, 1.08, 1], opacity: [0.5, 0.7, 0.5] }}
+            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-gradient-to-br from-purple-200/60 to-indigo-300/40 blur-2xl"
           />
-        ))}
-      </div>
-
-      <div className="relative">
-        {/* Ícone com efeito de brilho */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 180, delay: 0.3 }}
-          className="mx-auto w-20 h-20 sm:w-22 sm:h-22 md:w-24 md:h-24 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-xl shadow-purple-300/40 relative"
-        >
           <motion.div
-            animate={{ rotate: [0, 10, -10, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+            animate={{ scale: [1, 1.12, 1], opacity: [0.4, 0.65, 0.4] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+            className="absolute -bottom-10 -left-10 w-36 h-36 rounded-full bg-gradient-to-tr from-violet-200/50 to-fuchsia-200/30 blur-2xl"
+          />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-b from-amber-100/20 to-transparent blur-3xl" />
+        </div>
+
+        {/* Partículas decorativas sutis */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {[...Array(6)].map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 60, x: 0 }}
+              animate={{
+                opacity: [0, 0.6, 0],
+                y: [-20, -100],
+                x: [0, (i % 2 === 0 ? 30 : -30)],
+              }}
+              transition={{
+                duration: 3 + i * 0.5,
+                repeat: Infinity,
+                delay: i * 0.8,
+                ease: 'easeOut',
+              }}
+              className="absolute w-2 h-2 rounded-full bg-purple-300/50"
+              style={{
+                left: `${15 + i * 14}%`,
+                bottom: '10%',
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="relative">
+          {/* Ícone com efeito de brilho */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 180, delay: 0.3 }}
+            className="mx-auto w-20 h-20 sm:w-22 sm:h-22 md:w-24 md:h-24 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-xl shadow-purple-300/40 relative"
           >
-            <CheckCircle2 size={36} className="text-white sm:size-10 md:size-11 drop-shadow-lg" />
+            <motion.div
+              animate={{ rotate: [0, 10, -10, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+            >
+              <CheckCircle2 size={36} className="text-white sm:size-10 md:size-11 drop-shadow-lg" />
+            </motion.div>
+            {/* Brilho pulsante ao redor */}
+            <motion.div
+              animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0, 0.3] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute inset-0 rounded-3xl bg-white/20 blur-md"
+            />
           </motion.div>
-          {/* Brilho pulsante ao redor */}
+
+          {/* Selo de concluído */}
           <motion.div
-            animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0, 0.3] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute inset-0 rounded-3xl bg-white/20 blur-md"
-          />
-        </motion.div>
-
-        {/* Selo de concluído */}
-        <motion.div
-          initial={{ rotate: -15, scale: 0, opacity: 0 }}
-          animate={{ rotate: -8, scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 200, delay: 0.6 }}
-          className="inline-flex items-center gap-2 mb-4 px-5 py-2 rounded-full bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 shadow-md"
-        >
-          <motion.span
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-            className="text-xl"
+            initial={{ rotate: -15, scale: 0, opacity: 0 }}
+            animate={{ rotate: -8, scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 200, delay: 0.6 }}
+            className="inline-flex items-center gap-2 mb-4 px-5 py-2 rounded-full bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 shadow-md"
           >
-            🎉
-          </motion.span>
-          <span className="text-sm font-black text-amber-700 tracking-wide uppercase">
-            Avaliação concluída
-          </span>
-        </motion.div>
-
-        <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 mb-3 tracking-tight">
-          Relatório Finalizado
-        </h3>
-        <p className="text-sm sm:text-base text-slate-500 max-w-md mx-auto leading-relaxed mb-6">
-          Sua avaliação foi concluída pela coordenação. Agora é só aguardar o resultado final.
-        </p>
-
-        {/* Card de informações */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.8, duration: 0.5 }}
-          className="inline-flex flex-col sm:flex-row items-center gap-4 px-6 py-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-slate-200 shadow-sm"
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-300" />
-            <span className="text-sm font-semibold text-purple-700">
-              Finalizado
+            <motion.span
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="text-xl"
+            >
+              🎉
+            </motion.span>
+            <span className="text-sm font-black text-amber-700 tracking-wide uppercase">
+              Avaliação concluída
             </span>
-          </div>
-          {dadosRelatorio.data_envio && (
-            <>
-              <div className="hidden sm:block w-px h-5 bg-slate-300" />
-              <div className="flex items-center gap-2">
-                <Calendar size={14} className="text-slate-400" />
-                <span className="text-sm text-slate-600">
-                  {new Date(dadosRelatorio.data_envio).toLocaleDateString('pt-BR', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </span>
-              </div>
-            </>
-          )}
-        </motion.div>
+          </motion.div>
 
-        {/* Mensagem motivacional */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2, duration: 0.6 }}
-          className="mt-6 text-xs text-slate-400 max-w-sm mx-auto"
-        >
-          Obrigado pela sua dedicação! Em breve você poderá conferir sua nota final.
-        </motion.p>
-      </div>
-    </motion.div>
-  );
-}
+          <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 mb-3 tracking-tight">
+            Relatório Finalizado
+          </h3>
+          <p className="text-sm sm:text-base text-slate-500 max-w-md mx-auto leading-relaxed mb-6">
+            Sua avaliação foi concluída pela coordenação. Agora é só aguardar o resultado final.
+          </p>
+
+          {/* Card de informações */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+            className="inline-flex flex-col sm:flex-row items-center gap-4 px-6 py-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-slate-200 shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-300" />
+              <span className="text-sm font-semibold text-purple-700">
+                Finalizado
+              </span>
+            </div>
+            {dadosRelatorio.data_envio && (
+              <>
+                <div className="hidden sm:block w-px h-5 bg-slate-300" />
+                <div className="flex items-center gap-2">
+                  <Calendar size={14} className="text-slate-400" />
+                  <span className="text-sm text-slate-600">
+                    {new Date(dadosRelatorio.data_envio).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              </>
+            )}
+          </motion.div>
+
+          {/* Mensagem motivacional */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2, duration: 0.6 }}
+            className="mt-6 text-xs text-slate-400 max-w-sm mx-auto"
+          >
+            Obrigado pela sua dedicação! Em breve você poderá conferir sua nota final.
+          </motion.p>
+        </div>
+      </motion.div>
+    );
+  }
 
   // ⚠️ Interface de envio/cancelamento – visível enquanto houver pendências OU modo edição OU material devolvido
   const videoEnviado = videoMaterialId !== null;
@@ -616,7 +631,7 @@ if (dadosRelatorio.status === 'finalizado') {
                   </div>
 
                   <AnimatePresence>
-                    {projetosRelatorio.map((projeto, index) => {
+                    {projetosPagina.map((projeto, index) => {
                       const expandido = projetoExpandidoId === projeto.id;
                       const novo = isProjetoNovo(projeto.data_atribuicao);
 
@@ -628,8 +643,8 @@ if (dadosRelatorio.status === 'finalizado') {
                           transition={{ delay: index * 0.05 }}
                           layout
                           className={`rounded-2xl border bg-white transition-all duration-300 ${expandido
-                              ? 'border-sectec-300 shadow-lg ring-1 ring-sectec-100'
-                              : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                            ? 'border-sectec-300 shadow-lg ring-1 ring-sectec-100'
+                            : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
                             }`}
                         >
                           <button
@@ -640,8 +655,8 @@ if (dadosRelatorio.status === 'finalizado') {
                             <motion.div
                               whileTap={{ scale: 0.9 }}
                               className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 cursor-pointer ${projeto.visualizado
-                                  ? 'border-emerald-400 bg-emerald-400'
-                                  : 'border-slate-300 bg-white hover:border-sectec-400'
+                                ? 'border-emerald-400 bg-emerald-400'
+                                : 'border-slate-300 bg-white hover:border-sectec-400'
                                 }`}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -668,8 +683,8 @@ if (dadosRelatorio.status === 'finalizado') {
                                 </h4>
                                 <span
                                   className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${projeto.visualizado
-                                      ? 'bg-emerald-50 text-emerald-700'
-                                      : 'bg-amber-50 text-amber-700'
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-amber-50 text-amber-700'
                                     }`}
                                 >
                                   {projeto.visualizado ? <Eye size={10} /> : <EyeOff size={10} />}
@@ -780,8 +795,8 @@ if (dadosRelatorio.status === 'finalizado') {
                                           onMarcarVisualizado?.(projeto.id);
                                         }}
                                         className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-semibold transition-all active:scale-95 ${projeto.visualizado
-                                            ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                           }`}
                                       >
                                         {projeto.visualizado ? (
@@ -800,6 +815,17 @@ if (dadosRelatorio.status === 'finalizado') {
                       );
                     })}
                   </AnimatePresence>
+                  {/* PAGINAÇÃO */}
+                  {totalPaginas > 1 && (
+                    <Pagination
+                      page={paginaAtual}
+                      totalPages={totalPaginas}
+                      onPageChange={setPaginaAtual}
+                      total={projetosRelatorio.length}
+                      limit={ITEMS_POR_PAGINA}
+                      showInfo
+                    />
+                  )}
                 </motion.div>
               ) : (
                 <motion.div

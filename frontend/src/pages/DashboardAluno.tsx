@@ -608,17 +608,17 @@ function Dashboard() {
 
   // NOVO: hook do relatório – busca dados apenas quando o aluno não tem projeto e as inscrições estão encerradas
   const exibirRelatorio = !projeto && !inscricaoAberta && statusInscricao === "Encerrado";
-const {
-  dadosRelatorio,
-  projetosRelatorio,
-  videoMaterialId,
-  pdfMateriais,
-  videoStatus,
-  pdfStatus,
-  videoOpiniao,
-  pdfOpiniao,
-  carregarDados: carregarDadosRelatorio,
-} = useRelatorioAluno(exibirRelatorio);
+  const {
+    dadosRelatorio,
+    projetosRelatorio,
+    videoMaterialId,
+    pdfMateriais,
+    videoStatus,
+    pdfStatus,
+    videoOpiniao,
+    pdfOpiniao,
+    carregarDados: carregarDadosRelatorio,
+  } = useRelatorioAluno(exibirRelatorio);
   // FIM NOVO
 
   const podeAvancarEtapa1 = editandoProjeto
@@ -991,17 +991,57 @@ const {
             {!projeto && (
               <>
                 {exibirRelatorio ? (
-                  <RelatorioAlunoCard
-                    dadosRelatorio={dadosRelatorio}
-                    projetosRelatorio={projetosRelatorio}
-                    videoMaterialIdInicial={videoMaterialId}
-                    pdfMateriais={Array.from(pdfMateriais.entries()).map(([projetoId, materialId]) => ({ projetoId, materialId }))}
-                    videoStatus={videoStatus}
-                    pdfStatus={pdfStatus}
-                    videoOpiniao={videoOpiniao}
-                    pdfOpiniao={pdfOpiniao}
-                    onEnvioRealizado={carregarDadosRelatorio}
-                  />
+                  // 👇 Se o aluno ainda não viu a explicação, mostra ela primeiro
+                  !avisoRelatorioDispensado ? (
+                    <div className="flex flex-col items-center justify-center py-10 sm:py-16 border-2 border-dashed border-slate-200 rounded-2xl bg-white text-center px-4 max-w-2xl mx-auto">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                        <Video size={24} className="text-slate-600" />
+                      </div>
+                      <h3 className="text-base sm:text-lg font-semibold text-slate-800 mb-2">Inscrições encerradas</h3>
+                      <p className="text-sm text-slate-600 max-w-lg mb-3 text-justify indent-6">
+                        Você não se inscreveu a tempo, mas a <strong>coordenação vai distribuir os projetos</strong> entre os alunos que ficaram sem inscrição.
+                      </p>
+                      <p className="text-sm text-slate-600 max-w-lg mb-4 text-justify indent-6">
+                        Agora você deve <strong>gravar um vídeo</strong> sobre o projeto que lhe for designado e enviar apenas o <strong>link público do YouTube</strong>.
+                      </p>
+                      <div className="w-full max-w-sm bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
+                        <p className="text-xs font-semibold text-amber-800 flex items-center gap-2 mb-2">
+                          <TriangleAlert size={14} className="shrink-0" />
+                          Sobre a avaliação
+                        </p>
+                        <ul className="text-xs text-amber-700 space-y-1 list-disc pl-4">
+                          <li>Sua nota será baseada na <strong>análise do vídeo</strong> pela coordenação.</li>
+                          <li>Capriche na apresentação e fique atento aos prazos!</li>
+                        </ul>
+                      </div>
+                      <Link
+                        to="/dashboard/aluno/configuracoes"
+                        className="mt-5 text-xs text-sectec-600 hover:text-sectec-800 underline transition"
+                      >
+                        Dúvidas? Fale com a coordenação
+                      </Link>
+                      <button
+                        onClick={dispensarAvisoRelatorio}
+                        className="mt-6 group flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 shadow-sm transition-all duration-200 hover:scale-105 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 hover:shadow-md active:scale-95"
+                      >
+                        <span className="transition-transform duration-200 group-hover:rotate-6">🔕</span>
+                        Não mostrar novamente
+                      </button>
+                    </div>
+                  ) : (
+                    // Após dispensar o aviso, mostra o card do relatório
+                    <RelatorioAlunoCard
+                      dadosRelatorio={dadosRelatorio}
+                      projetosRelatorio={projetosRelatorio}
+                      videoMaterialIdInicial={videoMaterialId}
+                      pdfMateriais={Array.from(pdfMateriais.entries()).map(([projetoId, materialId]) => ({ projetoId, materialId }))}
+                      videoStatus={videoStatus}
+                      pdfStatus={pdfStatus}
+                      videoOpiniao={videoOpiniao}
+                      pdfOpiniao={pdfOpiniao}
+                      onEnvioRealizado={carregarDadosRelatorio}
+                    />
+                  )
                 ) : (
                   <>
                     {inscricaoAberta ? (
