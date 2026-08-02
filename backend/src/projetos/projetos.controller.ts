@@ -9,11 +9,12 @@ import {
   UseGuards,
   ForbiddenException,
   ParseIntPipe,
-  Query,
+  Query
 } from '@nestjs/common';
 import { ProjetosService } from './projetos.service';
 
 // DTOs
+import { GerarPdfDto } from '../pdf/dto/gerar-pdf.dto';
 import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { EnviarSolicitacaoDto } from './dto/enviar-solicitacao.dto';
@@ -33,8 +34,39 @@ import { ApiOperation, ApiResponse, ApiTags, ApiBody, ApiBearerAuth, ApiQuery } 
 @ApiBearerAuth()
 @ApiBearerAuth('token-jwt')
 @Controller('projetos')
+@UseGuards(JwtAuthGuard)
 export class ProjetosController {
   constructor(private readonly projetosService: ProjetosService) { }
+
+  @Get('com-materiais-aprovados')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Lista projetos que possuem pelo menos um material aprovado (usado na geração de QR Code)',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'evento', required: false, type: String })
+  @ApiQuery({ name: 'eixo_tematico', required: false, type: String })
+  @ApiQuery({ name: 'orientador', required: false, type: String })
+  async findComMateriaisAprovados(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('evento') evento?: string,
+    @Query('eixo_tematico') eixo_tematico?: string,
+    @Query('orientador') orientador?: string,
+  ) {
+    return this.projetosService.findComMateriaisAprovados({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      evento,
+      eixo_tematico,
+      orientador,
+    });
+  }
 
   // ===========================================================================
   // ROTA PÚBLICA (SEM AUTENTICAÇÃO)
@@ -66,7 +98,7 @@ export class ProjetosController {
       limitNum,
     );
   }
-  
+
   // ===========================================================================
   // ROTAS DE CRIAÇÃO E AÇÕES ESPECÍFICAS (REQUEREM AUTENTICAÇÃO)
   // ===========================================================================
@@ -210,6 +242,21 @@ export class ProjetosController {
     return this.projetosService.addIntegrantes(id, dto.alunosIds, userId, role);
   }
 
+  @Post('gerar-pdf')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '[Coordenador] Gera o PDF de identificação (placas com QR Code) dos projetos' })
+  async gerarPdf(
+    @Body() dto: GerarPdfDto,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+
+    if (role != 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem gerar o PDF de identificação.');
+    }
+    return this.projetosService.gerarPdfIdentificacao(dto);
+  }
+
   @Delete(':id/integrantes/:alunoId')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Remove um aluno integrante de um projeto' })
@@ -294,6 +341,25 @@ export class ProjetosController {
     @GetUser('role') role: string,
   ) {
     return this.projetosService.remove(id, userId, role);
+  }
+
+
+  @Post(':id/gerar-qrcode')
+  @ApiOperation({
+    summary: '[Coordenador] Gera o QR Code de identificação do projeto',
+  })
+  async gerarQrCode(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    console.log('🔹 [gerarQrCode] role recebido:', role, '| tipo:', typeof role);
+    if (role !== 'coordenador') {
+      throw new ForbiddenException(
+        'Apenas coordenadores podem gerar o QR Code do projeto.',
+      );
+    }
+    return this.projetosService.gerarQrCode(id, userId);
   }
 
 }

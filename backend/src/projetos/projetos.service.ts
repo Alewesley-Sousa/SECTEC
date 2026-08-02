@@ -17,6 +17,9 @@ import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { ProjetoAluno } from './entities/projeto-aluno.entity';
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 import { Projeto } from './entities/projeto.entity';
+import PDFDocument from 'pdfkit';
+import * as QRCode from 'qrcode';
+import { GerarPdfDto } from '../pdf/dto/gerar-pdf.dto';
 
 @Injectable()
 export class ProjetosService {
@@ -1290,6 +1293,389 @@ export class ProjetosService {
         limit,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  // =========================================================================
+  // QR CODE — LISTAGEM E GERAÇÃO
+  // =========================================================================
+
+  /**
+   * Retorna, paginados, os projetos que possuem pelo menos um material com
+   * status "aprovado". Suporta busca por título/ID, filtro por evento,
+   * eixo temático e orientador.
+   */
+
+  // =========================================================================
+  // GERAÇÃO DE PDF — PLACAS DE IDENTIFICAÇÃO COM QR CODE
+  // =========================================================================
+
+  async gerarPdfIdentificacao(dto: GerarPdfDto): Promise<{
+    mensagem: string;
+    arquivo: string;
+    total_projetos_gerados: number;
+    projetos_ignorados: Array<{ id: number; motivo: string }>;
+  }> {
+    const projetosIgnorados: Array<{ id: number; motivo: string }> = [];
+    let projetosValidos: Projeto[] = [];
+
+    if (dto.modo === 'individual') {
+      if (!dto.projetos || dto.projetos.length === 0) {
+        throw new BadRequestException(
+          'Informe ao menos um ID de projeto no modo individual.',
+        );
+      }
+
+      const projetos = await this.projetoRepository.find({
+        where: { id: In(dto.projetos) },
+        relations: {
+          alunoAutor: true,
+          projetoAlunos: { aluno: true },
+          orientadores: { orientador: true },
+          materiais: true,
+        },
+      });
+
+      const encontradosIds = new Set(projetos.map((p) => p.id));
+      for (const id of dto.projetos) {
+        if (!encontradosIds.has(id)) {
+          projetosIgnorados.push({ id, motivo: 'projeto nao encontrado' });
+        }
+      }
+
+      for (const projeto of projetos) {
+        const temAprovado = (projeto.materiais ?? []).some(
+          (m) => m.status === 'aprovado',
+        );
+        if (temAprovado) {
+          projetosValidos.push(projeto);
+        } else {
+          projetosIgnorados.push({
+            id: projeto.id,
+            motivo: 'nao possui material aprovado',
+          });
+        }
+      }
+    } else {
+      if (!dto.turma?.trim()) {
+        throw new BadRequestException('Informe o campo turma no modo filtro.');
+      }
+
+      const match = dto.turma.trim().match(/^(\d+)\s+(.+)$/);
+      if (!match) {
+        throw new BadRequestException(
+          'Formato de turma invalido. Use o padrao "1 informatica", "2 contabilidade", etc.',
+        );
+      }
+      const [, anoStr, turmaTexto] = match;
+
+      projetosValidos = await this.projetoRepository
+        .createQueryBuilder('projeto')
+        .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
+        .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
+        .leftJoinAndSelect('projetoAlunos.aluno', 'aluno')
+        .leftJoinAndSelect(
+          'projeto.orientadores',
+          'projetoOrientador',
+          "projetoOrientador.status = 'aceito'",
+        )
+        .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
+        .where('alunoAutor.ano = :ano', { ano: anoStr })
+        .andWhere('alunoAutor.turma LIKE :turma', { turma: `%${turmaTexto}%` })
+        .andWhere((qbSub) => {
+          const sub = qbSub
+            .subQuery()
+            .select('1')
+            .from('projeto_materiais', 'material')
+            .where('material.projeto_id = projeto.id')
+            .andWhere("material.status = 'aprovado'")
+            .getQuery();
+          return `EXISTS (${sub})`;
+        })
+        .getMany();
+
+      if (projetosValidos.length === 0) {
+        throw new NotFoundException(
+          `Nenhum projeto aprovado encontrado para a turma "${dto.turma}".`,
+        );
+      }
+    }
+
+    if (projetosValidos.length === 0) {
+      throw new NotFoundException(
+        'Nenhum projeto valido foi encontrado para gerar o PDF.',
+      );
+    }
+
+    const pdfBuffer = await this.montarPdfIdentificacao(projetosValidos);
+
+    return {
+      mensagem: 'PDF gerado com sucesso',
+      arquivo: pdfBuffer.toString('base64'),
+      total_projetos_gerados: projetosValidos.length,
+      projetos_ignorados: projetosIgnorados,
+    };
+  }
+
+  private async gerarQrCodeBuffer(url: string): Promise<Buffer> {
+    return QRCode.toBuffer(url, { width: 200, margin: 1 });
+  }
+
+  private async montarPdfIdentificacao(projetos: Projeto[]): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 0 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const halfHeight = pageHeight / 2;
+
+      const processarTudo = async () => {
+        for (let i = 0; i < projetos.length; i++) {
+          const posicaoNaPagina = i % 2; // 0 = metade superior, 1 = metade inferior
+
+          if (i > 0 && posicaoNaPagina === 0) {
+            doc.addPage();
+          }
+
+          const offsetY = posicaoNaPagina === 0 ? 0 : halfHeight;
+          await this.desenharBlocoProjeto(
+            doc,
+            projetos[i],
+            offsetY,
+            pageWidth,
+            halfHeight,
+          );
+
+          if (posicaoNaPagina === 0) {
+            doc
+              .moveTo(24, halfHeight)
+              .lineTo(pageWidth - 24, halfHeight)
+              .dash(4, { space: 4 })
+              .strokeColor('#94a3b8')
+              .stroke()
+              .undash();
+          }
+        }
+
+        doc.end();
+      };
+
+      processarTudo().catch(reject);
+    });
+  }
+
+  private async desenharBlocoProjeto(
+    doc: PDFKit.PDFDocument,
+    projeto: Projeto,
+    offsetY: number,
+    pageWidth: number,
+    blocoAltura: number,
+  ) {
+    const margem = 32;
+    const qrTamanho = 130;
+    const orientadorAceito = projeto.orientadores?.[0]?.orientador;
+    const anoTurma = projeto.alunoAutor
+      ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
+      : '';
+
+    const integrantes = [
+      projeto.alunoAutor?.nome,
+      ...(projeto.projetoAlunos ?? []).map((pa) => pa.aluno?.nome),
+    ].filter(Boolean) as string[];
+
+    const url = `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${projeto.id}`;
+    const qrBuffer = await this.gerarQrCodeBuffer(url);
+
+    const topoBloco = offsetY + margem;
+
+    doc.image(qrBuffer, margem, topoBloco, {
+      width: qrTamanho,
+      height: qrTamanho,
+    });
+
+    const textoX = margem + qrTamanho + 20;
+    const textoLargura = pageWidth - textoX - margem;
+
+    doc
+      .fontSize(16)
+      .fillColor('#0f172a')
+      .font('Helvetica-Bold')
+      .text(projeto.titulo, textoX, topoBloco, { width: textoLargura });
+
+    doc
+      .fontSize(11)
+      .fillColor('#334155')
+      .font('Helvetica')
+      .text(
+        `Orientador: ${orientadorAceito?.nome ?? 'Nao definido'}`,
+        textoX,
+        topoBloco + 28,
+        {
+          width: textoLargura,
+        },
+      )
+      .text(anoTurma, textoX, topoBloco + 44, { width: textoLargura });
+
+    const caixaY = topoBloco + 70;
+    const caixaAltura = Math.max(
+      blocoAltura - margem - (caixaY - offsetY) - 10,
+      60,
+    );
+
+    doc
+      .roundedRect(textoX, caixaY, textoLargura, caixaAltura, 6)
+      .strokeColor('#cbd5e1')
+      .stroke();
+
+    doc
+      .fontSize(9)
+      .fillColor('#475569')
+      .font('Helvetica-Bold')
+      .text('Integrantes da equipe', textoX + 10, caixaY + 8);
+
+    doc
+      .fontSize(9)
+      .font('Helvetica')
+      .fillColor('#334155')
+      .text(integrantes.join('\n'), textoX + 10, caixaY + 22, {
+        width: textoLargura - 20,
+        lineGap: 2,
+      });
+  }
+
+  async findComMateriaisAprovados(filtros: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    evento?: string;
+    eixo_tematico?: string;
+    orientador?: string;
+  }): Promise<{ projetos: any[]; total: number; page: number; limit: number }> {
+    const page = Number(filtros.page) > 0 ? Number(filtros.page) : 1;
+    const limit = Number(filtros.limit) > 0 ? Number(filtros.limit) : 20;
+
+    const qb = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.evento', 'evento')
+      .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
+      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect(
+        'projeto.orientadores',
+        'projetoOrientador',
+        "projetoOrientador.status = 'aceito'",
+      )
+      .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
+      // Só entram projetos com pelo menos 1 material aprovado (EXISTS evita duplicar linhas)
+      .where((qbSub) => {
+        const sub = qbSub
+          .subQuery()
+          .select('1')
+          .from('projeto_materiais', 'material')
+          .where('material.projeto_id = projeto.id')
+          .andWhere("material.status = 'aprovado'")
+          .getQuery();
+        return `EXISTS (${sub})`;
+      });
+
+    if (filtros.search?.trim()) {
+      const termo = filtros.search.trim();
+      const idBusca = Number(termo);
+      if (Number.isFinite(idBusca) && String(idBusca) === termo) {
+        qb.andWhere('projeto.id = :idBusca', { idBusca });
+      } else {
+        qb.andWhere('projeto.titulo LIKE :termo', { termo: `%${termo}%` });
+      }
+    }
+
+    if (filtros.evento) {
+      qb.andWhere('evento.id = :eventoId', {
+        eventoId: Number(filtros.evento),
+      });
+    }
+
+    if (filtros.eixo_tematico?.trim()) {
+      qb.andWhere('tema.nome = :eixo', { eixo: filtros.eixo_tematico.trim() });
+    }
+
+    if (filtros.orientador?.trim()) {
+      const nomes = filtros.orientador
+        .split(',')
+        .map((n) => n.trim())
+        .filter(Boolean);
+      if (nomes.length > 0) {
+        qb.andWhere('orientador.nome IN (:...nomes)', { nomes });
+      }
+    }
+
+    qb.orderBy('projeto.id', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [projetos, total] = await qb.getManyAndCount();
+
+    const projetosMapeados = projetos.map((projeto) => {
+      const orientadorAceito = projeto.orientadores?.[0]?.orientador;
+      return {
+        id: projeto.id,
+        titulo: projeto.titulo,
+        turma: projeto.alunoAutor
+          ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
+          : '',
+        orientador: orientadorAceito?.nome ?? 'Sem orientador',
+        qrcode: Boolean(projeto.qrcodeGerado),
+        eixo_tematico: projeto.tema?.nome ?? '',
+        evento: projeto.evento?.titulo ?? String(projeto.evento?.id ?? ''),
+      };
+    });
+
+    return { projetos: projetosMapeados, total, page, limit };
+  }
+
+  /**
+   * Marca um projeto como "QR Code gerado". Só permite gerar se o projeto
+   * tiver pelo menos um material aprovado (mesma regra da listagem).
+   */
+  async gerarQrCode(
+    id: number,
+    userId: number,
+  ): Promise<{ id: number; qrcode: boolean; url: string }> {
+    const projeto = await this.projetoRepository.findOne({
+      where: { id },
+      relations: ['materiais'],
+    });
+
+    if (!projeto) {
+      throw new NotFoundException(`Projeto #${id} nao encontrado.`);
+    }
+
+    const possuiMaterialAprovado = (projeto.materiais ?? []).some(
+      (material) => material.status === 'aprovado',
+    );
+
+    if (!possuiMaterialAprovado) {
+      throw new BadRequestException(
+        'Este projeto nao possui nenhum material aprovado. Nao e possivel gerar o QR Code.',
+      );
+    }
+
+    projeto.qrcodeGerado = true;
+    await this.projetoRepository.save(projeto);
+
+    await this.auditoriaService.registrar(
+      userId,
+      'PROJETO_QRCODE_GERADO',
+      `QR Code gerado para o projeto #${id}.`,
+      id,
+    );
+
+    return {
+      id: projeto.id,
+      qrcode: true,
+      url: `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${id}`,
     };
   }
 }

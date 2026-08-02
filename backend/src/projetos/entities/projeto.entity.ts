@@ -51,9 +51,11 @@ export class Projeto {
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
-  
-  
-    // 3. Adicionamos a relação inversa para o Projeto ter acesso à lista de PDFs dele
+
+  @Column({ name: 'qrcode_gerado', type: 'boolean', default: false })
+  qrcodeGerado!: boolean;
+
+  // 3. Adicionamos a relação inversa para o Projeto ter acesso à lista de PDFs dele
   @OneToMany(() => ProjectFile, (projectFile) => projectFile.projeto)
   arquivos!: ProjectFile[];
 
