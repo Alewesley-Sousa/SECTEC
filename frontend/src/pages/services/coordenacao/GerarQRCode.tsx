@@ -43,8 +43,9 @@ type ApiProjetoLike = Partial<Projeto> & {
 
 type Evento = {
   id: number | string;
-  nome: string;
+  titulo: string;          // ✅ igual à resposta da API
   vigente?: boolean;
+  temas?: { id: number; nome: string }[];
 };
 
 type Filtros = {
@@ -97,42 +98,81 @@ function GerarQRCode() {
   const [erro, setErro] = useState<string | null>(null);
   const [gerandoId, setGerandoId] = useState<number | null>(null);
   const [selecionado, setSelecionado] = useState<Projeto | null>(null);
+  const [gerandoTodos, setGerandoTodos] = useState(false);
+  const [progresso, setProgresso] = useState({ atual: 0, total: 0 });
 
-  // -- Carrega evento vigente + lista de eventos (para o filtro) -----------
+  // -- Carrega eventos e eixos temáticos conforme o evento selecionado ------
   useEffect(() => {
     (async () => {
+      // 1. Busca o evento vigente (já pré‑seleciona no filtro)
+      let vigenteId = '';
       try {
         const vigente = await apiRequest<Evento>('/evento/atual/vigente');
-        setFiltros((atual) => ({ ...atual, evento: String(vigente?.id ?? '') }));
+        if (vigente?.id) {
+          vigenteId = String(vigente.id);
+          // Adiciona o vigente à lista, se ainda não estiver
+          setEventos((prev) => {
+            const existe = prev.some((ev) => String(ev.id) === vigenteId);
+            return existe ? prev : [vigente, ...prev];
+          });
+        }
       } catch {
-        // Sem evento vigente configurado — segue sem pré-selecionar.
+        // sem vigente
       }
 
+      // 2. Busca todos os eventos
       try {
         const lista = await apiRequest<Evento[]>('/evento');
-        setEventos(Array.isArray(lista) ? lista : []);
+        const listaNormalizada = (Array.isArray(lista) ? lista : []).map((ev) => ({
+          ...ev,
+          titulo: ev.titulo || (ev as any).nome || 'Evento sem título',
+        }));
+        setEventos(listaNormalizada);
       } catch {
-        setEventos([]);
+        // mantém o que já tem (pelo menos o vigente)
+      }
+
+      // 3. Define o filtro de evento como o vigente (se existir)
+      if (vigenteId) {
+        setFiltros((atual) => ({ ...atual, evento: vigenteId }));
       }
     })();
   }, []);
 
-  // -- Carrega eixos temáticos disponíveis para o evento selecionado -------
+  // -- Atualiza os eixos temáticos de acordo com o evento selecionado --------
   useEffect(() => {
-    (async () => {
-      try {
-        const params = new URLSearchParams();
-        if (filtros.evento && !isNaN(Number(filtros.evento))) {
-          params.set('evento', filtros.evento);
+    if (!filtros.evento) {
+      setEixos([]);
+      return;
+    }
+
+    // Procura o evento na lista já carregada
+    const eventoSelecionado = eventos.find((ev) => String(ev.id) === filtros.evento);
+    if (eventoSelecionado?.temas && eventoSelecionado.temas.length > 0) {
+      // Usa os temas já disponíveis
+      setEixos(eventoSelecionado.temas.map((t) => t.nome));
+    } else {
+      // Busca detalhes do evento (caso a lista não inclua temas)
+      (async () => {
+        try {
+          const detalhe = await apiRequest<Evento>(`/evento/${filtros.evento}`);
+          if (detalhe?.temas) {
+            setEixos(detalhe.temas.map((t) => t.nome));
+            // Atualiza também o cache local no array de eventos
+            setEventos((prev) =>
+              prev.map((ev) =>
+                String(ev.id) === filtros.evento ? { ...ev, temas: detalhe.temas } : ev
+              )
+            );
+          } else {
+            setEixos([]);
+          }
+        } catch {
+          setEixos([]);
         }
-        const query = params.toString() ? `?${params.toString()}` : '';
-        const lista = await apiRequest<string[]>(`/relatorio/eixos-tematicos${query}`);
-        setEixos(Array.isArray(lista) ? lista : []);
-      } catch {
-        setEixos([]);
-      }
-    })();
-  }, [filtros.evento]);
+      })();
+    }
+  }, [filtros.evento, eventos]);
 
   // -- Carrega projetos com material aprovado -------------------------------
   const fetchProjetos = useCallback(async () => {
@@ -177,6 +217,27 @@ function GerarQRCode() {
     setFiltros((atual) => ({ ...atual, [campo]: valor }));
   };
 
+  /**
+   * Tenta gerar o QR Code de um projeto específico e retorna true/false.
+   * Atualiza o estado local do projeto se bem-sucedido.
+   */
+  const gerarQrCodeProjeto = async (projeto: Projeto): Promise<boolean> => {
+    try {
+      // TODO(back): endpoint ainda não implementado — POST /projetos/:id/gerar-qrcode
+      await apiRequest(`/projetos/${projeto.id}/gerar-qrcode`, { method: 'POST' });
+
+      setProjetos((atual) =>
+        atual.map((p) => (p.id === projeto.id ? { ...p, qrcode: true } : p))
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * Gera QR Code individual (com confirmação Swal).
+   */
   const handleGerarQrCode = async (projeto: Projeto) => {
     const confirmar = await Swal.fire({
       title: 'Gerar QR Code?',
@@ -191,27 +252,75 @@ function GerarQRCode() {
     if (!confirmar.isConfirmed) return;
 
     setGerandoId(projeto.id);
-    try {
-      // TODO(back): endpoint ainda não implementado — POST /projetos/:id/gerar-qrcode
-      await apiRequest(`/projetos/${projeto.id}/gerar-qrcode`, { method: 'POST' });
+    const sucesso = await gerarQrCodeProjeto(projeto);
+    setGerandoId(null);
 
-      setProjetos((atual) =>
-        atual.map((p) => (p.id === projeto.id ? { ...p, qrcode: true } : p))
-      );
+    if (sucesso) {
       setSelecionado((atual) => (atual?.id === projeto.id ? { ...atual, qrcode: true } : atual));
-
       await Swal.fire({
         title: 'QR Code gerado!',
         icon: 'success',
         confirmButtonColor: '#047857',
       });
-    } catch (err) {
-      const mensagem =
-        err instanceof ApiError ? err.message : 'Não foi possível gerar o QR Code.';
-      await Swal.fire({ title: 'Erro', text: mensagem, icon: 'error' });
-    } finally {
-      setGerandoId(null);
+    } else {
+      await Swal.fire({
+        title: 'Erro',
+        text: 'Não foi possível gerar o QR Code.',
+        icon: 'error',
+      });
     }
+  };
+
+  const handleGerarTodos = async () => {
+    const pendentes = projetos.filter((p) => !p.qrcode);
+    if (pendentes.length === 0) {
+      await Swal.fire({
+        title: 'Nada pendente',
+        text: 'Todos os projetos já possuem QR Code gerado.',
+        icon: 'info',
+        confirmButtonColor: '#047857',
+      });
+      return;
+    }
+
+    const confirmar = await Swal.fire({
+      title: 'Gerar todos os QR Codes?',
+      text: `Serão processados ${pendentes.length} projeto(s) pendente(s).`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Iniciar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#047857',
+    });
+
+    if (!confirmar.isConfirmed) return;
+
+    setGerandoTodos(true);
+    setProgresso({ atual: 0, total: pendentes.length });
+
+    let sucessos = 0;
+    let falhas = 0;
+
+    for (const projeto of pendentes) {
+      const ok = await gerarQrCodeProjeto(projeto);
+      if (ok) sucessos++;
+      else falhas++;
+      setProgresso((prev) => ({ ...prev, atual: prev.atual + 1 }));
+    }
+
+    setGerandoTodos(false);
+
+    await Swal.fire({
+      title: 'Processo concluído',
+      html: `
+      <div class="text-sm text-left space-y-1">
+        <p><strong>${sucessos}</strong> QR Code(s) gerado(s) com sucesso.</p>
+        ${falhas > 0 ? `<p class="text-red-600"><strong>${falhas}</strong> falha(s).</p>` : ''}
+      </div>
+    `,
+      icon: falhas === 0 ? 'success' : 'warning',
+      confirmButtonColor: '#047857',
+    });
   };
 
   return (
@@ -249,7 +358,7 @@ function GerarQRCode() {
             <input
               type="text"
               value={filtros.search}
-              placeholder="Pesquisar por título ou orientador"
+              placeholder="Pesquisar por título"
               onChange={(e) => handleFiltroChange('search', e.target.value)}
               className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
             />
@@ -263,7 +372,7 @@ function GerarQRCode() {
             {eventos.length === 0 && <option value="">Evento atual</option>}
             {eventos.map((ev) => (
               <option key={ev.id} value={String(ev.id)}>
-                {ev.nome}
+                {ev.titulo}
               </option>
             ))}
           </select>
@@ -281,15 +390,51 @@ function GerarQRCode() {
             ))}
           </select>
 
-          <button
-            type="button"
-            onClick={() => void fetchProjetos()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-800"
-          >
-            <RefreshCw size={15} />
-            Atualizar
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void fetchProjetos()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-800"
+            >
+              <RefreshCw size={15} />
+              Atualizar
+            </button>
+
+            <button
+              type="button"
+              disabled={gerandoTodos || carregando || pendentes === 0}
+              onClick={() => void handleGerarTodos()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-black text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {gerandoTodos ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  {progresso.atual}/{progresso.total}
+                </>
+              ) : (
+                <>
+                  <QrCode size={15} />
+                  Gerar Todos
+                </>
+              )}
+            </button>
+          </div>
         </section>
+
+        {gerandoTodos && (
+          <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-3">
+            <div className="flex items-center justify-between text-sm font-bold text-indigo-900 mb-2">
+              <span>Gerando QR Codes...</span>
+              <span>{progresso.atual} de {progresso.total}</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-indigo-100">
+              <div
+                className="h-2 rounded-full bg-indigo-600 transition-all duration-300"
+                style={{ width: `${(progresso.atual / progresso.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Tabela */}
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -334,8 +479,8 @@ function GerarQRCode() {
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black ${projeto.qrcode
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-red-100 text-red-600'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-red-100 text-red-600'
                           }`}
                       >
                         <span

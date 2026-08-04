@@ -1138,22 +1138,27 @@ function FiltroTemaOrientador({
   if (temas.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Filtro por tema</p>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          Aparecem aqui somente os temas que ficaram marcados para o orientador.
+    <div className="flex flex-row items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="min-w-0 shrink">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+          Filtrar por tema
+        </p>
+        <p className="mt-0.5 hidden text-sm font-medium text-slate-500 sm:block">
+          Exibindo apenas os temas que você orienta
         </p>
       </div>
+
       <select
         value={String(temaAtivoId)}
         onChange={(event) => {
           const value = event.target.value;
           onChange(value === "todos" ? "todos" : Number(value));
         }}
-        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100 sm:w-72"
+        className="h-10 w-full max-w-[180px] rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100 sm:w-72 sm:max-w-none shrink-0"
       >
-        <option value="todos">Todos ({contagemPorTema("todos")})</option>
+        <option value="todos">
+          Todos os temas ({contagemPorTema("todos")})
+        </option>
         {temas.map((tema) => (
           <option key={tema.id} value={tema.id}>
             {tema.nome} ({contagemPorTema(tema.id)})
