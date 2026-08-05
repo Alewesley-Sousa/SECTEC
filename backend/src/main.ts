@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { UsersSeed } from './users/users.seed';
@@ -17,6 +18,8 @@ async function bootstrap() {
   const seedService = app.select(UsersModule).get(UsersSeed);
 
   app.enableCors();
+
+  app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
   const config = new DocumentBuilder()
     .setTitle('API SECTEC')

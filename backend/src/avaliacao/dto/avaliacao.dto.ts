@@ -1,31 +1,29 @@
-import { IsNotEmpty, IsNumber, Max, Min } from 'class-validator';
+import { IsNumber, Min, Max } from 'class-validator';
 
-export class AvaliacaoDto {
-  @IsNotEmpty()
+export class CreateAvaliacaoDto {
   @IsNumber()
-  projetoId!: number;
-
-  @IsNotEmpty()
-  @IsNumber()
-  avaliadorId!: number;
+  projetoId: number;
 
   @IsNumber()
-  @Min(0)
-  @Max(10)
-  criterio1!: number;
+  avaliadorId: number;
+
+  @IsNumber()
+  @Min(0, { message: 'A nota do critério 1 deve ser no mínimo 0.' })
+  @Max(10, { message: 'A nota do critério 1 deve ser no máximo 10.' })
+  criterio1: number;
 
   @IsNumber()
   @Min(0)
   @Max(10)
-  criterio2!: number;
+  criterio2: number;
 
   @IsNumber()
   @Min(0)
   @Max(10)
-  criterio3!: number;
+  criterio3: number;
 
   @IsNumber()
   @Min(0)
   @Max(10)
-  criterio4!: number;
+  criterio4: number;
 }
