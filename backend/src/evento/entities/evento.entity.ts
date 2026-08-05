@@ -71,6 +71,12 @@ prazoFinal!: Date;
   })
   status!: EventoStatus;
 
+  @Column({ type: 'int', nullable: true })
+  min_projetos_por_avaliador!: number;
+
+  @Column({ type: 'int', nullable: true })
+  max_projetos_por_avaliador!: number;
+
   // Mantemos datetime para auditoria (saber o segundo exato da criação)
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
