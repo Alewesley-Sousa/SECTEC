@@ -76,7 +76,7 @@ export class AvaliacaoService {
 
     // Busca todos os projetos do evento
     const projetos = await this.projetoRepository.find({
-      where: { eventoId: eventoId },
+      where: { evento: { id: eventoId } },
     });
 
     if (avaliadores.length === 0 || projetos.length === 0) {
