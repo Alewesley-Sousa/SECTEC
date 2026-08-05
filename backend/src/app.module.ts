@@ -18,6 +18,7 @@ import { OrientacoesModule } from './orientacoes/orientacoes.module';
 import { MateriaisModule } from './materiais/materiais.module';
 import { RelatorioModule } from './relatorio/relatorio.module';
 import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
+import { AvaliacaoModule } from './avaliacao/avaliacao.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
     MateriaisModule,
     RelatorioModule,
     RelatorioAlunoModule,
+    AvaliacaoModule,
   ],
   controllers: [AppController],
   providers: [AppService],
