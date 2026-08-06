@@ -18,6 +18,9 @@ import DashboardOrientador, {
   TurmasOrientador,
 } from './pages/DashboardOrientador';
 
+// Componente da Tarefa 5
+import PainelConfiguracaoCoordenacao from './componentes/configurações/PainelConfiguracaoCoordenacao';
+
 function App() {
   const [auth, setAuth] = useState(() => ({
     token: localStorage.getItem('token'),
@@ -206,6 +209,17 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Rota da Tarefa 5 protegida para a coordenação */}
+        <Route
+          path="/dashboard/coordenacao/distribuicao-projetos"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador"]}>
+              <PainelConfiguracaoCoordenacao />
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
