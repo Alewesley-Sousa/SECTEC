@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryRunner, Repository, Between, In } from 'typeorm';
 
+
 import { TipoMaterial } from '../materiais/entities/projeto-material.entity';
 import { AuditoriaService } from 'src/auditoria/auditoria.service';
 import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
@@ -45,6 +46,12 @@ export class ProjetosService {
     private readonly dataSource: DataSource,
     private readonly auditoriaService: AuditoriaService,
   ) { }
+
+  private static readonly ORDEM_CURSOS: Record<string, number> = {
+    'Informática': 1,
+    'Contabilidade': 2,
+    'Enfermagem': 3,
+  };
 
   // =========================================================================
   // MÉTODO DE CRIAÇÃO (CORE)
@@ -1407,6 +1414,24 @@ export class ProjetosService {
       );
     }
 
+    const ordemCursos: Record<string, number> = {
+      'informatica': 1,
+      'contabilidade': 2,
+      'enfermagem': 3,
+    };
+
+    projetosValidos.sort((a, b) => {
+      const cursoA = (a.alunoAutor?.turma ?? '').toLowerCase();
+      const cursoB = (b.alunoAutor?.turma ?? '').toLowerCase();
+      const ordemA = ordemCursos[cursoA] ?? 999;
+      const ordemB = ordemCursos[cursoB] ?? 999;
+      if (ordemA !== ordemB) return ordemA - ordemB;
+
+      const anoA = a.alunoAutor?.ano ?? 0;
+      const anoB = b.alunoAutor?.ano ?? 0;
+      return anoA - anoB;
+    });
+
     const pdfBuffer = await this.montarPdfIdentificacao(projetosValidos);
 
     return {
@@ -1429,36 +1454,53 @@ export class ProjetosService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const pageWidth = doc.page.width;
-      const pageHeight = doc.page.height;
-      const halfHeight = pageHeight / 2;
+      const pageWidth = doc.page.width;   // ~595 pt (A4)
+      const pageHeight = doc.page.height; // ~842 pt
+      const quadrantWidth = pageWidth / 2;
+      const quadrantHeight = pageHeight / 2;
 
       const processarTudo = async () => {
         for (let i = 0; i < projetos.length; i++) {
-          const posicaoNaPagina = i % 2; // 0 = metade superior, 1 = metade inferior
+          const posicaoNaPagina = i % 4; // 0 = sup. esq., 1 = sup. dir., 2 = inf. esq., 3 = inf. dir.
 
+          // Nova página a cada 4 projetos
           if (i > 0 && posicaoNaPagina === 0) {
             doc.addPage();
           }
 
-          const offsetY = posicaoNaPagina === 0 ? 0 : halfHeight;
-          await this.desenharBlocoProjeto(
-            doc,
-            projetos[i],
-            offsetY,
-            pageWidth,
-            halfHeight,
-          );
-
+          // Desenhar linhas divisórias (cruz central) na primeira vez que a página é usada
           if (posicaoNaPagina === 0) {
-            doc
-              .moveTo(24, halfHeight)
-              .lineTo(pageWidth - 24, halfHeight)
-              .dash(4, { space: 4 })
+            // Linha vertical central (tracejada)
+            doc.moveTo(pageWidth / 2, 24)
+              .lineTo(pageWidth / 2, pageHeight - 24)
+              .lineWidth(0.75)
               .strokeColor('#94a3b8')
+              .dash(4, { space: 4 })
+              .stroke()
+              .undash();
+
+            // Linha horizontal central (tracejada)
+            doc.moveTo(24, pageHeight / 2)
+              .lineTo(pageWidth - 24, pageHeight / 2)
+              .lineWidth(0.75)
+              .strokeColor('#94a3b8')
+              .dash(4, { space: 4 })
               .stroke()
               .undash();
           }
+
+          // Calcular deslocamentos do quadrante
+          const offsetX = (posicaoNaPagina % 2) * quadrantWidth;
+          const offsetY = Math.floor(posicaoNaPagina / 2) * quadrantHeight;
+
+          await this.desenharBlocoProjeto(
+            doc,
+            projetos[i],
+            offsetX,
+            offsetY,
+            quadrantWidth,
+            quadrantHeight,
+          );
         }
 
         doc.end();
@@ -1468,82 +1510,130 @@ export class ProjetosService {
     });
   }
 
+  // -----------------------------------------------------------------
+  // Helper: primeiro nome + último sobrenome
+  // -----------------------------------------------------------------
+  private abreviarNome(nome: string): string {
+    const partes = nome.trim().split(/\s+/);
+    if (partes.length <= 2) return nome;
+    return `${partes[0]} ${partes[partes.length - 1]}`;
+  }
+
+  // -----------------------------------------------------------------
+  // Desenho de cada bloco de projeto (2 por página A4)
+  // -----------------------------------------------------------------
   private async desenharBlocoProjeto(
     doc: PDFKit.PDFDocument,
     projeto: Projeto,
+    offsetX: number,
     offsetY: number,
-    pageWidth: number,
+    blocoLargura: number,
     blocoAltura: number,
   ) {
-    const margem = 32;
-    const qrTamanho = 130;
     const orientadorAceito = projeto.orientadores?.[0]?.orientador;
     const anoTurma = projeto.alunoAutor
       ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
       : '';
+    const nomeTema = projeto.tema?.nome ?? '';
 
     const integrantes = [
       projeto.alunoAutor?.nome,
       ...(projeto.projetoAlunos ?? []).map((pa) => pa.aluno?.nome),
-    ].filter(Boolean) as string[];
+    ]
+      .filter(Boolean)
+      .map((nome) => this.abreviarNome(nome as string)) as string[];
 
     const url = `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${projeto.id}`;
     const qrBuffer = await this.gerarQrCodeBuffer(url);
 
-    const topoBloco = offsetY + margem;
+    // ---- Geometria do quadrante ----
+    const margem = 20;
+    const blocoX = offsetX + margem;
+    const blocoY = offsetY + margem;
+    const blocoLarguraUtil = blocoLargura - margem * 2;
+    const blocoAlturaUtil = blocoAltura - margem * 2;
 
-    doc.image(qrBuffer, margem, topoBloco, {
-      width: qrTamanho,
-      height: qrTamanho,
-    });
-
-    const textoX = margem + qrTamanho + 20;
-    const textoLargura = pageWidth - textoX - margem;
-
-    doc
-      .fontSize(16)
-      .fillColor('#0f172a')
-      .font('Helvetica-Bold')
-      .text(projeto.titulo, textoX, topoBloco, { width: textoLargura });
-
-    doc
-      .fontSize(11)
-      .fillColor('#334155')
-      .font('Helvetica')
-      .text(
-        `Orientador: ${orientadorAceito?.nome ?? 'Nao definido'}`,
-        textoX,
-        topoBloco + 28,
-        {
-          width: textoLargura,
-        },
-      )
-      .text(anoTurma, textoX, topoBloco + 44, { width: textoLargura });
-
-    const caixaY = topoBloco + 70;
-    const caixaAltura = Math.max(
-      blocoAltura - margem - (caixaY - offsetY) - 10,
-      60,
-    );
-
-    doc
-      .roundedRect(textoX, caixaY, textoLargura, caixaAltura, 6)
-      .strokeColor('#cbd5e1')
+    // ---- Borda fina do bloco ----
+    doc.roundedRect(blocoX, blocoY, blocoLarguraUtil, blocoAlturaUtil, 10)
+      .strokeColor('#000000')
+      .lineWidth(0.75)
       .stroke();
 
-    doc
-      .fontSize(9)
-      .fillColor('#475569')
-      .font('Helvetica-Bold')
-      .text('Integrantes da equipe', textoX + 10, caixaY + 8);
+    // ---- QR Code centralizado no topo ----
+    const qrTamanho = 100;
+    const qrX = blocoX + (blocoLarguraUtil - qrTamanho) / 2;
+    const qrY = blocoY + 16;
 
-    doc
-      .fontSize(9)
-      .font('Helvetica')
-      .fillColor('#334155')
-      .text(integrantes.join('\n'), textoX + 10, caixaY + 22, {
-        width: textoLargura - 20,
-        lineGap: 2,
+    doc.image(qrBuffer, qrX, qrY, { width: qrTamanho, height: qrTamanho });
+
+    // ---- Área de texto abaixo do QR ----
+    const textoX = blocoX + 14;
+    const textoLargura = blocoLarguraUtil - 28;
+    let textoY = qrY + qrTamanho + 12;
+
+    // Título (centralizado)
+    doc.fontSize(14).fillColor('#000000').font('Helvetica-Bold')
+      .text(projeto.titulo, textoX, textoY, {
+        width: textoLargura,
+        lineGap: 3,
+        align: 'center',
+      });
+
+    const alturaTitulo = doc.heightOfString(projeto.titulo, { width: textoLargura });
+    textoY += alturaTitulo + 8;
+
+    // Linha tracejada separadora
+    doc.moveTo(textoX, textoY)
+      .lineTo(textoX + textoLargura, textoY)
+      .lineWidth(0.5)
+      .strokeColor('#444444')
+      .dash(2, { space: 2 })
+      .stroke()
+      .undash();
+    textoY += 10;
+
+    // Informações (centralizadas)
+    doc.fontSize(10).fillColor('#000000');
+    const infoLinhas = [
+      `Orientador: ${orientadorAceito?.nome ?? 'Não definido'}`,
+      anoTurma,
+      nomeTema ? `Tema: ${nomeTema}` : null,
+    ].filter(Boolean) as string[];
+
+    for (const linha of infoLinhas) {
+      doc.font('Helvetica').text(linha, textoX, textoY, {
+        width: textoLargura,
+        align: 'center',
+      });
+      textoY += 16;
+    }
+
+    // ---- Caixa de integrantes com altura FIXA para 7 alunos ----
+    const alturaCaixa = 120; // altura fixa suficiente para 7 nomes abreviados
+    const caixaY = blocoY + blocoAlturaUtil - 20 - alturaCaixa; // 20 pt de margem inferior
+
+    // Se o conteúdo textual invadiu a área da caixa, forçamos a caixa a começar logo abaixo
+    const inicioEfetivoCaixa = Math.max(textoY + 8, caixaY);
+    const alturaEfetiva = blocoY + blocoAlturaUtil - 20 - inicioEfetivoCaixa;
+
+    doc.roundedRect(textoX, inicioEfetivoCaixa, textoLargura, alturaEfetiva, 4)
+      .strokeColor('#777777')
+      .lineWidth(0.5)
+      .stroke();
+
+    // Título da equipe
+    doc.fontSize(8).fillColor('#000000').font('Helvetica-Bold')
+      .text('Equipe:', textoX + 8, inicioEfetivoCaixa + 6, { width: textoLargura - 16 });
+
+    // Lista de integrantes
+    const membrosTexto = integrantes.map((nome) => `• ${nome}`).join('\n');
+
+    doc.fontSize(9).font('Helvetica')
+      .text(membrosTexto, textoX + 8, inicioEfetivoCaixa + 18, {
+        width: textoLargura - 16,
+        lineGap: 5,
+        height: alturaEfetiva - 24,
+        ellipsis: true,
       });
   }
 
