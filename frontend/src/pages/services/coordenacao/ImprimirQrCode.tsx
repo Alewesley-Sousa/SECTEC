@@ -6,13 +6,12 @@ import {
   Loader2,
   CheckSquare,
   Square,
-  Users,
   FileStack,
-  X,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { MainLayout } from '../../../componentes/SideBarUniversal';
 import { apiRequest, ApiError } from '../../../lib/api';
+import { Pagination } from '../../../componentes/PaginationUniversal'; // ajuste o caminho se necessário
 import type { UserRole } from '../../../helpes/InteligenciaSideBar';
 
 // ---------------------------------------------------------------------------
@@ -25,13 +24,22 @@ type Projeto = {
   turma: string;
   orientador: string;
   qrcode: boolean;
+  eixo_tematico?: string; // opcional, pode ser útil
+  evento?: string;
 };
 
 type ApiProjetoLike = Partial<Projeto> & { ID?: number; title?: string };
 
+type ProjetosPaginadosResponse = {
+  projetos: ApiProjetoLike[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
 type GerarPdfResponse = {
   mensagem: string;
-  arquivo: string; // base64 do PDF ou URL para download
+  arquivo: string;
   total_projetos_gerados: number;
   projetos_ignorados?: Array<{ id: number; motivo: string }>;
 };
@@ -48,9 +56,10 @@ const normalizeProjeto = (p: ApiProjetoLike | null | undefined): Projeto => ({
   turma: p?.turma ?? 'Sem turma',
   orientador: p?.orientador ?? 'Sem orientador',
   qrcode: Boolean(p?.qrcode),
+  eixo_tematico: (p as any)?.eixo_tematico,
+  evento: (p as any)?.evento,
 });
 
-/** Abre o PDF retornado (base64 ou URL) em uma nova aba, já disparando a impressão. */
 function abrirEImprimirPdf(arquivo: string) {
   let blobUrl = arquivo;
 
@@ -66,9 +75,30 @@ function abrirEImprimirPdf(arquivo: string) {
   }
 
   const janela = window.open(blobUrl, '_blank');
-  // Alguns navegadores precisam que o PDF termine de carregar antes do print().
   janela?.addEventListener('load', () => janela.print());
 }
+
+// ---------------------------------------------------------------------------
+// Constantes das turmas disponíveis e suas cores
+// ---------------------------------------------------------------------------
+
+const TURMAS = [
+  { value: 'Informática', label: 'Informática', cor: 'blue' },
+  { value: 'Contabilidade', label: 'Contabilidade', cor: 'pink' },
+  { value: 'Enfermagem', label: 'Enfermagem', cor: 'green' },
+] as const;
+
+const hoverBg: Record<string, string> = {
+  blue: 'hover:bg-blue-50',
+  pink: 'hover:bg-pink-50',
+  green: 'hover:bg-green-50',
+};
+
+const activeBg: Record<string, string> = {
+  blue: 'bg-blue-100 border-blue-300 text-blue-800',
+  pink: 'bg-pink-100 border-pink-300 text-pink-800',
+  green: 'bg-green-100 border-green-300 text-green-800',
+};
 
 // ---------------------------------------------------------------------------
 // Componente
@@ -80,12 +110,16 @@ function ImprimirQRCode() {
   const userRole = (localStorage.getItem('role') as UserRole) || 'coordenador';
 
   const [modo, setModo] = useState<Modo>('individual');
-
-  // -- Modo individual -------------------------------------------------------
   const [search, setSearch] = useState('');
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [carregando, setCarregando] = useState(true);
+
+  // Paginação
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(20); // valor padrão da API
+  const totalPages = Math.ceil(total / limit) || 1;
 
   // -- Modo filtro (turma) ----------------------------------------------------
   const [ano, setAno] = useState('1');
@@ -93,29 +127,51 @@ function ImprimirQRCode() {
 
   const [gerando, setGerando] = useState(false);
 
-  const buscarProjetos = useCallback(async (termo: string) => {
-    setCarregando(true);
-    try {
-      const params = new URLSearchParams({ page: '1', limit: '100' });
-      if (termo.trim()) params.set('search', termo.trim());
+  const buscarProjetos = useCallback(
+    async (termo: string, pagina: number) => {
+      setCarregando(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(pagina),
+          limit: String(limit),
+        });
+        if (termo.trim()) params.set('search', termo.trim());
 
-      const data = await apiRequest<Projeto[] | { projetos: Projeto[] }>(
-        `/projetos/com-materiais-aprovados?${params.toString()}`
-      );
-      const lista = Array.isArray(data) ? data : data.projetos ?? [];
-      setProjetos(lista.map(normalizeProjeto));
-    } catch {
-      setProjetos([]);
-    } finally {
-      setCarregando(false);
-    }
-  }, []);
+        const data = await apiRequest<ProjetosPaginadosResponse>(
+          `/projetos/com-materiais-aprovados?${params.toString()}`
+        );
 
+        // data é { projetos, total, page, limit }
+        const projetosNormalizados = (data.projetos ?? []).map(normalizeProjeto);
+        setProjetos(projetosNormalizados);
+        setTotal(data.total ?? 0);
+        // A página retornada pela API pode ser usada (confiável)
+        setPage(data.page ?? pagina);
+      } catch {
+        setProjetos([]);
+        setTotal(0);
+      } finally {
+        setCarregando(false);
+      }
+    },
+    [limit]
+  );
+
+  // Quando search muda, volta para a página 1 e busca
   useEffect(() => {
-    void buscarProjetos(search);
+    setPage(1);
+    void buscarProjetos(search, 1);
   }, [search, buscarProjetos]);
 
-  const todosSelecionados = projetos.length > 0 && selecionados.size === projetos.length;
+  // Quando page muda (exceto reset via search), busca a página solicitada
+  useEffect(() => {
+    if (page !== 1) {
+      void buscarProjetos(search, page);
+    }
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const todosSelecionados =
+    projetos.length > 0 && selecionados.size === projetos.length;
 
   const toggleSelecionado = (id: number) => {
     setSelecionados((atual) => {
@@ -187,7 +243,7 @@ function ImprimirQRCode() {
   const handleGerarPorTurma = () => {
     if (!turmaTexto.trim()) {
       void Swal.fire({
-        title: 'Informe a turma',
+        title: 'Selecione uma turma',
         icon: 'warning',
         confirmButtonColor: '#047857',
       });
@@ -197,7 +253,6 @@ function ImprimirQRCode() {
     void gerarPdf({ modo: 'filtro', turma }, `turma "${turma}"`);
   };
 
-  /** Busca TODOS os projetos com material aprovado (sem filtro) e gera o PDF de uma vez. */
   const handleImprimirTodos = async () => {
     const confirmar = await Swal.fire({
       title: 'Imprimir todos os QR Codes?',
@@ -212,10 +267,11 @@ function ImprimirQRCode() {
 
     setGerando(true);
     try {
-      const data = await apiRequest<Projeto[] | { projetos: Projeto[] }>(
+      // Busca todos sem limite (limit bem alto)
+      const data = await apiRequest<ProjetosPaginadosResponse>(
         '/projetos/com-materiais-aprovados?page=1&limit=1000'
       );
-      const lista = Array.isArray(data) ? data : data.projetos ?? [];
+      const lista = data.projetos ?? [];
       const ids = lista.map((p) => p.id ?? (p as ApiProjetoLike).ID ?? 0).filter(Boolean);
 
       if (ids.length === 0) {
@@ -360,6 +416,20 @@ function ImprimirQRCode() {
                 )}
               </div>
 
+              {/* Paginação */}
+              {projetos.length > 0 && (
+                <div className="mt-4">
+                  <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    onPageChange={(newPage) => setPage(newPage)}
+                    total={total}
+                    limit={limit}
+                    showInfo
+                  />
+                </div>
+              )}
+
               <div className="mt-4 flex items-center justify-between">
                 <span className="text-sm font-semibold text-slate-500">
                   {selecionados.size} projeto(s) selecionado(s)
@@ -376,6 +446,7 @@ function ImprimirQRCode() {
               </div>
             </motion.section>
           ) : (
+            // Modo filtro (turma) – sem alterações
             <motion.section
               key="filtro"
               initial={{ opacity: 0, y: 6 }}
@@ -406,21 +477,33 @@ function ImprimirQRCode() {
                   <label className="mb-1 block text-xs font-black uppercase tracking-wide text-slate-400">
                     Turma
                   </label>
-                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                    <Users size={16} className="text-slate-400" />
-                    <input
-                      type="text"
-                      value={turmaTexto}
-                      placeholder="ex: informatica, contabilidade"
-                      onChange={(e) => setTurmaTexto(e.target.value)}
-                      className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
-                    />
+                  <div className="flex flex-wrap gap-2">
+                    {TURMAS.map(({ value, label, cor }) => {
+                      const selecionada = turmaTexto === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setTurmaTexto(value)}
+                          className={`
+                            rounded-xl border px-4 py-2 text-sm font-bold transition
+                            ${
+                              selecionada
+                                ? `${activeBg[cor]} shadow-sm`
+                                : `border-slate-200 bg-white text-slate-600 ${hoverBg[cor]} hover:border-slate-300`
+                            }
+                          `}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  disabled={gerando}
+                  disabled={gerando || !turmaTexto}
                   onClick={handleGerarPorTurma}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-black text-white transition hover:bg-emerald-800 disabled:opacity-60"
                 >

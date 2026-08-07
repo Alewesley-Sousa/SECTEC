@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Pagination } from '../../../componentes/PaginationUniversal';
 import {
   Search,
   QrCode,
@@ -92,7 +93,7 @@ function GerarQRCode() {
   const [filtros, setFiltros] = useState<Filtros>({ search: '', evento: '', eixo_tematico: '' });
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const limit = 20;
+  const limit = 6;
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -523,29 +524,15 @@ function GerarQRCode() {
           </table>
         </section>
 
-        {/* Paginação simples */}
         {!carregando && total > limit && (
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-bold text-slate-600 disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <span className="text-sm font-semibold text-slate-500">
-              Página {page} de {totalPaginas}
-            </span>
-            <button
-              type="button"
-              disabled={page >= totalPaginas}
-              onClick={() => setPage((p) => Math.min(totalPaginas, p + 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-bold text-slate-600 disabled:opacity-40"
-            >
-              Próxima
-            </button>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPaginas}
+            onPageChange={setPage}
+            total={total}
+            limit={limit}
+            showInfo
+          />
         )}
       </div>
 
