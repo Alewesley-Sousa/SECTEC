@@ -537,7 +537,11 @@ function projetoTemPdf(projeto: unknown) {
 
 function montarUrlPdf(projetoId: number | string, materialId: number | string) {
   return `${API_BASE_URL}/files/download/projeto/${projetoId}/material/${materialId}`;
-} 
+}
+
+function visualizarPdf(projetoId: number | string, materialId: number | string) {
+  window.open(montarUrlPdf(projetoId, materialId), "_blank", "noopener,noreferrer");
+}
 
 function baixarPdf(projetoId: number | string, materialId: number | string) {
   const link = document.createElement("a");
