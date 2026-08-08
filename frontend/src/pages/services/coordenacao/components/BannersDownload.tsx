@@ -4,12 +4,10 @@ import { motion, AnimatePresence } from "motion/react";
 import {
     ArrowLeft,
     Download,
-    FileWarning,
     FolderKanban,
     Info,
     Loader2,
     RefreshCw,
-    X,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { apiRequest, API_BASE_URL } from "../../../../lib/api";

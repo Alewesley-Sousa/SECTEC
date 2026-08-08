@@ -118,7 +118,7 @@ function ImprimirQRCode() {
   // Paginação
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [limit, setLimit] = useState(20); // valor padrão da API
+  const [limit] = useState(20); // valor padrão da API
   const totalPages = Math.ceil(total / limit) || 1;
 
   // -- Modo filtro (turma) ----------------------------------------------------
@@ -183,7 +183,7 @@ function ImprimirQRCode() {
   };
 
   const toggleSelecionarTodosListados = () => {
-    setSelecionados((atual) => {
+    setSelecionados(() => {
       if (todosSelecionados) return new Set();
       return new Set(projetos.map((p) => p.id));
     });
