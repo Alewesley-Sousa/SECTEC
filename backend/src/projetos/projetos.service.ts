@@ -5,26 +5,28 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryRunner, Repository, Between, In } from 'typeorm';
+import { DataSource, QueryRunner, Repository } from 'typeorm';
+import { ProjetoMaterial } from '../materiais/entities/projeto-material.entity';
 
-
-import { TipoMaterial } from '../materiais/entities/projeto-material.entity';
 import { AuditoriaService } from 'src/auditoria/auditoria.service';
-import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
+import { Evento } from 'src/evento/entities/evento.entity';
 import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
-import { User, UserRole } from 'src/users/entities/user.entity';
+import { User } from 'src/users/entities/user.entity';
 import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { ProjetoAluno } from './entities/projeto-aluno.entity';
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 import { Projeto } from './entities/projeto.entity';
-import PDFDocument from 'pdfkit';
-import * as QRCode from 'qrcode';
-import { GerarPdfDto } from '../pdf/dto/gerar-pdf.dto';
+import { ProjetosEquipeService } from './ProjetosEquipe.service';
+import { ProjetosValidacaoService } from './ProjetosValidacao.service';
 
 @Injectable()
 export class ProjetosService {
   constructor(
+
+    @InjectRepository(ProjetoMaterial)
+    private readonly projetoMaterialRepository: Repository<ProjetoMaterial>,
+
     @InjectRepository(Projeto)
     private readonly projetoRepository: Repository<Projeto>,
 
@@ -45,16 +47,12 @@ export class ProjetosService {
 
     private readonly dataSource: DataSource,
     private readonly auditoriaService: AuditoriaService,
+    private readonly equipeService: ProjetosEquipeService,
+    private readonly validacaoService: ProjetosValidacaoService,
   ) { }
 
-  private static readonly ORDEM_CURSOS: Record<string, number> = {
-    'Informática': 1,
-    'Contabilidade': 2,
-    'Enfermagem': 3,
-  };
-
   // =========================================================================
-  // MÉTODO DE CRIAÇÃO (CORE)
+  // CRIAÇÃO (CREATE)
   // =========================================================================
 
   /**
@@ -62,12 +60,11 @@ export class ProjetosService {
    * Realiza validações de prazo de inscrição, tamanho de grupo e disponibilidade dos alunos.
    */
   async create(dto: CreateProjetoDto, userId: number): Promise<Projeto> {
-    const ultimoEvento = await this.buscarUltimoEvento();
+    const ultimoEvento = await this.validacaoService.buscarUltimoEvento();
 
-    // Validações de negócio de escopo e regras de grupo
-    await this.validarEventoETema(ultimoEvento.id, dto.temaId);
-    this.validateGroupSize(dto.alunosIds);
-    await this.ensureAlunosAreAvailable(ultimoEvento.id, [
+    await this.validacaoService.validarEventoETema(ultimoEvento.id, dto.temaId);
+    await this.validacaoService.validateGroupSize(dto.alunosIds);
+    await this.validacaoService.ensureAlunosAreAvailable(ultimoEvento.id, [
       ...(dto.alunosIds || []),
       userId,
     ]);
@@ -77,7 +74,6 @@ export class ProjetosService {
     await queryRunner.startTransaction();
 
     try {
-      // Salva a entidade principal do projeto
       const projeto = await this.saveProjeto(
         queryRunner,
         dto,
@@ -85,11 +81,9 @@ export class ProjetosService {
         ultimoEvento.id,
       );
 
-      // Vincula a equipe à tabela intermediária
       await this.saveParticipantes(queryRunner, projeto.id, dto.alunosIds, userId);
       await queryRunner.commitTransaction();
 
-      // Registro de Auditoria do sistema
       await this.auditoriaService.registrar(
         userId,
         'PROJETO_CRIADO',
@@ -107,7 +101,7 @@ export class ProjetosService {
   }
 
   // =========================================================================
-  // MÉTODOS DE CONSULTA / BUSCA (READ)
+  // CONSULTA (READ)
   // =========================================================================
 
   /**
@@ -130,14 +124,13 @@ export class ProjetosService {
   }
 
   /**
-   * Encontra o projeto ativo do aluno no evento vigente, 
+   * Encontra o projeto ativo do aluno no evento vigente,
    * seja ele o aluno autor ou um dos integrantes da equipe.
    */
   async findProjetoAtualPorAluno(userId: number): Promise<Projeto | null> {
     try {
-      const eventoAtual = await this.buscarUltimoEvento();
+      const eventoAtual = await this.validacaoService.buscarUltimoEvento();
 
-      // 1. Primeiro busca apenas o ID do projeto sem filtrar as relações
       const projetoBase = await this.projetoRepository
         .createQueryBuilder('projeto')
         .leftJoin('projeto.evento', 'evento')
@@ -145,16 +138,12 @@ export class ProjetosService {
         .leftJoin('projeto.projetoAlunos', 'pa')
         .leftJoin('pa.aluno', 'aluno')
         .where('evento.id = :eventoId', { eventoId: eventoAtual.id })
-        .andWhere(
-          '(autor.id = :userId OR aluno.id = :userId)',
-          { userId }
-        )
+        .andWhere('(autor.id = :userId OR aluno.id = :userId)', { userId })
         .select('projeto.id')
         .getOne();
 
       if (!projetoBase) return null;
 
-      // 2. Depois carrega o projeto completo pelo ID sem filtros nas relações
       const projeto = await this.projetoRepository.findOne({
         where: { id: projetoBase.id },
         relations: this.getProjetoRelations(),
@@ -211,7 +200,7 @@ export class ProjetosService {
   }
 
   // =========================================================================
-  // MÉTODOS DE ATUALIZAÇÃO E REMOÇÃO (UPDATE / DELETE)
+  // ATUALIZAÇÃO E REMOÇÃO (UPDATE / DELETE)
   // =========================================================================
 
   /**
@@ -226,7 +215,6 @@ export class ProjetosService {
   ): Promise<Projeto> {
     const projeto = await this.findOne(id);
 
-    // Controle estrito de autoridade/permissão
     if (role !== 'coordenador' && projeto.alunoAutor.id !== userId) {
       throw new ForbiddenException('Sem permissao para editar este projeto.');
     }
@@ -234,17 +222,17 @@ export class ProjetosService {
     let eventoId = dto.evento || projeto.evento?.id;
 
     if (!eventoId) {
-      const ultimo = await this.buscarUltimoEvento();
+      const ultimo = await this.validacaoService.buscarUltimoEvento();
       eventoId = ultimo.id;
     }
 
     if (dto.temaId) {
-      await this.validarEventoETema(eventoId, dto.temaId);
+      await this.validacaoService.validarEventoETema(eventoId, dto.temaId);
     }
 
     if (dto.alunosIds) {
-      this.validateGroupSize(dto.alunosIds);
-      await this.ensureAlunosAreAvailable(
+      await this.validacaoService.validateGroupSize(dto.alunosIds);
+      await this.validacaoService.ensureAlunosAreAvailable(
         eventoId,
         [...dto.alunosIds, projeto.alunoAutor.id],
         projeto.id,
@@ -256,7 +244,6 @@ export class ProjetosService {
     await queryRunner.startTransaction();
 
     try {
-
       const dadosAtualizados: Partial<Projeto> = {
         titulo: dto.titulo ?? projeto.titulo,
         descricao: dto.descricao ?? projeto.descricao,
@@ -271,7 +258,6 @@ export class ProjetosService {
       this.projetoRepository.merge(projeto, dadosAtualizados);
       await queryRunner.manager.save(projeto);
 
-      // Se a equipe foi alterada, limpa e reinsere os participantes
       if (dto.alunosIds) {
         await queryRunner.manager.delete(ProjetoAluno, {
           projeto: { id: projeto.id },
@@ -321,468 +307,57 @@ export class ProjetosService {
     );
   }
 
-  async addIntegrantes(
-    id: number,
-    alunosIds: number[],
-    userId: number,
-    role: string,
-  ): Promise<Projeto> {
-    const projeto = await this.findOne(id);
-    this.validarPermissaoEdicaoProjeto(projeto, userId, role);
-
-    const idsNovos = [...new Set(alunosIds.filter((alunoId) => Number.isFinite(alunoId)))]
-      .filter((alunoId) => alunoId !== projeto.alunoAutor.id);
-
-    if (idsNovos.length === 0) {
-      throw new BadRequestException('Informe pelo menos um aluno integrante valido.');
-    }
-
-    await this.ensureUsersAreActiveStudents(idsNovos);
-
-    const atuaisIds = this.getIntegrantesIds(projeto);
-    const proximosIds = [...new Set([...atuaisIds, ...idsNovos])];
-
-    this.validateGroupSize(proximosIds);
-    await this.ensureAlunosAreAvailable(
-      projeto.evento.id,
-      [...proximosIds, projeto.alunoAutor.id],
-      projeto.id,
-    );
-
-    const idsParaInserir = idsNovos.filter((alunoId) => !atuaisIds.includes(alunoId));
-
-    if (idsParaInserir.length === 0) {
-      throw new BadRequestException('Todos os alunos informados ja fazem parte deste projeto.');
-    }
-
-    const vinculos = idsParaInserir.map((alunoId) =>
-      this.projetoAlunoRepository.create({
-        projeto: { id: projeto.id },
-        aluno: { id: alunoId },
-      }),
-    );
-
-    await this.projetoAlunoRepository.save(vinculos);
-
-    await this.auditoriaService.registrar(
-      userId,
-      'PROJETO_INTEGRANTES_ADICIONADOS',
-      `Integrantes [${idsParaInserir.join(', ')}] adicionados ao projeto #${id} por usuario com cargo "${role}".`,
-      id,
-    );
-
-    return this.findOne(id);
-  }
-
-  async removeIntegrante(
-    id: number,
-    alunoId: number,
-    userId: number,
-    role: string,
-  ): Promise<Projeto> {
-    const projeto = await this.findOne(id);
-    this.validarPermissaoEdicaoProjeto(projeto, userId, role);
-
-    if (alunoId === projeto.alunoAutor.id) {
-      throw new BadRequestException('O aluno autor do projeto nao pode ser removido como integrante.');
-    }
-
-    const atuaisIds = this.getIntegrantesIds(projeto);
-
-    if (!atuaisIds.includes(alunoId)) {
-      throw new NotFoundException('Este aluno nao esta cadastrado como integrante deste projeto.');
-    }
-
-    const proximosIds = atuaisIds.filter((idAtual) => idAtual !== alunoId);
-    this.validateGroupSize(proximosIds);
-
-    await this.projetoAlunoRepository.delete({
-      projeto: { id: projeto.id },
-      aluno: { id: alunoId },
-    });
-
-    await this.auditoriaService.registrar(
-      userId,
-      'PROJETO_INTEGRANTE_REMOVIDO',
-      `Integrante #${alunoId} removido do projeto #${id} por usuario com cargo "${role}".`,
-      id,
-    );
-
-    return this.findOne(id);
-  }
-
-  async gerenciarOrientador(
-    id: number,
-    orientadorId: number,
-    userId: number,
-    role: string,
-  ): Promise<Projeto> {
-    if (role !== UserRole.COORDENACAO) {
-      throw new ForbiddenException('Apenas coordenadores podem gerenciar o orientador do projeto.');
-    }
-
-    await this.findOne(id);
-    await this.ensureUserIsActiveOrientador(orientadorId);
-
-    // 1. Busca vínculos ativos (pendente/aceito) para o projeto
-    const vinculosAtivos = await this.projetoOrientadorRepository.find({
-      where: {
-        projeto: { id },
-        status: In(['pendente', 'aceito']),
-      },
-      relations: ['orientador'],
-    });
-
-    // 2. Não permite adicionar um orientador que JÁ está ativo no projeto
-    if (vinculosAtivos.some((vinculo) => vinculo.orientador.id === orientadorId)) {
-      throw new BadRequestException('Este orientador ja esta vinculado ao projeto.');
-    }
-
-    // 3. Busca QUALQUER vínculo existente entre o projeto e o orientador (incluindo recusado)
-    const vinculoExistente = await this.projetoOrientadorRepository.findOne({
-      where: {
-        projeto: { id },
-        orientador: { id: orientadorId },
-      },
-    });
-
-    // Inicia transação
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const agora = new Date();
-
-      // 4. Desativa todos os vínculos ativos (remoção lógica)
-      for (const vinculo of vinculosAtivos) {
-        vinculo.status = 'recusado';
-        vinculo.respondidoEm = agora;
-        await queryRunner.manager.save(ProjetoOrientador, vinculo);
-      }
-
-      // 5. Reativa um vínculo recusado existente OU cria um novo
-      if (vinculoExistente) {
-        vinculoExistente.status = 'aceito';
-        vinculoExistente.respondidoEm = agora;
-        await queryRunner.manager.save(ProjetoOrientador, vinculoExistente);
-      } else {
-        const novoVinculo = queryRunner.manager.create(ProjetoOrientador, {
-          projeto: { id },
-          orientador: { id: orientadorId },
-          status: 'aceito',
-          respondidoEm: agora,
-        });
-        await queryRunner.manager.save(ProjetoOrientador, novoVinculo);
-      }
-
-      await queryRunner.commitTransaction();
-
-      await this.auditoriaService.registrar(
-        userId,
-        vinculosAtivos.length > 0 ? 'PROJETO_ORIENTADOR_TROCADO' : 'PROJETO_ORIENTADOR_ADICIONADO',
-        `Orientador #${orientadorId} vinculado como aceito ao projeto #${id} por coordenador #${userId}.`,
-        id,
-      );
-
-      return this.findOne(id);
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
-  async removerOrientador(
-    id: number,
-    userId: number,
-    role: string,
-  ): Promise<Projeto> {
-    if (role !== UserRole.COORDENACAO) {
-      throw new ForbiddenException('Apenas coordenadores podem remover o orientador do projeto.');
-    }
-
-    await this.findOne(id);
-
-    const vinculosAtivos = await this.projetoOrientadorRepository.find({
-      where: {
-        projeto: { id },
-        status: In(['pendente', 'aceito']),
-      },
-      relations: ['orientador'],
-    });
-
-    if (vinculosAtivos.length === 0) {
-      throw new NotFoundException('Este projeto nao possui orientador ativo para remover.');
-    }
-
-    const agora = new Date();
-
-    // remocao logica: nao apaga o vinculo, apenas tira ele da lista de ativos.
-    for (const vinculo of vinculosAtivos) {
-      vinculo.status = 'recusado';
-      vinculo.respondidoEm = agora;
-    }
-
-    await this.projetoOrientadorRepository.save(vinculosAtivos);
-
-    await this.auditoriaService.registrar(
-      userId,
-      'PROJETO_ORIENTADOR_REMOVIDO',
-      `Orientador(es) [${vinculosAtivos.map((vinculo) => vinculo.orientador.id).join(', ')}] removido(s) logicamente do projeto #${id} por coordenador #${userId}.`,
-      id,
-    );
-
-    return this.findOne(id);
-  }
-
   // =========================================================================
-  // GESTÃO DE SOLICITAÇÕES DE ORIENTAÇÃO
+  // QR CODE
   // =========================================================================
 
   /**
-   * Processa o envio em lote de convites de orientação para múltiplos professores.
+   * Marca um projeto como "QR Code gerado". Só permite gerar se o projeto
+   * tiver pelo menos um material aprovado (mesma regra da listagem).
    */
-  async enviarMultiplasSolicitacoes(userId: number, orientadoresIds: number[]) {
-    const resultados: {
-      orientadorId: number;
-      status: string;
-      motivo?: string;
-      solicitacaoId?: number;
-    }[] = [];
-
-    const projeto = await this.getUltimoProjetoDoAluno(userId);
-
-    for (const orientadorId of orientadoresIds) {
-      try {
-        const professorValido = await this.verificarSeEProfessor(orientadorId);
-
-        if (!professorValido) {
-          resultados.push({
-            orientadorId,
-            status: 'pulado',
-            motivo: 'Usuario nao e um orientador valido.',
-          });
-          continue;
-        }
-
-        const solicitacao = await this.enviarSolicitacaoIndividual(
-          projeto,
-          userId,
-          orientadorId,
-        );
-        resultados.push({
-          orientadorId,
-          status: 'sucesso',
-          solicitacaoId: solicitacao.id,
-        });
-      } catch (error) {
-        resultados.push({
-          orientadorId,
-          status: 'erro',
-          motivo: error instanceof Error ? error.message : 'Erro interno ao processar este ID.',
-        });
-      }
-    }
-
-    return { projetoId: projeto.id, resumo: resultados };
-  }
-
-  /**
-   * Realiza as validações individuais de compatibilidade de tema e cria a solicitação pendente.
-   */
-  /**
- * Realiza as validações individuais de compatibilidade de tema e cria a solicitação pendente.
- */
-  private async enviarSolicitacaoIndividual(
-    projeto: Projeto,
+  async gerarQrCode(
+    id: number,
     userId: number,
-    orientadorId: number,
-  ): Promise<ProjetoOrientador> {
-    await this.validarTemaNoEvento(projeto.temaId, projeto.evento.id);
-    await this.validarOrientadorSelecionouTema(projeto.temaId, orientadorId);
-    await this.validarSolicitacaoDuplicada(projeto.id, orientadorId);
-
-    const novaSolicitacao = this.projetoOrientadorRepository.create({
-      projeto: { id: projeto.id },
-      orientador: { id: orientadorId },
-      status: 'pendente',
+  ): Promise<{ id: number; qrcode: boolean; url: string }> {
+    const projeto = await this.projetoRepository.findOne({
+      where: { id },
+      relations: ['materiais'],
     });
 
-    const solicitacao = await this.projetoOrientadorRepository.save(novaSolicitacao);
+    if (!projeto) {
+      throw new NotFoundException(`Projeto #${id} nao encontrado.`);
+    }
 
-    await this.auditoriaService.registrar(
-      userId,
-      'ORIENTADOR_SOLICITADO',
-      `Solicitacao enviada ao orientador #${orientadorId} para o projeto #${projeto.id}.`,
-      projeto.id,
+    const possuiMaterialAprovado = (projeto.materiais ?? []).some(
+      (material) => material.status === 'aprovado',
     );
 
-    return solicitacao;
-  }
-
-
-  // =========================================================================
-  // MÉTODOS PRIVADOS DE VALIDAÇÃO E SUPORTE
-  // =========================================================================
-
-  /**
-   * Valida se as regras de tempo de ciclo de vida respeitam o Embedded Object de inscrições.
-   */
-  private async validarEventoETema(eventoId: number, temaId: number) {
-    const evento = await this.eventoRepository.findOne({ where: { id: eventoId } });
-
-    if (!evento) {
-      throw new NotFoundException(`O evento #${eventoId} nao existe.`);
-    }
-
-    this.validarPeriodoAberto(evento.inscricao, 'inscricao');
-
-    const temaValido = await this.temaEventoRepository.findOne({
-      where: { id: temaId, evento: { id: eventoId } },
-    });
-
-    if (!temaValido) {
+    if (!possuiMaterialAprovado) {
       throw new BadRequestException(
-        'O tema selecionado nao pertence a este evento ou nao existe.',
-      );
-    }
-  }
-
-  /**
-   * Localiza o evento ativo do ano corrente filtrando pela data de início das inscrições.
-   */
-  private async buscarUltimoEvento(): Promise<Evento> {
-    const anoAtual = new Date().getFullYear();
-    const inicioAno = new Date(`${anoAtual}-01-01T00:00:00`);
-    const fimAno = new Date(`${anoAtual}-12-31T23:59:59`);
-
-    const evento = await this.eventoRepository
-      .createQueryBuilder('evento')
-      .leftJoinAndSelect('evento.temas', 'temas')
-      .where('evento.status = :status', { status: EventoStatus.ATIVO })
-      .andWhere('evento.prazo_inicial BETWEEN :inicioAno AND :fimAno', { inicioAno, fimAno })
-      .orderBy('evento.criado_em', 'DESC')
-      .getOne();
-
-    if (!evento) {
-      throw new NotFoundException(
-        `Nenhum evento ativo encontrado para o ano de ${anoAtual}.`
+        'Este projeto nao possui nenhum material aprovado. Nao e possivel gerar o QR Code.',
       );
     }
 
-    return evento;
-  }
-  /**
-   * Garante que o tamanho da equipe segue as diretrizes acadêmicas (entre 3 e 7 integrantes).
-   */
-  private validateGroupSize(alunosIds: number[] = []) {
-    const total = alunosIds.length + 1; // Soma 1 para contar com o Aluno Autor
-    if (total < 3 || total > 7) {
-      throw new BadRequestException('O grupo deve ter entre 3 e 7 integrantes.');
-    }
-  }
+    projeto.qrcodeGerado = true;
+    await this.projetoRepository.save(projeto);
 
-  private validarPermissaoEdicaoProjeto(projeto: Projeto, userId: number, role: string) {
-    if (role !== 'coordenador' && projeto.alunoAutor.id !== userId) {
-      throw new ForbiddenException('Sem permissao para editar este projeto.');
-    }
-  }
-
-  private getIntegrantesIds(projeto: Projeto) {
-    return (projeto.projetoAlunos ?? [])
-      .map((vinculo) => vinculo.aluno?.id)
-      .filter((id): id is number => Number.isFinite(id));
-  }
-
-  private async ensureUsersAreActiveStudents(alunosIds: number[]) {
-    const idsUnicos = [...new Set(alunosIds.filter((id) => Number.isFinite(id)))];
-    if (idsUnicos.length === 0) return;
-
-    const alunos = await this.userRepository.find({
-      where: {
-        id: In(idsUnicos),
-        role_cargo: UserRole.ALUNO,
-        ativo: true,
-      },
-      select: ['id'],
-    });
-    const encontrados = new Set(alunos.map((aluno) => aluno.id));
-    const invalidos = idsUnicos.filter((id) => !encontrados.has(id));
-
-    if (invalidos.length > 0) {
-      throw new BadRequestException(`Alunos invalidos ou inativos: ${invalidos.join(', ')}`);
-    }
-  }
-
-  private async ensureUserIsActiveOrientador(orientadorId: number) {
-    const orientador = await this.userRepository.findOne({
-      where: {
-        id: orientadorId,
-        role_cargo: UserRole.ORIENTADOR,
-        ativo: true,
-      },
-      select: ['id'],
-    });
-
-    if (!orientador) {
-      throw new BadRequestException('Orientador invalido ou inativo.');
-    }
-  }
-
-  /**
-   * Certifica-se de que nenhum dos alunos enviados já está alocado em outro projeto no evento atual.
-   */
-  private async ensureAlunosAreAvailable(
-    eventoId: number,
-    todosIds: number[],
-    projetoIdIgnorado?: number,
-  ) {
-    const idsUnicos = [...new Set(todosIds.filter((id) => Number.isFinite(id)))];
-    if (idsUnicos.length === 0) return;
-
-    const placeholders = idsUnicos.map(() => '?').join(', ');
-    const filtroProjetoAutor = projetoIdIgnorado ? 'AND p.id != ?' : '';
-    const filtroProjetoIntegrante = projetoIdIgnorado ? 'AND p.id != ?' : '';
-    const params = projetoIdIgnorado
-      ? [
-        eventoId,
-        ...idsUnicos,
-        projetoIdIgnorado,
-        eventoId,
-        ...idsUnicos,
-        projetoIdIgnorado,
-      ]
-      : [eventoId, ...idsUnicos, eventoId, ...idsUnicos];
-
-    const ocupados = await this.dataSource.query(
-      `
-        SELECT DISTINCT u.nome
-        FROM (
-          SELECT p.aluno_autor_id AS aluno_id
-          FROM projetos p
-          WHERE p.evento_id = ?
-            AND p.aluno_autor_id IN (${placeholders})
-            ${filtroProjetoAutor}
-          UNION
-          SELECT pa.aluno_id AS aluno_id
-          FROM projeto_alunos pa
-          INNER JOIN projetos p ON p.id = pa.projeto_id
-          WHERE p.evento_id = ?
-            AND pa.aluno_id IN (${placeholders})
-            ${filtroProjetoIntegrante}
-        ) ocupados
-        INNER JOIN usuarios u ON u.id = ocupados.aluno_id
-      `,
-      params,
+    await this.auditoriaService.registrar(
+      userId,
+      'PROJETO_QRCODE_GERADO',
+      `QR Code gerado para o projeto #${id}.`,
+      id,
     );
 
-    if (ocupados.length > 0) {
-      const nomes = ocupados.map((p: { nome: string }) => p.nome).join(', ');
-      throw new BadRequestException(`Alunos ja vinculados a este evento: ${nomes}`);
-    }
+    return {
+      id: projeto.id,
+      qrcode: true,
+      url: `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${id}`,
+    };
   }
+
+  // =========================================================================
+  // MÉTODOS PRIVADOS DE APOIO
+  // =========================================================================
 
   /**
    * Salva o registro inicial da entidade de Projetos.
@@ -828,148 +403,24 @@ export class ProjetosService {
     return qr.manager.save(vinculos);
   }
 
-  private async getUltimoProjetoDoAluno(userId: number): Promise<Projeto> {
-    const projeto = await this.projetoRepository.findOne({
-      where: { alunoAutor: { id: userId } },
-      order: { criadoEm: 'DESC' },
-      relations: ['evento', 'tema'],
-    });
-
-    if (!projeto) {
-      throw new NotFoundException('Voce ainda nao possui nenhum projeto cadastrado.');
-    }
-
-    return projeto;
-  }
-
-  private async verificarSeEProfessor(id: number): Promise<boolean> {
-    const user = await this.userRepository.findOne({
-      where: { id, role_cargo: UserRole.ORIENTADOR },
-    });
-    return !!user;
-  }
-
-  private async validarTemaNoEvento(temaId: number, eventoId: number) {
-    const existe = await this.temaEventoRepository.exists({
-      where: { id: temaId, evento: { id: eventoId } },
-    });
-
-    if (!existe) {
-      throw new BadRequestException('O tema do projeto nao esta disponivel para este evento.');
-    }
-  }
-
-  private normalizarDataPeriodo(
-    value?: Date | string | null,
-    endOfDay = false,
-  ): Date | null {
-    if (!value) return null;
-
-    const date = value instanceof Date ? new Date(value) : new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-    if (endOfDay) date.setHours(23, 59, 59, 999);
-    return date;
-  }
-
-  private validarPeriodoAberto(
-    periodo: { inicio?: Date | string | null; fim?: Date | string | null } | null | undefined,
-    nomePeriodo: string,
-  ) {
-    const inicio = this.normalizarDataPeriodo(periodo?.inicio);
-    const fim = this.normalizarDataPeriodo(periodo?.fim, true);
-    const agora = new Date();
-
-    if (!inicio || !fim) {
-      throw new BadRequestException(`O prazo de ${nomePeriodo} nao esta definido.`);
-    }
-
-    if (agora < inicio) {
-      throw new BadRequestException(
-        `O prazo de ${nomePeriodo} ainda nao comecou. (Inicio: ${inicio.toLocaleString()})`,
-      );
-    }
-
-    if (agora > fim) {
-      throw new BadRequestException(
-        `O prazo de ${nomePeriodo} encerrou em ${fim.toLocaleString()}.`,
-      );
-    }
-  }
-
-  private async validarOrientadorSelecionouTema(temaId: number, orientadorId: number) {
-    const orientadorEscolheuTema = await this.temaEventoRepository
-      .createQueryBuilder('tema')
-      .innerJoin('tema.orientadores', 'orientador', 'orientador.id = :orientadorId', { orientadorId })
-      .where('tema.id = :temaId', { temaId })
-      .getExists();
-
-    if (!orientadorEscolheuTema) {
-      throw new BadRequestException('Este orientador nao selecionou o eixo tematico do projeto.');
-    }
-  }
-
-  private async validarSolicitacaoDuplicada(projetoId: number, orientadorId: number) {
-    const solicitacao = await this.projetoOrientadorRepository.findOne({
-      where: { projeto: { id: projetoId }, orientador: { id: orientadorId } },
-    });
-
-    if (!solicitacao) return;
-
-    const mensagensErro: Record<string, string> = {
-      pendente: 'Ja existe uma solicitacao pendente para este orientador.',
-      aceito: 'Este orientador ja aceitou orientar este projeto.',
-      recusado: 'Este orientador ja recusou este projeto. Escolha um novo orientador.',
-    };
-
-    const erro = mensagensErro[solicitacao.status];
-    if (erro) throw new BadRequestException(erro);
-  }
-
   /**
    * Centraliza a filtragem de orientadores de um projeto para expor apenas solicitações relevantes ao aluno.
    */
   private filtrarOrientadoresAceitos(projeto: Projeto) {
     if (projeto.orientadores) {
       projeto.orientadores = projeto.orientadores.filter(
-        (relacao) => relacao.status === 'aceito' || relacao.status === 'recusado' || relacao.status === 'pendente'
+        (relacao) =>
+          relacao.status === 'aceito' ||
+          relacao.status === 'recusado' ||
+          relacao.status === 'pendente',
       );
     } else {
       projeto.orientadores = [];
     }
   }
 
-
-  /**
- * Busca o orientador que aceitou a solicitação para um projeto específico.
- */
-  async getOrientadorAceitoByProjetoId(projetoId: number): Promise<ProjetoOrientador | null> {
-    const vinculo = await this.projetoOrientadorRepository.findOne({
-      where: {
-        projeto: { id: projetoId },
-        status: 'aceito',
-      },
-      relations: ['orientador'],
-      select: {
-        id: true,
-        status: true,
-        respondidoEm: true,
-        orientador: {
-          id: true,
-          nome: true,
-          email_institucional: true,
-        },
-      },
-    });
-
-    if (!vinculo) {
-      throw new NotFoundException(`Nenhum orientador aceitou o projeto #${projetoId} ainda.`);
-    }
-
-    return vinculo;
-  }
-
   // =========================================================================
-  // MAPEAMENTO DE CONFIGURAÇÕES DE RELACIONAMENTO E CAMPOS (SELECT/RELATIONS)
+  // CONFIGURAÇÕES DE RELACIONAMENTO E SELEÇÃO DE CAMPOS
   // =========================================================================
 
   private getProjetoRelations() {
@@ -1010,7 +461,6 @@ export class ProjetosService {
         respondidoEm: true,
         orientador: { id: true, nome: true, email_institucional: true },
       },
-
       materiais: {
         id: true,
         tipo: true,
@@ -1022,750 +472,5 @@ export class ProjetosService {
     };
   }
 
-  // =========================================================================
-  // TRANSFERÊNCIA DE AUTORIA (COORDENADOR)
-  // =========================================================================
-
-  /**
-   * Transfere a autoria do projeto para outro integrante da equipe.
-   *
-   * @param projetoId  - ID do projeto
-   * @param novoAutorId       - ID do integrante que assumirá a autoria
-   * @param manterAutorAtual  - true: rebaixa o autor atual para integrante comum
-   *                            false: remove o autor atual da equipe
-   * @param userId     - ID do coordenador que está executando a ação (para auditoria)
-   */
-
-  async transferirAutoria(
-    projetoId: number,
-    novoAutorId: number,
-    manterAutorAtual: boolean,
-    userId: number,
-  ): Promise<Projeto> {
-    const projeto = await this.findOne(projetoId);
-
-    // Apenas coordenadores chegam aqui (validado no controller), mas garantimos no service também
-    const autorAtualId = projeto.alunoAutor.id;
-
-    if (novoAutorId === autorAtualId) {
-      throw new BadRequestException(
-        'O novo autor não pode ser o mesmo que o autor atual.',
-      );
-    }
-
-    // Verifica se o novo autor é de fato integrante do projeto
-    const integrantesIds = this.getIntegrantesIds(projeto);
-    if (!integrantesIds.includes(novoAutorId)) {
-      throw new BadRequestException(
-        `O aluno #${novoAutorId} não é integrante deste projeto.`,
-      );
-    }
-
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      // 1. Promove o novo autor: atualiza a coluna aluno_autor_id do projeto
-      await queryRunner.manager.update(Projeto, projetoId, {
-        alunoAutor: { id: novoAutorId } as User,
-      });
-
-      if (manterAutorAtual) {
-        // true → o autor atual já existe em projeto_alunos como integrante?
-        // Se não existir, insere; se existir, nada a fazer.
-        const jaEhIntegrante = await queryRunner.manager.findOne(ProjetoAluno, {
-          where: { projeto: { id: projetoId }, aluno: { id: autorAtualId } },
-        });
-
-        if (!jaEhIntegrante) {
-          const novoVinculo = queryRunner.manager.create(ProjetoAluno, {
-            projeto: { id: projetoId } as Projeto,
-            aluno: { id: autorAtualId } as User,
-          });
-          await queryRunner.manager.save(ProjetoAluno, novoVinculo);
-        }
-      } else {
-        // false → remove o autor atual da equipe (tabela projeto_alunos)
-        await queryRunner.manager.delete(ProjetoAluno, {
-          projeto: { id: projetoId },
-          aluno: { id: autorAtualId },
-        });
-      }
-
-      // 2. Remove o novo autor da tabela projeto_alunos (ele agora é o autor principal)
-      await queryRunner.manager.delete(ProjetoAluno, {
-        projeto: { id: projetoId },
-        aluno: { id: novoAutorId },
-      });
-
-      await queryRunner.commitTransaction();
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
-
-    const acao = manterAutorAtual
-      ? `Autoria transferida do aluno #${autorAtualId} para #${novoAutorId}. Autor anterior mantido como integrante.`
-      : `Autoria transferida do aluno #${autorAtualId} para #${novoAutorId}. Autor anterior removido da equipe.`;
-
-    await this.auditoriaService.registrar(
-      userId,
-      'PROJETO_AUTORIA_TRANSFERIDA',
-      acao,
-      projetoId,
-    );
-
-    return this.findOne(projetoId);
-  }
-
-  // =========================================================================
-  // MÉTODO PARA BUSCAR ALUNOS OCUPADOS (CORRIGIDO)
-  // =========================================================================
-
-  /**
-   * Busca todos os IDs de alunos que já estão vinculados a algum projeto no evento atual.
-   * Útil para o frontend saber quais alunos não podem ser convidados para novos projetos.
-   */
-  // src/projetos/projetos.service.ts
-
-  async findAlunosOcupados(projetoIdAtual?: number): Promise<number[]> {
-    try {
-      // Busca o evento atual primeiro
-      const eventoAtual = await this.buscarUltimoEvento();
-
-      if (!eventoAtual) {
-        return [];
-      }
-
-      // Query para buscar todos os alunos ocupados no evento atual
-      const query = `
-      SELECT DISTINCT aluno_id FROM (
-        SELECT aluno_autor_id as aluno_id FROM projetos 
-        WHERE evento_id = ? AND aluno_autor_id IS NOT NULL
-        UNION
-        SELECT aluno_id FROM projeto_alunos pa
-        INNER JOIN projetos p ON p.id = pa.projeto_id
-        WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL
-      ) AS alunos_ocupados
-    `;
-
-      let params: any[] = [eventoAtual.id, eventoAtual.id];
-
-      // Se for para edição, exclui o projeto atual
-      if (projetoIdAtual) {
-        const queryComExclusao = `
-        SELECT DISTINCT aluno_id FROM (
-          SELECT aluno_autor_id as aluno_id FROM projetos 
-          WHERE evento_id = ? AND aluno_autor_id IS NOT NULL AND id != ?
-          UNION
-          SELECT aluno_id FROM projeto_alunos pa
-          INNER JOIN projetos p ON p.id = pa.projeto_id
-          WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL AND p.id != ?
-        ) AS alunos_ocupados
-      `;
-        params = [eventoAtual.id, projetoIdAtual, eventoAtual.id, projetoIdAtual];
-
-        const rows = await this.dataSource.query(queryComExclusao, params);
-        return rows.map((row: any) => Number(row.aluno_id));
-      }
-
-      const rows = await this.dataSource.query(query, params);
-      return rows.map((row: any) => Number(row.aluno_id));
-
-    } catch (error) {
-      console.error('Erro ao buscar alunos ocupados:', error);
-      // Retorna array vazio em caso de erro para não quebrar o frontend
-      return [];
-    }
-  }
-
-
-  // =========================================================================
-  // MÉTODO PÚBLICO DE LISTAGEM COM FILTROS E PAGINAÇÃO
-  // =========================================================================
-
-  async findAllPublic(
-    filters: {
-      search?: string;
-      curso?: string;
-      eixo?: string;
-      evento?: string;
-    },
-    page: number = 1,
-    limit: number = 8,
-  ) {
-    const queryBuilder = this.projetoRepository
-      .createQueryBuilder('projeto')
-      .leftJoinAndSelect('projeto.alunoAutor', 'autor')
-      .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
-      .leftJoinAndSelect('projetoAlunos.aluno', 'integrante')
-      .leftJoinAndSelect('projeto.tema', 'tema')
-      .leftJoinAndSelect('projeto.evento', 'evento')
-      .leftJoinAndSelect('projeto.materiais', 'materiais');
-
-    // Aplicar filtros
-    if (filters.search) {
-      queryBuilder.andWhere(
-        '(projeto.titulo LIKE :search OR autor.nome LIKE :search OR integrante.nome LIKE :search)',
-        { search: `%${filters.search}%` },
-      );
-    }
-
-    if (filters.curso) {
-      // Supondo que o User tenha um campo 'curso' (string)
-      // Caso seja uma relação, ajuste o join e o campo
-      queryBuilder.andWhere(
-        '(autor.curso = :curso OR integrante.curso = :curso)',
-        { curso: filters.curso },
-      );
-    }
-
-    if (filters.eixo) {
-      queryBuilder.andWhere('tema.nome LIKE :eixo', {
-        eixo: `%${filters.eixo}%`,
-      });
-    }
-
-    if (filters.evento) {
-      queryBuilder.andWhere('evento.titulo LIKE :evento', {
-        evento: `%${filters.evento}%`,
-      });
-    }
-
-    // Paginação
-    const total = await queryBuilder.getCount();
-    const projetos = await queryBuilder
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getMany();
-
-    // Mapear resultado
-    const data = projetos.map((projeto) => {
-      // Montar equipe (autor + integrantes)
-      const equipe: { id: number; nome: string; role: 'autor' | 'integrante' }[] = [];
-      if (projeto.alunoAutor) {
-        equipe.push({
-          id: projeto.alunoAutor.id,
-          nome: projeto.alunoAutor.nome,
-          role: 'autor',
-        });
-      }
-      if (projeto.projetoAlunos) {
-        projeto.projetoAlunos.forEach((pa) => {
-          if (pa.aluno) {
-            equipe.push({
-              id: pa.aluno.id,
-              nome: pa.aluno.nome,
-              role: 'integrante',
-            });
-          }
-        });
-      }
-
-      // Buscar vídeo e banner
-      let video: string | false = false;
-      let hasBanner = false;
-      if (projeto.materiais) {
-        projeto.materiais.forEach((material) => {
-          if (material.tipo === TipoMaterial.LINK) {
-            video = material.conteudo || false;
-          }
-          if (material.tipo === TipoMaterial.PDF) {
-            hasBanner = true;
-          }
-        });
-      }
-
-      return {
-        id: projeto.id,
-        titulo: projeto.titulo,
-        descricao: projeto.descricao,
-        tema: projeto.tema
-          ? { id: projeto.tema.id, nome: projeto.tema.nome }
-          : null,
-        equipe,
-        video,
-        hasBanner,
-      };
-    });
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
-
-  // =========================================================================
-  // QR CODE — LISTAGEM E GERAÇÃO
-  // =========================================================================
-
-  /**
-   * Retorna, paginados, os projetos que possuem pelo menos um material com
-   * status "aprovado". Suporta busca por título/ID, filtro por evento,
-   * eixo temático e orientador.
-   */
-
-  // =========================================================================
-  // GERAÇÃO DE PDF — PLACAS DE IDENTIFICAÇÃO COM QR CODE
-  // =========================================================================
-
-  async gerarPdfIdentificacao(dto: GerarPdfDto): Promise<{
-    mensagem: string;
-    arquivo: string;
-    total_projetos_gerados: number;
-    projetos_ignorados: Array<{ id: number; motivo: string }>;
-  }> {
-    const projetosIgnorados: Array<{ id: number; motivo: string }> = [];
-    let projetosValidos: Projeto[] = [];
-
-    if (dto.modo === 'individual') {
-      if (!dto.projetos || dto.projetos.length === 0) {
-        throw new BadRequestException(
-          'Informe ao menos um ID de projeto no modo individual.',
-        );
-      }
-
-      const projetos = await this.projetoRepository.find({
-        where: { id: In(dto.projetos) },
-        relations: {
-          alunoAutor: true,
-          projetoAlunos: { aluno: true },
-          orientadores: { orientador: true },
-          materiais: true,
-        },
-      });
-
-      const encontradosIds = new Set(projetos.map((p) => p.id));
-      for (const id of dto.projetos) {
-        if (!encontradosIds.has(id)) {
-          projetosIgnorados.push({ id, motivo: 'projeto nao encontrado' });
-        }
-      }
-
-      for (const projeto of projetos) {
-        const temAprovado = (projeto.materiais ?? []).some(
-          (m) => m.status === 'aprovado',
-        );
-        if (temAprovado) {
-          projetosValidos.push(projeto);
-        } else {
-          projetosIgnorados.push({
-            id: projeto.id,
-            motivo: 'nao possui material aprovado',
-          });
-        }
-      }
-    } else {
-      if (!dto.turma?.trim()) {
-        throw new BadRequestException('Informe o campo turma no modo filtro.');
-      }
-
-      const match = dto.turma.trim().match(/^(\d+)\s+(.+)$/);
-      if (!match) {
-        throw new BadRequestException(
-          'Formato de turma invalido. Use o padrao "1 informatica", "2 contabilidade", etc.',
-        );
-      }
-      const [, anoStr, turmaTexto] = match;
-
-      projetosValidos = await this.projetoRepository
-        .createQueryBuilder('projeto')
-        .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
-        .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
-        .leftJoinAndSelect('projetoAlunos.aluno', 'aluno')
-        .leftJoinAndSelect(
-          'projeto.orientadores',
-          'projetoOrientador',
-          "projetoOrientador.status = 'aceito'",
-        )
-        .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-        .where('alunoAutor.ano = :ano', { ano: anoStr })
-        .andWhere('alunoAutor.turma LIKE :turma', { turma: `%${turmaTexto}%` })
-        .andWhere((qbSub) => {
-          const sub = qbSub
-            .subQuery()
-            .select('1')
-            .from('projeto_materiais', 'material')
-            .where('material.projeto_id = projeto.id')
-            .andWhere("material.status = 'aprovado'")
-            .getQuery();
-          return `EXISTS (${sub})`;
-        })
-        .getMany();
-
-      if (projetosValidos.length === 0) {
-        throw new NotFoundException(
-          `Nenhum projeto aprovado encontrado para a turma "${dto.turma}".`,
-        );
-      }
-    }
-
-    if (projetosValidos.length === 0) {
-      throw new NotFoundException(
-        'Nenhum projeto valido foi encontrado para gerar o PDF.',
-      );
-    }
-
-    const ordemCursos: Record<string, number> = {
-      'informatica': 1,
-      'contabilidade': 2,
-      'enfermagem': 3,
-    };
-
-    projetosValidos.sort((a, b) => {
-      const cursoA = (a.alunoAutor?.turma ?? '').toLowerCase();
-      const cursoB = (b.alunoAutor?.turma ?? '').toLowerCase();
-      const ordemA = ordemCursos[cursoA] ?? 999;
-      const ordemB = ordemCursos[cursoB] ?? 999;
-      if (ordemA !== ordemB) return ordemA - ordemB;
-
-      const anoA = a.alunoAutor?.ano ?? 0;
-      const anoB = b.alunoAutor?.ano ?? 0;
-      return anoA - anoB;
-    });
-
-    const pdfBuffer = await this.montarPdfIdentificacao(projetosValidos);
-
-    return {
-      mensagem: 'PDF gerado com sucesso',
-      arquivo: pdfBuffer.toString('base64'),
-      total_projetos_gerados: projetosValidos.length,
-      projetos_ignorados: projetosIgnorados,
-    };
-  }
-
-  private async gerarQrCodeBuffer(url: string): Promise<Buffer> {
-    return QRCode.toBuffer(url, { width: 200, margin: 1 });
-  }
-
-  private async montarPdfIdentificacao(projetos: Projeto[]): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 0 });
-      const chunks: Buffer[] = [];
-      doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-
-      const pageWidth = doc.page.width;   // ~595 pt (A4)
-      const pageHeight = doc.page.height; // ~842 pt
-      const quadrantWidth = pageWidth / 2;
-      const quadrantHeight = pageHeight / 2;
-
-      const processarTudo = async () => {
-        for (let i = 0; i < projetos.length; i++) {
-          const posicaoNaPagina = i % 4; // 0 = sup. esq., 1 = sup. dir., 2 = inf. esq., 3 = inf. dir.
-
-          // Nova página a cada 4 projetos
-          if (i > 0 && posicaoNaPagina === 0) {
-            doc.addPage();
-          }
-
-          // Desenhar linhas divisórias (cruz central) na primeira vez que a página é usada
-          if (posicaoNaPagina === 0) {
-            // Linha vertical central (tracejada)
-            doc.moveTo(pageWidth / 2, 24)
-              .lineTo(pageWidth / 2, pageHeight - 24)
-              .lineWidth(0.75)
-              .strokeColor('#94a3b8')
-              .dash(4, { space: 4 })
-              .stroke()
-              .undash();
-
-            // Linha horizontal central (tracejada)
-            doc.moveTo(24, pageHeight / 2)
-              .lineTo(pageWidth - 24, pageHeight / 2)
-              .lineWidth(0.75)
-              .strokeColor('#94a3b8')
-              .dash(4, { space: 4 })
-              .stroke()
-              .undash();
-          }
-
-          // Calcular deslocamentos do quadrante
-          const offsetX = (posicaoNaPagina % 2) * quadrantWidth;
-          const offsetY = Math.floor(posicaoNaPagina / 2) * quadrantHeight;
-
-          await this.desenharBlocoProjeto(
-            doc,
-            projetos[i],
-            offsetX,
-            offsetY,
-            quadrantWidth,
-            quadrantHeight,
-          );
-        }
-
-        doc.end();
-      };
-
-      processarTudo().catch(reject);
-    });
-  }
-
-  // -----------------------------------------------------------------
-  // Helper: primeiro nome + último sobrenome
-  // -----------------------------------------------------------------
-  private abreviarNome(nome: string): string {
-    const partes = nome.trim().split(/\s+/);
-    if (partes.length <= 2) return nome;
-    return `${partes[0]} ${partes[partes.length - 1]}`;
-  }
-
-  // -----------------------------------------------------------------
-  // Desenho de cada bloco de projeto (2 por página A4)
-  // -----------------------------------------------------------------
-  private async desenharBlocoProjeto(
-    doc: PDFKit.PDFDocument,
-    projeto: Projeto,
-    offsetX: number,
-    offsetY: number,
-    blocoLargura: number,
-    blocoAltura: number,
-  ) {
-    const orientadorAceito = projeto.orientadores?.[0]?.orientador;
-    const anoTurma = projeto.alunoAutor
-      ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
-      : '';
-    const nomeTema = projeto.tema?.nome ?? '';
-
-    const integrantes = [
-      projeto.alunoAutor?.nome,
-      ...(projeto.projetoAlunos ?? []).map((pa) => pa.aluno?.nome),
-    ]
-      .filter(Boolean)
-      .map((nome) => this.abreviarNome(nome as string)) as string[];
-
-    const url = `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${projeto.id}`;
-    const qrBuffer = await this.gerarQrCodeBuffer(url);
-
-    // ---- Geometria do quadrante ----
-    const margem = 20;
-    const blocoX = offsetX + margem;
-    const blocoY = offsetY + margem;
-    const blocoLarguraUtil = blocoLargura - margem * 2;
-    const blocoAlturaUtil = blocoAltura - margem * 2;
-
-    // ---- Borda fina do bloco ----
-    doc.roundedRect(blocoX, blocoY, blocoLarguraUtil, blocoAlturaUtil, 10)
-      .strokeColor('#000000')
-      .lineWidth(0.75)
-      .stroke();
-
-    // ---- QR Code centralizado no topo ----
-    const qrTamanho = 100;
-    const qrX = blocoX + (blocoLarguraUtil - qrTamanho) / 2;
-    const qrY = blocoY + 16;
-
-    doc.image(qrBuffer, qrX, qrY, { width: qrTamanho, height: qrTamanho });
-
-    // ---- Área de texto abaixo do QR ----
-    const textoX = blocoX + 14;
-    const textoLargura = blocoLarguraUtil - 28;
-    let textoY = qrY + qrTamanho + 12;
-
-    // Título (centralizado)
-    doc.fontSize(14).fillColor('#000000').font('Helvetica-Bold')
-      .text(projeto.titulo, textoX, textoY, {
-        width: textoLargura,
-        lineGap: 3,
-        align: 'center',
-      });
-
-    const alturaTitulo = doc.heightOfString(projeto.titulo, { width: textoLargura });
-    textoY += alturaTitulo + 8;
-
-    // Linha tracejada separadora
-    doc.moveTo(textoX, textoY)
-      .lineTo(textoX + textoLargura, textoY)
-      .lineWidth(0.5)
-      .strokeColor('#444444')
-      .dash(2, { space: 2 })
-      .stroke()
-      .undash();
-    textoY += 10;
-
-    // Informações (centralizadas)
-    doc.fontSize(10).fillColor('#000000');
-    const infoLinhas = [
-      `Orientador: ${orientadorAceito?.nome ?? 'Não definido'}`,
-      anoTurma,
-      nomeTema ? `Tema: ${nomeTema}` : null,
-    ].filter(Boolean) as string[];
-
-    for (const linha of infoLinhas) {
-      doc.font('Helvetica').text(linha, textoX, textoY, {
-        width: textoLargura,
-        align: 'center',
-      });
-      textoY += 16;
-    }
-
-    // ---- Caixa de integrantes com altura FIXA para 7 alunos ----
-    const alturaCaixa = 120; // altura fixa suficiente para 7 nomes abreviados
-    const caixaY = blocoY + blocoAlturaUtil - 20 - alturaCaixa; // 20 pt de margem inferior
-
-    // Se o conteúdo textual invadiu a área da caixa, forçamos a caixa a começar logo abaixo
-    const inicioEfetivoCaixa = Math.max(textoY + 8, caixaY);
-    const alturaEfetiva = blocoY + blocoAlturaUtil - 20 - inicioEfetivoCaixa;
-
-    doc.roundedRect(textoX, inicioEfetivoCaixa, textoLargura, alturaEfetiva, 4)
-      .strokeColor('#777777')
-      .lineWidth(0.5)
-      .stroke();
-
-    // Título da equipe
-    doc.fontSize(8).fillColor('#000000').font('Helvetica-Bold')
-      .text('Equipe:', textoX + 8, inicioEfetivoCaixa + 6, { width: textoLargura - 16 });
-
-    // Lista de integrantes
-    const membrosTexto = integrantes.map((nome) => `• ${nome}`).join('\n');
-
-    doc.fontSize(9).font('Helvetica')
-      .text(membrosTexto, textoX + 8, inicioEfetivoCaixa + 18, {
-        width: textoLargura - 16,
-        lineGap: 5,
-        height: alturaEfetiva - 24,
-        ellipsis: true,
-      });
-  }
-
-  async findComMateriaisAprovados(filtros: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    evento?: string;
-    eixo_tematico?: string;
-    orientador?: string;
-  }): Promise<{ projetos: any[]; total: number; page: number; limit: number }> {
-    const page = Number(filtros.page) > 0 ? Number(filtros.page) : 1;
-    const limit = Number(filtros.limit) > 0 ? Number(filtros.limit) : 20;
-
-    const qb = this.projetoRepository
-      .createQueryBuilder('projeto')
-      .leftJoinAndSelect('projeto.evento', 'evento')
-      .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
-      .leftJoinAndSelect('projeto.tema', 'tema')
-      .leftJoinAndSelect(
-        'projeto.orientadores',
-        'projetoOrientador',
-        "projetoOrientador.status = 'aceito'",
-      )
-      .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-      // Só entram projetos com pelo menos 1 material aprovado (EXISTS evita duplicar linhas)
-      .where((qbSub) => {
-        const sub = qbSub
-          .subQuery()
-          .select('1')
-          .from('projeto_materiais', 'material')
-          .where('material.projeto_id = projeto.id')
-          .andWhere("material.status = 'aprovado'")
-          .getQuery();
-        return `EXISTS (${sub})`;
-      });
-
-    if (filtros.search?.trim()) {
-      const termo = filtros.search.trim();
-      const idBusca = Number(termo);
-      if (Number.isFinite(idBusca) && String(idBusca) === termo) {
-        qb.andWhere('projeto.id = :idBusca', { idBusca });
-      } else {
-        qb.andWhere('projeto.titulo LIKE :termo', { termo: `%${termo}%` });
-      }
-    }
-
-    if (filtros.evento) {
-      qb.andWhere('evento.id = :eventoId', {
-        eventoId: Number(filtros.evento),
-      });
-    }
-
-    if (filtros.eixo_tematico?.trim()) {
-      qb.andWhere('tema.nome = :eixo', { eixo: filtros.eixo_tematico.trim() });
-    }
-
-    if (filtros.orientador?.trim()) {
-      const nomes = filtros.orientador
-        .split(',')
-        .map((n) => n.trim())
-        .filter(Boolean);
-      if (nomes.length > 0) {
-        qb.andWhere('orientador.nome IN (:...nomes)', { nomes });
-      }
-    }
-
-    qb.orderBy('projeto.id', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
-
-    const [projetos, total] = await qb.getManyAndCount();
-
-    const projetosMapeados = projetos.map((projeto) => {
-      const orientadorAceito = projeto.orientadores?.[0]?.orientador;
-      return {
-        id: projeto.id,
-        titulo: projeto.titulo,
-        turma: projeto.alunoAutor
-          ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
-          : '',
-        orientador: orientadorAceito?.nome ?? 'Sem orientador',
-        qrcode: Boolean(projeto.qrcodeGerado),
-        eixo_tematico: projeto.tema?.nome ?? '',
-        evento: projeto.evento?.titulo ?? String(projeto.evento?.id ?? ''),
-      };
-    });
-
-    return { projetos: projetosMapeados, total, page, limit };
-  }
-
-  /**
-   * Marca um projeto como "QR Code gerado". Só permite gerar se o projeto
-   * tiver pelo menos um material aprovado (mesma regra da listagem).
-   */
-  async gerarQrCode(
-    id: number,
-    userId: number,
-  ): Promise<{ id: number; qrcode: boolean; url: string }> {
-    const projeto = await this.projetoRepository.findOne({
-      where: { id },
-      relations: ['materiais'],
-    });
-
-    if (!projeto) {
-      throw new NotFoundException(`Projeto #${id} nao encontrado.`);
-    }
-
-    const possuiMaterialAprovado = (projeto.materiais ?? []).some(
-      (material) => material.status === 'aprovado',
-    );
-
-    if (!possuiMaterialAprovado) {
-      throw new BadRequestException(
-        'Este projeto nao possui nenhum material aprovado. Nao e possivel gerar o QR Code.',
-      );
-    }
-
-    projeto.qrcodeGerado = true;
-    await this.projetoRepository.save(projeto);
-
-    await this.auditoriaService.registrar(
-      userId,
-      'PROJETO_QRCODE_GERADO',
-      `QR Code gerado para o projeto #${id}.`,
-      id,
-    );
-
-    return {
-      id: projeto.id,
-      qrcode: true,
-      url: `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${id}`,
-    };
-  }
+  
 }

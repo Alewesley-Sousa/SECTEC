@@ -4,7 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
-import { UsersSeed } from './users.seed';
+import { StudentProgressionService } from './student-progression.service';
+import { UsersImportService } from './users-import.service';
 
 // 🚀 IMPORTANTE: Importe as entidades que o UsersService exige no construtor
 import { Evento } from '../evento/entities/evento.entity'; 
@@ -21,12 +22,12 @@ import { ComissaoEvento } from '../evento/entities/comissao-evento.entity';
   ],
   controllers: [UsersController],
   providers: [
-    UsersService, 
-    UsersSeed,
+    UsersService,
+    StudentProgressionService, 
+    UsersImportService,
   ],
   exports: [
     UsersService, 
-    UsersSeed,
   ],
 })
 export class UsersModule {}
