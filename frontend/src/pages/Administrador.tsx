@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RelatorioAlunosCoordenacao from "./services/coordenacao/components/RelatorioAlunosCoordenacao";
 import { AnimatePresence, motion } from "motion/react";
 import BannersDownload from "./services/coordenacao/components/BannersDownload";
+import ConteudoAtualizacoes from "./services/coordenacao/conteudoModal/ConteudoAtualizacoes";
 import { Pagination } from '../componentes/PaginationUniversal';
+import ConteudoAjuda from "./services/coordenacao/conteudoModal/ConteudoAjuda";
+import ModalAtualizacoes, { type AbaModal } from "./services/coordenacao/components/ModalAtualizacoes";
 import {
   PiArrowUpRight,
   PiBookOpen,
@@ -23,7 +26,10 @@ import {
   ArrowRight,
   CalendarRange,
   ClipboardCheck,
+  Megaphone,
+  CheckCircle,
   Download,
+  UserPlus,
   Eye,
   FileWarning,
   FolderKanban,
@@ -32,7 +38,9 @@ import {
   RefreshCw,
   Save,
   Trash2,
+  Search,
   UsersRound,
+  HelpCircle,
   X,
   Info,
 } from "lucide-react";
@@ -537,7 +545,7 @@ function projetoTemPdf(projeto: unknown) {
 
 function montarUrlPdf(projetoId: number | string, materialId: number | string) {
   return `${API_BASE_URL}/files/download/projeto/${projetoId}/material/${materialId}`;
-} 
+}
 
 function baixarPdf(projetoId: number | string, materialId: number | string) {
   const link = document.createElement("a");
@@ -2401,6 +2409,7 @@ function ProjetosCoordenacao() {
   const [erroTecnico, setErroTecnico] = useState("");
   const [projetoSelecionado, setProjetoSelecionado] = useState<ProjetoCoordenacaoListagem | null>(null);
   const [detalhesAberto, setDetalhesAberto] = useState(false);
+  const [trocaOrientadorAberto, setTrocaOrientadorAberto] = useState(false);
   const [edicaoAberta, setEdicaoAberta] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [orientadorAceito, setOrientadorAceito] = useState<{ loading: boolean; data: unknown; error: string }>({
@@ -2415,6 +2424,7 @@ function ProjetosCoordenacao() {
     evento: "",
     alunosIds: [] as number[],
   });
+
   // Paginação
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 6;
@@ -2429,7 +2439,19 @@ function ProjetosCoordenacao() {
   const [orientadorSelecionadoId, setOrientadorSelecionadoId] = useState<number | null>(null);
   const [carregandoOrientadores, setCarregandoOrientadores] = useState(false);
   const [acaoOrientadorLoading, setAcaoOrientadorLoading] = useState(false);
+  // NOVOS ESTADOS PARA BUSCA DE ORIENTADOR
+  const [buscaOrientador, setBuscaOrientador] = useState("");
+  const [dropdownAberto, setDropdownAberto] = useState(false);
 
+  const orientadoresFiltrados = useMemo(() => {
+    const termo = buscaOrientador.trim().toLowerCase();
+    if (!termo) return orientadores;
+    return orientadores.filter(
+      (o) =>
+        o.nome.toLowerCase().includes(termo) ||
+        (o.email_institucional?.toLowerCase() ?? "").includes(termo)
+    );
+  }, [buscaOrientador, orientadores]);
   const abrirVisualizadorPdf = async (projetoId: number | string, materialId: number | string) => {
     const chave = `${projetoId}_${materialId}`;
     if (pdfCache.current.has(chave)) {
@@ -3019,7 +3041,7 @@ function ProjetosCoordenacao() {
               {/* REMOVIDO: aviso de indisponibilidade */}
             </div>
 
-            {/* BLOCO MODIFICADO: Orientador aceito + ações de troca/remoção */}
+            {/* Orientador aceito + ações */}
             <div className="rounded-2xl border border-slate-100 p-4">
               <p className="text-xs font-black uppercase tracking-widest text-slate-500">Orientador aceito</p>
               {orientadorAceito.loading ? (
@@ -3030,55 +3052,47 @@ function ProjetosCoordenacao() {
                     <p className="text-sm font-black text-emerald-900">{getOrientadorAceitoInfo(orientadorAceito.data).nome}</p>
                     <p className="mt-1 text-xs font-semibold text-emerald-700">{getOrientadorAceitoInfo(orientadorAceito.data).email || "-"}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removerOrientador(projetoSelecionado!.id)}
-                    disabled={acaoOrientadorLoading}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50"
-                  >
-                    {acaoOrientadorLoading ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
-                    Remover orientador
-                  </button>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm font-semibold text-slate-500">Nenhum orientador aceito até o momento.</p>
-              )}
-
-              {/* Seção para trocar/adicionar */}
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <p className="text-xs font-black uppercase tracking-widest text-slate-500">
-                  {getOrientadorAceitoInfo(orientadorAceito.data).nome ? "Trocar orientador" : "Adicionar orientador"}
-                </p>
-                {carregandoOrientadores ? (
-                  <div className="mt-2 h-10 animate-pulse rounded-xl bg-slate-100" />
-                ) : (
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <select
-                      value={orientadorSelecionadoId ?? ""}
-                      onChange={(e) => setOrientadorSelecionadoId(e.target.value ? Number(e.target.value) : null)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
-                    >
-                      <option value="">Selecione um orientador</option>
-                      {orientadores.map((o) => (
-                        <option key={o.id} value={o.id}>{o.nome} ({o.email_institucional})</option>
-                      ))}
-                    </select>
+                  <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        if (orientadorSelecionadoId) {
-                          trocarOrientador(projetoSelecionado!.id, orientadorSelecionadoId);
-                        }
+                        setTrocaOrientadorAberto(true);
+                        setBuscaOrientador("");
+                        setOrientadorSelecionadoId(null);
+                        void carregarOrientadores();
                       }}
-                      disabled={!orientadorSelecionadoId || acaoOrientadorLoading}
-                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-sectec-700 px-4 py-3 text-sm font-black text-white transition hover:bg-sectec-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
                     >
-                      {acaoOrientadorLoading ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                      {getOrientadorAceitoInfo(orientadorAceito.data).nome ? "Trocar" : "Adicionar"}
+                      <RefreshCw size={14} /> Trocar orientador
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removerOrientador(projetoSelecionado!.id)}
+                      disabled={acaoOrientadorLoading}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                    >
+                      {acaoOrientadorLoading ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                      Remover
                     </button>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="mt-2">
+                  <p className="text-sm font-semibold text-slate-500">Nenhum orientador aceito até o momento.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrocaOrientadorAberto(true);
+                      setBuscaOrientador("");
+                      setOrientadorSelecionadoId(null);
+                      void carregarOrientadores();
+                    }}
+                    className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    <UserPlus size={14} /> Adicionar orientador
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -3179,6 +3193,183 @@ function ProjetosCoordenacao() {
         )}
       </PainelDetalhes>
 
+      {/* ========== PAINEL DE TROCA DE ORIENTADOR ========== */}
+      <PainelDetalhes
+        aberto={trocaOrientadorAberto}
+        titulo="Gerenciar orientador"
+        onClose={() => {
+          setTrocaOrientadorAberto(false);
+          setBuscaOrientador("");
+          setOrientadorSelecionadoId(null);
+        }}
+      >
+        <div className="space-y-5">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+          >
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500">
+              {getOrientadorAceitoInfo(orientadorAceito.data).nome
+                ? "Trocar orientador do projeto"
+                : "Adicionar orientador ao projeto"}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-slate-600">
+              Pesquise pelo nome ou e-mail institucional do orientador desejado.
+            </p>
+          </motion.div>
+
+          {carregandoOrientadores ? (
+            <div className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+          ) : (
+            <div className="space-y-3">
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="relative"
+              >
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Nome ou e-mail institucional"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                  value={buscaOrientador}
+                  onChange={(e) => {
+                    setBuscaOrientador(e.target.value);
+                    setDropdownAberto(true);
+                  }}
+                  onFocus={() => setDropdownAberto(true)}
+                  onBlur={() => setTimeout(() => setDropdownAberto(false), 200)}
+                />
+                {buscaOrientador && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBuscaOrientador("");
+                      setOrientadorSelecionadoId(null);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </motion.div>
+
+              {/* Dropdown animado */}
+              <AnimatePresence>
+                {dropdownAberto && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                  >
+                    <div className="max-h-56 overflow-y-auto">
+                      {orientadoresFiltrados.length === 0 ? (
+                        <div className="px-4 py-3 text-xs font-semibold text-slate-500">
+                          Nenhum orientador encontrado.
+                        </div>
+                      ) : (
+                        orientadoresFiltrados.map((o, index) => (
+                          <motion.button
+                            key={o.id}
+                            type="button"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.03 }}
+                            onClick={() => {
+                              setOrientadorSelecionadoId(Number(o.id));
+                              setBuscaOrientador(`${o.nome} (${o.email_institucional})`);
+                              setDropdownAberto(false);
+                            }}
+                            className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold transition ${Number(o.id) === orientadorSelecionadoId
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "text-slate-700 hover:bg-slate-50"
+                              }`}
+                          >
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
+                              {o.nome.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold">{o.nome}</p>
+                              <p className="truncate text-xs text-slate-400">{o.email_institucional}</p>
+                            </div>
+                            {Number(o.id) === orientadorSelecionadoId && (
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring", stiffness: 500 }}
+                                className="ml-auto"
+                              >
+                                <CheckCircle size={16} className="text-emerald-500" />
+                              </motion.div>
+                            )}
+                          </motion.button>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Orientador selecionado */}
+              <AnimatePresence>
+                {orientadorSelecionadoId && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                    className="rounded-xl bg-emerald-50 p-3 flex items-center justify-between"
+                  >
+                    <p className="text-sm font-black text-emerald-900">
+                      {orientadores.find((o) => Number(o.id) === orientadorSelecionadoId)?.nome ?? ""}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrientadorSelecionadoId(null);
+                        setBuscaOrientador("");
+                      }}
+                      className="text-emerald-600 hover:text-emerald-800 transition"
+                    >
+                      <X size={14} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Botão confirmar */}
+              <motion.button
+                type="button"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (orientadorSelecionadoId && projetoSelecionado) {
+                    trocarOrientador(projetoSelecionado.id, orientadorSelecionadoId);
+                    setTrocaOrientadorAberto(false);
+                  }
+                }}
+                disabled={!orientadorSelecionadoId || acaoOrientadorLoading}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-sectec-700 px-4 py-3 text-sm font-black text-white transition hover:bg-sectec-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {acaoOrientadorLoading ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <Save size={16} />
+                )}
+                {acaoOrientadorLoading ? "Salvando..." : "Confirmar troca"}
+              </motion.button>
+            </div>
+          )}
+        </div>
+      </PainelDetalhes>
 
       <BannersDownload
         aberto={bannersAberto}
@@ -3320,6 +3511,22 @@ function Administrador() {
   const [relatorioEixos, setRelatorioEixos] = useState<EixosPorEventoResponse>({});
   const [relatorioProjetosPorOrientador, setRelatorioProjetosPorOrientador] = useState<ProjetosPorOrientadorResponse>([]);
   const [relatorioProjetosPorTurma, setRelatorioProjetosPorTurma] = useState<ProjetosPorTurmaResponse>({});
+  const [modalAtualizacoesAberto, setModalAtualizacoesAberto] = useState(false);
+
+  const abasModal: AbaModal[] = [
+    {
+      id: "projetos",
+      rotulo: "Gerenciamento de Projetos",
+      icone: <FolderKanban size={18} />, // ou <ClipboardList size={18} />
+      conteudo: <ConteudoAtualizacoes />, // conteúdo permanece o mesmo ou pode ser alterado depois
+    },
+    {
+      id: "ajuda",
+      rotulo: "Ajuda",
+      icone: <HelpCircle size={18} />,
+      conteudo: <ConteudoAjuda />,
+    },
+  ];
 
   async function requestOrDefault<T>(path: string, fallback: T) {
     try {
@@ -3516,15 +3723,34 @@ function Administrador() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={carregarDashboard}
-                disabled={carregandoDashboard}
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white px-5 py-3 text-sm font-black text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-              >
-                {carregandoDashboard ? <Loader2 className="animate-spin" size={17} /> : <RefreshCw size={17} />}
-                {carregandoDashboard ? "Atualizando..." : "Atualizar dados"}
-              </button>
+              {/* Container que junta os dois botões */}
+              <div className="flex gap-2">
+                {/* Botão Novidades com bolinha vermelha */}
+                <button
+                  type="button"
+                  onClick={() => setModalAtualizacoesAberto(true)}
+                  className="relative inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20 sm:w-auto"
+                >
+                  <Megaphone size={17} />
+                  Novidades
+                  {/* Bolinha vermelha pulsante */}
+                  <span className="absolute -right-1 -top-1 flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+                  </span>
+                </button>
+
+                {/* Botão Atualizar dados (já existente) */}
+                <button
+                  type="button"
+                  onClick={carregarDashboard}
+                  disabled={carregandoDashboard}
+                  className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white px-5 py-3 text-sm font-black text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                >
+                  {carregandoDashboard ? <Loader2 className="animate-spin" size={17} /> : <RefreshCw size={17} />}
+                  {carregandoDashboard ? "Atualizando..." : "Atualizar dados"}
+                </button>
+              </div>
             </div>
 
             {erroDashboard && (
@@ -3637,6 +3863,15 @@ function Administrador() {
           </section>
         </div>
       </main>
+
+      {/* Modal de Atualizações */}
+      <ModalAtualizacoes
+        aberto={modalAtualizacoesAberto}
+        onClose={() => setModalAtualizacoesAberto(false)}
+        titulo="Central da Coordenação"
+        subtitulo="Atualizações, suporte e mais"
+        abas={abasModal}
+      />
     </MainLayout>
   );
 }
