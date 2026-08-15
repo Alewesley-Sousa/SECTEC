@@ -103,5 +103,10 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "allowScripts": {
+    "@swc/core@1.15.43": true,
+    "@scarf/scarf@1.4.0": true,
+    "unrs-resolver": true
   }
 }
