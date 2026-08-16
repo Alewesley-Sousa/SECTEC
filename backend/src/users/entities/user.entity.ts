@@ -10,7 +10,8 @@ export enum UserRole {
   ALUNO = 'aluno',
   ORIENTADOR = 'orientador',
   COORDENACAO = 'coordenador',
-  COMISSAO = 'comissao', // 👈 igual ao enum do banco
+  COMISSAO = 'comissao',
+   AVALIADOR = 'avaliador' // 👈 igual ao enum do banco
 }
 export enum UserTurma {
   INFORMATICA = 'informatica',
