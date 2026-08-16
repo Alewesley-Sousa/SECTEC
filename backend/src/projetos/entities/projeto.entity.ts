@@ -33,6 +33,9 @@ export class Projeto {
   @Column({ type: 'varchar', length: 255 })
   titulo!: string;
 
+  @Column({ type: 'boolean', default: false })
+  qrcodeGerado!: boolean;
+
   @Column({ type: 'text' })
   descricao!: string;
 

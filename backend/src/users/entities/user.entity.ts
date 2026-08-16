@@ -27,8 +27,17 @@ export class User {
   @Column()
   nome!: string;
 
-  @Column({ unique: true })
+  // Mapeia a coluna física do banco para a propriedade email_institucional
+  @Column({ name: 'email_institucional', unique: true })
   email_institucional!: string;
+
+  // Get/Set de compatibilidade para códigos/DTOs que utilizam apenas .email
+  get email(): string {
+    return this.email_institucional;
+  }
+  set email(value: string) {
+    this.email_institucional = value;
+  }
 
   @Column({ type: 'enum', enum: UserRole })
   role_cargo!: UserRole;
