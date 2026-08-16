@@ -15,7 +15,8 @@ import {
   LogOut,
   Users,
   GraduationCap,
-  FileText
+  FileText,
+  QrCode
 } from "lucide-react";
 
 import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
@@ -81,8 +82,8 @@ export function Sidebar({
       exit={mobile ? { x: -320 } : undefined}
       transition={{ type: "spring", stiffness: 260, damping: 28 }}
       className={`${mobile
-          ? "fixed inset-y-0 left-0 z-50 w-72 flex"
-          : "fixed inset-y-0 left-0 z-20 hidden h-dvh min-h-dvh shrink-0 lg:flex"
+        ? "fixed inset-y-0 left-0 z-50 w-72 flex"
+        : "fixed inset-y-0 left-0 z-20 hidden h-dvh min-h-dvh shrink-0 lg:flex"
         } bg-[#0b4d2c] text-white border-r border-white/5 flex-col shadow-2xl overflow-visible`}
     >
       {!mobile && (
@@ -210,8 +211,8 @@ export function Sidebar({
                 to={item.href || "#"}
                 onClick={onClose}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-semibold transition ${isActive
-                    ? "bg-white/15 text-white shadow-inner"
-                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                  ? "bg-white/15 text-white shadow-inner"
+                  : "text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
               >
                 <span className="opacity-80 shrink-0">{item.icon}</span>
@@ -346,6 +347,8 @@ export function MainLayout({
     [`${dashboardPrefix}/relatorio-alunos`]: "Status dos Alunos",
     [`${dashboardPrefix}/gestao-relatorio-alunos`]: "Gestão de Relatórios",
     [`${dashboardPrefix}/configuracoes`]: "Configurações",
+    [`${dashboardPrefix}/qrcode`]: "Gerar QR Code",
+    [`${dashboardPrefix}/qrcode/imprimir`]: "Imprimir QR Codes",
   };
 
   const currentPage =
@@ -434,6 +437,31 @@ export function MainLayout({
       isActive: location.pathname === `${dashboardPrefix}/projetos`,
       roles: ["coordenador", "comissao"],
     },
+
+    {
+      id: "coordenacao-qrcode",
+      label: "QR Code",
+      icon: <QrCode size={20} />,
+      isActive:
+        location.pathname === `${dashboardPrefix}/qrcode` ||
+        location.pathname === `${dashboardPrefix}/qrcode/imprimir`,
+      roles: ["coordenador"],
+      subItems: [
+        {
+          id: "coordenacao-qrcode-gerar",
+          label: "Gerar QR Code para Projetos",
+          href: `${dashboardPrefix}/qrcode`,
+          roles: ["coordenador"],
+        },
+        {
+          id: "coordenacao-qrcode-imprimir",
+          label: "Imprimir QR Codes",
+          href: `${dashboardPrefix}/qrcode/imprimir`,
+          roles: ["coordenador"],
+        },
+      ],
+    },
+
     {
       id: "coordenacao-usuarios",
       label: "Usuários",

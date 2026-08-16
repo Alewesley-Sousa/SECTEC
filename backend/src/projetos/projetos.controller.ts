@@ -1,19 +1,11 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  UseGuards,
-  ForbiddenException,
-  ParseIntPipe,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ForbiddenException, ParseIntPipe, Query, Res, StreamableFile } from '@nestjs/common';
 import { ProjetosService } from './projetos.service';
+import { ProjetosOrientadorService } from './ProjetosOrientador.service';
+import { ProjetosConsultaService } from './ProjetosConsulta.service';
+import { ProjetosPdfService } from './ProjetosPdf.service';
 
 // DTOs
+import { GerarPdfDto } from '../pdf/dto/gerar-pdf.dto';
 import { CreateProjetoDto } from './dto/create-projeto.dto';
 import { UpdateProjetoDto } from './dto/update-projeto.dto';
 import { EnviarSolicitacaoDto } from './dto/enviar-solicitacao.dto';
@@ -25,16 +17,53 @@ import { TransferirAutoriaDto } from './dto/transferir-autoria.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { ProjetosEquipeService } from './ProjetosEquipe.service';
 
 // Swagger
-import { ApiOperation, ApiResponse, ApiTags, ApiBody, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags, ApiBody, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
 
 @ApiTags('projetos')
 @ApiBearerAuth()
 @ApiBearerAuth('token-jwt')
 @Controller('projetos')
+@UseGuards(JwtAuthGuard)
 export class ProjetosController {
-  constructor(private readonly projetosService: ProjetosService) { }
+  constructor(private readonly projetosService: ProjetosService,
+    private readonly equipeService: ProjetosEquipeService,
+    private readonly orientadorService: ProjetosOrientadorService,
+    private readonly consultaService: ProjetosConsultaService,
+    private readonly pdfService: ProjetosPdfService,
+  ) { }
+
+  @Get('com-materiais-aprovados')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Lista projetos que possuem pelo menos um material aprovado (usado na geração de QR Code)',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'evento', required: false, type: String })
+  @ApiQuery({ name: 'eixo_tematico', required: false, type: String })
+  @ApiQuery({ name: 'orientador', required: false, type: String })
+  async findComMateriaisAprovados(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('evento') evento?: string,
+    @Query('eixo_tematico') eixo_tematico?: string,
+    @Query('orientador') orientador?: string,
+  ) {
+    return this.consultaService.findComMateriaisAprovados({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      evento,
+      eixo_tematico,
+      orientador,
+    });
+  }
 
   // ===========================================================================
   // ROTA PÚBLICA (SEM AUTENTICAÇÃO)
@@ -60,13 +89,32 @@ export class ProjetosController {
   ) {
     const pageNum = page ? Number(page) : 1;
     const limitNum = limit ? Number(limit) : 8;
-    return this.projetosService.findAllPublic(
+    return this.consultaService.findAllPublic(
       { search, curso, eixo, evento },
       pageNum,
       limitNum,
     );
   }
-  
+
+  @Get('public/:id/pdf')
+  @Public()
+  @ApiOperation({ summary: 'Retorna o PDF público do projeto pelo ID' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID do projeto' })
+  @ApiResponse({ status: 200, description: 'Arquivo PDF do projeto' })
+  @ApiResponse({ status: 404, description: 'Projeto não encontrado ou não possui PDF' })
+  async obterPdfProjetoPublico(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const { buffer, nomeArquivo } = await this.consultaService.obterPdfProjetoPublico(id);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${nomeArquivo}"`);
+    res.setHeader('Content-Length', buffer.length);
+
+    return new StreamableFile(buffer);
+  }
+
   // ===========================================================================
   // ROTAS DE CRIAÇÃO E AÇÕES ESPECÍFICAS (REQUEREM AUTENTICAÇÃO)
   // ===========================================================================
@@ -109,7 +157,7 @@ export class ProjetosController {
     if (role !== 'aluno') {
       throw new ForbiddenException('Apenas alunos autores podem solicitar orientação.');
     }
-    return this.projetosService.enviarMultiplasSolicitacoes(userId, dto.orientadoresIds);
+    return this.orientadorService.enviarMultiplasSolicitacoes(userId, dto.orientadoresIds);
   }
 
   // ===========================================================================
@@ -156,7 +204,7 @@ export class ProjetosController {
   @Get('alunos-ocupados')
   @UseGuards(JwtAuthGuard)
   async getAlunosOcupados(@Query('projetoId') projetoId?: string) {
-    const ids = await this.projetosService.findAlunosOcupados(
+    const ids = await this.consultaService.findAlunosOcupados(
       projetoId ? parseInt(projetoId, 10) : undefined,
     );
     return ids;
@@ -174,7 +222,7 @@ export class ProjetosController {
     if (role === 'aluno' && projeto.alunoAutor.id !== userId) {
       throw new ForbiddenException('Acesso negado: você não possui vínculo com este projeto.');
     }
-    return this.projetosService.getOrientadorAceitoByProjetoId(id);
+    return this.orientadorService.getOrientadorAceitoByProjetoId(id);
   }
 
   @Get(':id')
@@ -207,7 +255,22 @@ export class ProjetosController {
     @GetUser('userId') userId: number,
     @GetUser('role') role: string,
   ) {
-    return this.projetosService.addIntegrantes(id, dto.alunosIds, userId, role);
+    return this.equipeService.addIntegrantes(id, dto.alunosIds, userId, role);
+  }
+
+  @Post('gerar-pdf')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '[Coordenador] Gera o PDF de identificação (placas com QR Code) dos projetos' })
+  async gerarPdf(
+    @Body() dto: GerarPdfDto,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+
+    if (role != 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem gerar o PDF de identificação.');
+    }
+    return this.pdfService.gerarPdfIdentificacao(dto);
   }
 
   @Delete(':id/integrantes/:alunoId')
@@ -220,7 +283,7 @@ export class ProjetosController {
     @GetUser('userId') userId: number,
     @GetUser('role') role: string,
   ) {
-    return this.projetosService.removeIntegrante(id, alunoId, userId, role);
+    return this.equipeService.removeIntegrante(id, alunoId, userId, role);
   }
 
   @Patch(':id/orientador')
@@ -233,7 +296,7 @@ export class ProjetosController {
     @GetUser('userId') userId: number,
     @GetUser('role') role: string,
   ) {
-    return this.projetosService.gerenciarOrientador(id, dto.orientadorId, userId, role);
+    return this.orientadorService.gerenciarOrientador(id, dto.orientadorId, userId, role);
   }
 
   @Delete(':id/orientador')
@@ -245,7 +308,7 @@ export class ProjetosController {
     @GetUser('userId') userId: number,
     @GetUser('role') role: string,
   ) {
-    return this.projetosService.removerOrientador(id, userId, role);
+    return this.orientadorService.removerOrientador(id, userId, role);
   }
 
   @Patch(':id')
@@ -282,7 +345,7 @@ export class ProjetosController {
     if (role !== 'coordenador') {
       throw new ForbiddenException('Apenas coordenadores podem transferir a autoria de projetos.');
     }
-    return this.projetosService.transferirAutoria(id, dto.novoAutorId, dto.manterAutorAtual, userId);
+    return this.equipeService.transferirAutoria(id, dto.novoAutorId, dto.manterAutorAtual, userId);
   }
 
   @Delete(':id')
@@ -294,6 +357,25 @@ export class ProjetosController {
     @GetUser('role') role: string,
   ) {
     return this.projetosService.remove(id, userId, role);
+  }
+
+
+  @Post(':id/gerar-qrcode')
+  @ApiOperation({
+    summary: '[Coordenador] Gera o QR Code de identificação do projeto',
+  })
+  async gerarQrCode(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    console.log('🔹 [gerarQrCode] role recebido:', role, '| tipo:', typeof role);
+    if (role !== 'coordenador') {
+      throw new ForbiddenException(
+        'Apenas coordenadores podem gerar o QR Code do projeto.',
+      );
+    }
+    return this.projetosService.gerarQrCode(id, userId);
   }
 
 }
