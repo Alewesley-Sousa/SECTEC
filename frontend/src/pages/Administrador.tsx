@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import RelatorioAlunosCoordenacao from "./services/coordenacao/components/RelatorioAlunosCoordenacao";
 import { AnimatePresence, motion } from "motion/react";
+import BannersDownload from "./services/coordenacao/components/BannersDownload";
+import ConteudoAtualizacoes from "./services/coordenacao/conteudoModal/ConteudoAtualizacoes";
 import { Pagination } from '../componentes/PaginationUniversal';
+import ConteudoAjuda from "./services/coordenacao/conteudoModal/ConteudoAjuda";
+import ModalAtualizacoes, { type AbaModal } from "./services/coordenacao/components/ModalAtualizacoes";
 import {
   PiArrowUpRight,
   PiBookOpen,
@@ -22,7 +26,10 @@ import {
   ArrowRight,
   CalendarRange,
   ClipboardCheck,
+  Megaphone,
+  CheckCircle,
   Download,
+  UserPlus,
   Eye,
   FileWarning,
   FolderKanban,
@@ -31,7 +38,9 @@ import {
   RefreshCw,
   Save,
   Trash2,
+  Search,
   UsersRound,
+  HelpCircle,
   X,
   Info,
 } from "lucide-react";
@@ -39,6 +48,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { MainLayout } from "../componentes/SideBarUniversal";
 import Swal from "sweetalert2";
 import { apiRequest, API_BASE_URL, type UsuarioApi } from "../lib/api";
+import { Document, Page, pdfjs } from 'react-pdf';
+
+// Configure o worker do pdf.js (coloque fora do componente, logo após os imports)
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 
 type AlunoRelatorio = {
   id: number;
@@ -531,10 +545,6 @@ function projetoTemPdf(projeto: unknown) {
 
 function montarUrlPdf(projetoId: number | string, materialId: number | string) {
   return `${API_BASE_URL}/files/download/projeto/${projetoId}/material/${materialId}`;
-}
-
-function visualizarPdf(projetoId: number | string, materialId: number | string) {
-  window.open(montarUrlPdf(projetoId, materialId), "_blank", "noopener,noreferrer");
 }
 
 function baixarPdf(projetoId: number | string, materialId: number | string) {
@@ -1856,6 +1866,112 @@ function UsuariosCoordenacao() {
     }
   }, [anoFiltro, podeFiltrarAno, podeFiltrarTurma, turmaFiltro]);
 
+  function confirmarImportacaoCSV(tipo: "alunos" | "orientadores") {
+    const tabelaAlunos = `
+    <div style="max-height:50vh; overflow-y:auto; margin-bottom:10px;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:monospace;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">nome</th>
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">email</th>
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">turma</th>
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">ano</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #e2e8f0; padding:10px;">João Silva</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">joao.silva@escola.com</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">INFO</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">1</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e2e8f0; padding:10px;">Maria Souza</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">maria.souza@escola.com</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">ENF</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">2</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e2e8f0; padding:10px;">Pedro Santos</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">pedro.santos@escola.com</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">CONT</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">3</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:8px;"><strong>Delimitador:</strong> vírgula (,) ou ponto e vírgula (;)</p>
+    <p style="margin-top:4px; color:#475569;">📌 <code>turma</code> usa as siglas: <strong>INFO</strong> (Informática), <strong>ENF</strong> (Enfermagem), <strong>CONT</strong> (Contabilidade).</p>
+    <p style="margin-top:4px; color:#475569;">📌 A senha será automaticamente o email institucional.</p>
+  `;
+
+    const tabelaOrientadores = `
+    <div style="max-height:50vh; overflow-y:auto; margin-bottom:10px;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:monospace;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">nome</th>
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">email</th>
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">senha</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #e2e8f0; padding:10px;">Dr. Carlos Mendes</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">carlos.mendes@escola.com</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">senhaSegura123</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e2e8f0; padding:10px;">Profa. Ana Lima</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">ana.lima@escola.com</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">outraSenha456</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e2e8f0; padding:10px;">Prof. Roberto Nunes</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">roberto.nunes@escola.com</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">(opcional)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:8px;"><strong>Delimitador:</strong> vírgula (,) ou ponto e vírgula (;)</p>
+    <p style="margin-top:4px; color:#475569;">📌 A coluna <code>senha</code> é opcional (padrão: email).</p>
+    <p style="margin-top:4px; color:#475569;">📌 Colunas <code>turma</code> e <code>ano</code> são ignoradas para orientadores.</p>
+  `;
+
+    const conteudo = tipo === "alunos" ? tabelaAlunos : tabelaOrientadores;
+    const titulo = tipo === "alunos"
+      ? "Exemplo de CSV – Alunos"
+      : "Exemplo de CSV – Orientadores";
+
+    Swal.fire({
+      title: titulo,
+      html: `
+      <div style="text-align:left; font-size:14px;">
+        <p>Seu arquivo CSV deve seguir exatamente este formato:</p>
+        ${conteudo}
+        <p style="margin-top:16px;">Deseja selecionar o arquivo CSV agora?</p>
+      </div>
+    `,
+      icon: "info",
+      width: "90%",            // responsivo em telas pequenas
+      heightAuto: false,       // não expande além da viewport
+      showCancelButton: true,
+      confirmButtonText: "Sim, selecionar arquivo",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#15803d",
+      cancelButtonColor: "#64748b",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        if (tipo === "alunos" && inputAlunosRef.current) {
+          inputAlunosRef.current.click();
+        } else if (tipo === "orientadores" && inputOrientadoresRef.current) {
+          inputOrientadoresRef.current.click();
+        }
+      }
+    });
+  }
+
   return (
     <AdminPageShell>
       <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -1894,7 +2010,7 @@ function UsuariosCoordenacao() {
             </button>
             <button
               type="button"
-              onClick={() => inputAlunosRef.current?.click()}
+              onClick={() => confirmarImportacaoCSV("alunos")}
               disabled={importandoTipo !== null}
               className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -1903,7 +2019,7 @@ function UsuariosCoordenacao() {
             </button>
             <button
               type="button"
-              onClick={() => inputOrientadoresRef.current?.click()}
+              onClick={() => confirmarImportacaoCSV("orientadores")}
               disabled={importandoTipo !== null}
               className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -2293,6 +2409,7 @@ function ProjetosCoordenacao() {
   const [erroTecnico, setErroTecnico] = useState("");
   const [projetoSelecionado, setProjetoSelecionado] = useState<ProjetoCoordenacaoListagem | null>(null);
   const [detalhesAberto, setDetalhesAberto] = useState(false);
+  const [trocaOrientadorAberto, setTrocaOrientadorAberto] = useState(false);
   const [edicaoAberta, setEdicaoAberta] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [orientadorAceito, setOrientadorAceito] = useState<{ loading: boolean; data: unknown; error: string }>({
@@ -2307,9 +2424,69 @@ function ProjetosCoordenacao() {
     evento: "",
     alunosIds: [] as number[],
   });
+
   // Paginação
-const [paginaAtual, setPaginaAtual] = useState(1);
-const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const ITENS_POR_PAGINA = 6;
+  const [bannersAberto, setBannersAberto] = useState(false);
+  const pdfCache = useRef<Map<string, string>>(new Map());
+  const [pdfModalUrl, setPdfModalUrl] = useState<string | null>(null);
+  const [carregandoPdf, setCarregandoPdf] = useState(false);
+  const [numPages, setNumPages] = useState<number | null>(null);
+
+  // NOVOS ESTADOS PARA GERENCIAMENTO DE ORIENTADOR
+  const [orientadores, setOrientadores] = useState<UsuarioApi[]>([]);
+  const [orientadorSelecionadoId, setOrientadorSelecionadoId] = useState<number | null>(null);
+  const [carregandoOrientadores, setCarregandoOrientadores] = useState(false);
+  const [acaoOrientadorLoading, setAcaoOrientadorLoading] = useState(false);
+  // NOVOS ESTADOS PARA BUSCA DE ORIENTADOR
+  const [buscaOrientador, setBuscaOrientador] = useState("");
+  const [dropdownAberto, setDropdownAberto] = useState(false);
+
+  const orientadoresFiltrados = useMemo(() => {
+    const termo = buscaOrientador.trim().toLowerCase();
+    if (!termo) return orientadores;
+    return orientadores.filter(
+      (o) =>
+        o.nome.toLowerCase().includes(termo) ||
+        (o.email_institucional?.toLowerCase() ?? "").includes(termo)
+    );
+  }, [buscaOrientador, orientadores]);
+  const abrirVisualizadorPdf = async (projetoId: number | string, materialId: number | string) => {
+    const chave = `${projetoId}_${materialId}`;
+    if (pdfCache.current.has(chave)) {
+      setPdfModalUrl(pdfCache.current.get(chave)!);
+      return;
+    }
+    setCarregandoPdf(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(montarUrlPdf(projetoId, materialId), {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      pdfCache.current.set(chave, url);
+      setPdfModalUrl(url);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Erro ao carregar PDF",
+        text: error instanceof Error ? error.message : "Não foi possível visualizar o PDF.",
+        confirmButtonColor: "#15803d",
+      });
+    } finally {
+      setCarregandoPdf(false);
+    }
+  };
+
+  const fecharPdfModal = () => {
+    setPdfModalUrl(null);
+    setNumPages(null);
+  };
 
   function exibirInfoIntegrantes() {
     Swal.fire({
@@ -2333,14 +2510,12 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
     setCarregando(true);
     setErro("");
     setErroTecnico("");
-
     try {
       const [projetosResponse, eventosResponse, alunosResponse] = await Promise.all([
         apiRequest<unknown>("/projetos"),
         apiRequest<EventoApi[]>("/evento").catch(() => []),
         apiRequest<UsuarioApi[]>("/users/alunos").catch(() => []),
       ]);
-
       setProjetos(extrairProjetosDaResposta(projetosResponse) as ProjetoCoordenacaoListagem[]);
       setEventos(eventosResponse);
       setAlunos(alunosResponse);
@@ -2391,14 +2566,12 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
 
   const projetosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-
     return projetos.filter((projeto) => {
       const autor = getAutorProjeto(projeto);
       const integrantes = getIntegrantesProjeto(projeto);
       const orientadores = getOrientadoresProjeto(projeto);
       const eventoId = getEventoProjetoId(projeto);
       const statusOrientacao = getStatusOrientacaoProjeto(projeto);
-
       const bateBusca =
         !termo ||
         projeto.titulo.toLowerCase().includes(termo) ||
@@ -2407,7 +2580,6 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
         autor?.nome.toLowerCase().includes(termo) ||
         integrantes.some((aluno) => aluno?.nome.toLowerCase().includes(termo)) ||
         orientadores.some((item) => item.orientador?.nome.toLowerCase().includes(termo));
-
       const bateEvento = eventoFiltro === "todos" || String(eventoId) === eventoFiltro;
       const bateTurma =
         turmaFiltro === "todas" ||
@@ -2415,7 +2587,6 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
         integrantes.some((aluno) => aluno?.turma === turmaFiltro);
       const bateStatusOrientacao =
         statusOrientacaoFiltro === "todos" || statusOrientacao === statusOrientacaoFiltro;
-
       return bateBusca && bateEvento && bateTurma && bateStatusOrientacao;
     });
   }, [busca, eventoFiltro, projetos, statusOrientacaoFiltro, turmaFiltro]);
@@ -2431,13 +2602,11 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
     setPaginaAtual(1);
   }, [busca, eventoFiltro, turmaFiltro, statusOrientacaoFiltro]);
 
-
   const eventoSelecionadoNoForm = eventos.find((evento) => String(evento.id) === formProjeto.evento);
   const temasDoEventoSelecionado = eventoSelecionadoNoForm?.temas ?? [];
 
   async function carregarOrientadorAceito(projetoId: number | string) {
     setOrientadorAceito({ loading: true, data: null, error: "" });
-
     try {
       const data = await apiRequest<unknown>(`/projetos/${projetoId}/orientador-aceito`);
       setOrientadorAceito({ loading: false, data, error: "" });
@@ -2446,10 +2615,88 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
     }
   }
 
+  // NOVO: Carregar lista de orientadores disponíveis
+  async function carregarOrientadores() {
+    setCarregandoOrientadores(true);
+    try {
+      const data = await apiRequest<UsuarioApi[]>("/users/orientadores");
+      setOrientadores(data);
+    } catch (error) {
+      console.error("Erro ao carregar orientadores", error);
+    } finally {
+      setCarregandoOrientadores(false);
+    }
+  }
+
+  // NOVO: Trocar ou adicionar orientador
+  async function trocarOrientador(projetoId: number, novoOrientadorId: number) {
+    setAcaoOrientadorLoading(true);
+    try {
+      await apiRequest(`/projetos/${projetoId}/orientador`, {
+        method: "PATCH",
+        body: { orientadorId: novoOrientadorId },
+      });
+      Swal.fire({
+        icon: "success",
+        title: "Orientador atualizado",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+      await carregarOrientadorAceito(projetoId);
+      await carregarProjetos();
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Erro ao trocar orientador",
+        text: error instanceof Error ? error.message : "Tente novamente.",
+        confirmButtonColor: "#15803d",
+      });
+    } finally {
+      setAcaoOrientadorLoading(false);
+    }
+  }
+
+  // NOVO: Remover orientador
+  async function removerOrientador(projetoId: number) {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Remover orientador?",
+      text: "O orientador atual será removido (status alterado para recusado).",
+      showCancelButton: true,
+      confirmButtonText: "Remover",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#dc2626",
+    });
+    if (!result.isConfirmed) return;
+
+    setAcaoOrientadorLoading(true);
+    try {
+      await apiRequest(`/projetos/${projetoId}/orientador`, { method: "DELETE" });
+      Swal.fire({
+        icon: "success",
+        title: "Orientador removido",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+      await carregarOrientadorAceito(projetoId);
+      await carregarProjetos();
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Erro ao remover orientador",
+        text: error instanceof Error ? error.message : "Tente novamente.",
+        confirmButtonColor: "#15803d",
+      });
+    } finally {
+      setAcaoOrientadorLoading(false);
+    }
+  }
+
   function abrirDetalhesProjeto(projeto: ProjetoCoordenacaoListagem) {
     setProjetoSelecionado(projeto);
     setDetalhesAberto(true);
     void carregarOrientadorAceito(projeto.id);
+    void carregarOrientadores(); // NOVO: carrega lista de orientadores
   }
 
   function abrirEdicaoProjeto(projeto: ProjetoCoordenacaoListagem) {
@@ -2457,7 +2704,6 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
     const alunosIds = getIntegrantesProjeto(projeto)
       .map((aluno) => Number(aluno?.id))
       .filter((id) => Number.isFinite(id) && String(id) !== autorId);
-
     setProjetoSelecionado(projeto);
     setFormProjeto({
       titulo: projeto.titulo,
@@ -2467,8 +2713,6 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
       alunosIds,
     });
     setEdicaoAberta(true);
-
-    // 🔍 Busca os alunos ocupados para este projeto
     apiRequest<number[]>(`/projetos/alunos-ocupados?projetoId=${projeto.id}`)
       .then((ids) => setAlunosOcupadosIds(ids))
       .catch(() => setAlunosOcupadosIds([]));
@@ -2485,20 +2729,13 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
 
   async function salvarProjeto() {
     if (!projetoSelecionado) return;
-
     const autorId = projetoSelecionado.alunoAutor?.id ? Number(projetoSelecionado.alunoAutor.id) : null;
     const alunosIds = formProjeto.alunosIds.filter((id) => id !== autorId);
     const totalGrupo = alunosIds.length + 1;
-
     if (!formProjeto.titulo.trim() || !formProjeto.descricao.trim() || !formProjeto.temaId || !formProjeto.evento) {
-      await Swal.fire({
-        icon: "warning",
-        title: "Preencha os campos obrigatórios",
-        confirmButtonColor: "#15803d",
-      });
+      await Swal.fire({ icon: "warning", title: "Preencha os campos obrigatórios", confirmButtonColor: "#15803d" });
       return;
     }
-
     if (totalGrupo < 3 || totalGrupo > 7) {
       await Swal.fire({
         icon: "warning",
@@ -2508,7 +2745,6 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
       });
       return;
     }
-
     setSalvando(true);
     try {
       await apiRequest(`/projetos/${projetoSelecionado.id}`, {
@@ -2521,14 +2757,7 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
           alunosIds,
         },
       });
-
-      await Swal.fire({
-        icon: "success",
-        title: "Projeto atualizado",
-        showConfirmButton: false,
-        timer: 1300,
-        timerProgressBar: true,
-      });
+      await Swal.fire({ icon: "success", title: "Projeto atualizado", showConfirmButton: false, timer: 1300, timerProgressBar: true });
       setEdicaoAberta(false);
       setProjetoSelecionado(null);
       await carregarProjetos();
@@ -2555,18 +2784,10 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#64748b",
     });
-
     if (!result.isConfirmed) return;
-
     try {
       await apiRequest(`/projetos/${projeto.id}`, { method: "DELETE" });
-      await Swal.fire({
-        icon: "success",
-        title: "Projeto excluído",
-        showConfirmButton: false,
-        timer: 1200,
-        timerProgressBar: true,
-      });
+      await Swal.fire({ icon: "success", title: "Projeto excluído", showConfirmButton: false, timer: 1200, timerProgressBar: true });
       await carregarProjetos();
     } catch (error) {
       await Swal.fire({
@@ -2580,11 +2801,9 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
 
   function renderOrientadores(projeto: ProjetoCoordenacaoListagem) {
     const orientadores = getOrientadoresProjeto(projeto);
-
     if (orientadores.length === 0) {
       return <p className="text-sm font-semibold text-slate-500">Nenhum orientador aceito/vinculado.</p>;
     }
-
     return (
       <div className="space-y-2">
         {orientadores.map((item) => (
@@ -2604,13 +2823,8 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
       nome?: string;
       email?: string;
       email_institucional?: string;
-      orientador?: {
-        nome?: string;
-        email?: string;
-        email_institucional?: string;
-      };
+      orientador?: { nome?: string; email?: string; email_institucional?: string };
     } | null;
-
     return {
       nome: item?.orientador?.nome ?? item?.nome ?? "",
       email: item?.orientador?.email_institucional ?? item?.orientador?.email ?? item?.email_institucional ?? item?.email ?? "",
@@ -2622,64 +2836,39 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <PanelTitle icon={<PiNotebook size={20} />} title="Projetos" subtitle="Gestão real de projetos cadastrados, agrupados ou não por evento." />
-          <Tooltip label="Atualizar dados">
-            <button
-              type="button"
-              onClick={carregarProjetos}
-              disabled={carregando}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {carregando ? <Loader2 className="animate-spin" size={17} /> : <RefreshCw size={17} />}
-              Atualizar
-            </button>
-          </Tooltip>
+          <div className="flex gap-2">
+            <Tooltip label="Download de banners em lote">
+              <button type="button" onClick={() => setBannersAberto(true)} className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100">
+                <Download size={17} /> Baixar banners
+              </button>
+            </Tooltip>
+            <Tooltip label="Atualizar dados">
+              <button type="button" onClick={carregarProjetos} disabled={carregando} className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                {carregando ? <Loader2 className="animate-spin" size={17} /> : <RefreshCw size={17} />} Atualizar
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_220px_180px_210px]">
           <label className="relative block">
             <PiMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
-            <input
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-              placeholder="Buscar por título, autor, integrante ou tema"
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
-            />
+            <input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar por título, autor, integrante ou tema" className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
           </label>
-
-          <select
-            value={eventoFiltro}
-            onChange={(event) => setEventoFiltro(event.target.value)}
-            className="h-11 w-full cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
-          >
+          <select value={eventoFiltro} onChange={(event) => setEventoFiltro(event.target.value)} className="h-11 w-full cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
             <option value="todos">Todos os eventos</option>
-            {eventosFiltro.map((evento) => (
-              <option key={evento.id} value={evento.id}>{evento.titulo}</option>
-            ))}
+            {eventosFiltro.map((evento) => <option key={evento.id} value={evento.id}>{evento.titulo}</option>)}
           </select>
-
           {turmasDisponiveis.length > 0 && (
-            <select
-              value={turmaFiltro}
-              onChange={(event) => setTurmaFiltro(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
-            >
+            <select value={turmaFiltro} onChange={(event) => setTurmaFiltro(event.target.value)} className="h-11 w-full cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
               <option value="todas">Todas as turmas</option>
-              {turmasDisponiveis.map((turma) => (
-                <option key={turma} value={turma}>{turma}</option>
-              ))}
+              {turmasDisponiveis.map((turma) => <option key={turma} value={turma}>{turma}</option>)}
             </select>
           )}
-
           {statusOrientacaoDisponiveis.length > 0 && (
-            <select
-              value={statusOrientacaoFiltro}
-              onChange={(event) => setStatusOrientacaoFiltro(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
-            >
+            <select value={statusOrientacaoFiltro} onChange={(event) => setStatusOrientacaoFiltro(event.target.value)} className="h-11 w-full cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none transition focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
               <option value="todos">Todas orientações</option>
-              {statusOrientacaoDisponiveis.map((status) => (
-                <option key={status} value={status}>{status}</option>
-              ))}
+              {statusOrientacaoDisponiveis.map((status) => <option key={status} value={status}>{status}</option>)}
               <option value="sem-orientador">Sem orientador</option>
             </select>
           )}
@@ -2688,33 +2877,24 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
         <div className="mt-6">
           {carregando && (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {[1, 2, 3].map((item) => (
-                <div key={item} className="h-56 animate-pulse rounded-3xl bg-slate-100" />
-              ))}
+              {[1, 2, 3].map((item) => <div key={item} className="h-56 animate-pulse rounded-3xl bg-slate-100" />)}
             </div>
           )}
-
           {!carregando && erro && (
             <div className="space-y-3 rounded-2xl border border-red-100 bg-red-50 p-4">
               <p className="text-sm font-black text-red-700">{erro}</p>
               {erroTecnico && <p className="text-xs font-semibold text-slate-500">Erro técnico: {erroTecnico}</p>}
-              <button
-                type="button"
-                onClick={carregarProjetos}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100"
-              >
+              <button type="button" onClick={carregarProjetos} className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100">
                 <RefreshCw size={14} /> Tentar novamente
               </button>
             </div>
           )}
-
           {!carregando && !erro && projetosFiltrados.length === 0 && (
             <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
               <h3 className="text-sm font-black text-slate-900">Nenhum projeto encontrado.</h3>
               <p className="mt-1 text-sm font-semibold text-slate-500">Ajuste os filtros ou cadastre projetos pelo fluxo dos alunos.</p>
             </div>
           )}
-
           {!carregando && !erro && projetosFiltrados.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {projetosPaginados.map((projeto, index) => {
@@ -2722,15 +2902,9 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
                 const integrantes = getIntegrantesProjeto(projeto);
                 const projetoId = getProjetoId(projeto);
                 const materialId = getMaterialIdFromProjeto(projeto);
-
                 return (
-                  <motion.article
-                    key={projeto.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.18, delay: index * 0.03 }}
-                    className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
-                  >
+                  <motion.article key={projeto.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, delay: index * 0.03 }} className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
+                    {/* ... cabeçalho do card igual ao original ... */}
                     <div className="relative flex h-24 items-center justify-between overflow-hidden bg-gradient-to-br from-emerald-700 via-teal-700 to-slate-950 px-5 text-white">
                       <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/10" />
                       <div className="absolute -bottom-12 left-16 h-24 w-24 rounded-full bg-emerald-300/10" />
@@ -2742,17 +2916,13 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
                           {getStatusOrientacaoProjeto(projeto)}
                         </span>
                         {projetoTemPdf(projeto) && (
-                          <span className="rounded-full bg-emerald-300/20 px-3 py-1 text-[10px] font-black uppercase text-emerald-50 ring-1 ring-white/15">
-                            PDF disponível
-                          </span>
+                          <span className="rounded-full bg-emerald-300/20 px-3 py-1 text-[10px] font-black uppercase text-emerald-50 ring-1 ring-white/15">PDF disponível</span>
                         )}
                       </div>
                     </div>
-
                     <div className="p-5">
                       <h3 className="line-clamp-2 text-base font-black text-slate-950">{projeto.titulo}</h3>
                       <p className="mt-2 line-clamp-3 text-sm font-medium leading-6 text-slate-500">{getProjetoDescricaoCurta(projeto)}</p>
-
                       <div className="mt-4 grid gap-2 text-xs font-semibold text-slate-500">
                         <div className="rounded-2xl bg-slate-50 px-3 py-2">
                           <strong className="text-slate-700">Evento:</strong> {projeto.eventoTitulo ?? projeto.evento?.titulo ?? "Sem evento"}
@@ -2770,11 +2940,8 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
                           <span className="ml-2 text-slate-400">· {integrantes.length || "sem"} integrantes adicionais</span>
                         </div>
                       </div>
-
                       <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-                        <div className="text-xs font-black uppercase tracking-wider text-slate-300">
-                          Gestão do projeto
-                        </div>
+                        <div className="text-xs font-black uppercase tracking-wider text-slate-300">Gestão do projeto</div>
                         <div className="flex flex-wrap justify-end gap-2">
                           <Tooltip label="Ver detalhes">
                             <button type="button" onClick={() => abrirDetalhesProjeto(projeto)} aria-label="Ver detalhes" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-50">
@@ -2794,7 +2961,7 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
                           {projetoId && materialId && (
                             <>
                               <Tooltip label="Visualizar PDF">
-                                <button type="button" onClick={() => visualizarPdf(projetoId, materialId)} aria-label="Visualizar PDF" className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
+                                <button type="button" onClick={() => abrirVisualizadorPdf(projetoId, materialId)} aria-label="Visualizar PDF" className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
                                   <Eye size={15} />
                                 </button>
                               </Tooltip>
@@ -2814,15 +2981,10 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
             </div>
           )}
         </div>
-        <Pagination
-          page={paginaAtual}
-          totalPages={totalPaginas}
-          onPageChange={setPaginaAtual}
-          total={totalProjetosFiltrados}
-          limit={ITENS_POR_PAGINA}
-        />
+        <Pagination page={paginaAtual} totalPages={totalPaginas} onPageChange={setPaginaAtual} total={totalProjetosFiltrados} limit={ITENS_POR_PAGINA} />
       </section>
 
+      {/* ========== PAINEL DE DETALHES ========== */}
       <PainelDetalhes aberto={detalhesAberto} titulo={projetoSelecionado?.titulo ?? "Detalhes do projeto"} onClose={() => setDetalhesAberto(false)}>
         {projetoSelecionado && (
           <div className="space-y-5">
@@ -2839,23 +3001,11 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
               <p className="text-xs font-black uppercase tracking-widest text-slate-500">Material PDF</p>
               {projetoTemPdf(projetoSelecionado) ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => visualizarPdf(getProjetoId(projetoSelecionado)!, getMaterialIdFromProjeto(projetoSelecionado)!)}
-                    aria-label="Visualizar PDF"
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-                  >
-                    <Eye size={16} />
-                    Visualizar PDF
+                  <button type="button" onClick={() => abrirVisualizadorPdf(getProjetoId(projetoSelecionado)!, getMaterialIdFromProjeto(projetoSelecionado)!)} aria-label="Visualizar PDF" className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50">
+                    <Eye size={16} /> Visualizar PDF
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => baixarPdf(getProjetoId(projetoSelecionado)!, getMaterialIdFromProjeto(projetoSelecionado)!)}
-                    aria-label="Baixar PDF"
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-sectec-700 px-4 py-3 text-sm font-black text-white transition hover:bg-sectec-800"
-                  >
-                    <Download size={16} />
-                    Baixar PDF
+                  <button type="button" onClick={() => baixarPdf(getProjetoId(projetoSelecionado)!, getMaterialIdFromProjeto(projetoSelecionado)!)} aria-label="Baixar PDF" className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-sectec-700 px-4 py-3 text-sm font-black text-white transition hover:bg-sectec-800">
+                    <Download size={16} /> Baixar PDF
                   </button>
                 </div>
               ) : (
@@ -2888,26 +3038,67 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
             <div className="rounded-2xl border border-slate-100 p-4">
               <p className="text-xs font-black uppercase tracking-widest text-slate-500">Orientadores</p>
               <div className="mt-3">{renderOrientadores(projetoSelecionado)}</div>
-              <p className="mt-3 text-xs font-semibold text-slate-400">Troca de orientador ainda não está disponível pelo backend.</p>
+              {/* REMOVIDO: aviso de indisponibilidade */}
             </div>
 
+            {/* Orientador aceito + ações */}
             <div className="rounded-2xl border border-slate-100 p-4">
               <p className="text-xs font-black uppercase tracking-widest text-slate-500">Orientador aceito</p>
               {orientadorAceito.loading ? (
                 <div className="mt-3 h-12 animate-pulse rounded-xl bg-slate-100" />
               ) : getOrientadorAceitoInfo(orientadorAceito.data).nome ? (
-                <div className="mt-3 rounded-xl bg-emerald-50 p-3">
-                  <p className="text-sm font-black text-emerald-900">{getOrientadorAceitoInfo(orientadorAceito.data).nome}</p>
-                  <p className="mt-1 text-xs font-semibold text-emerald-700">{getOrientadorAceitoInfo(orientadorAceito.data).email || "-"}</p>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-xl bg-emerald-50 p-3">
+                    <p className="text-sm font-black text-emerald-900">{getOrientadorAceitoInfo(orientadorAceito.data).nome}</p>
+                    <p className="mt-1 text-xs font-semibold text-emerald-700">{getOrientadorAceitoInfo(orientadorAceito.data).email || "-"}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTrocaOrientadorAberto(true);
+                        setBuscaOrientador("");
+                        setOrientadorSelecionadoId(null);
+                        void carregarOrientadores();
+                      }}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      <RefreshCw size={14} /> Trocar orientador
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removerOrientador(projetoSelecionado!.id)}
+                      disabled={acaoOrientadorLoading}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                    >
+                      {acaoOrientadorLoading ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                      Remover
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <p className="mt-2 text-sm font-semibold text-slate-500">Nenhum orientador aceito até o momento.</p>
+                <div className="mt-2">
+                  <p className="text-sm font-semibold text-slate-500">Nenhum orientador aceito até o momento.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrocaOrientadorAberto(true);
+                      setBuscaOrientador("");
+                      setOrientadorSelecionadoId(null);
+                      void carregarOrientadores();
+                    }}
+                    className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    <UserPlus size={14} /> Adicionar orientador
+                  </button>
+                </div>
               )}
             </div>
           </div>
         )}
       </PainelDetalhes>
 
+      {/* ========== PAINEL DE EDIÇÃO (inalterado, apenas removido o aviso amarelo) ========== */}
       <PainelDetalhes aberto={edicaoAberta} titulo="Editar projeto" onClose={() => setEdicaoAberta(false)}>
         {projetoSelecionado && (
           <div className="space-y-4">
@@ -2915,23 +3106,18 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
               Título
               <input value={formProjeto.titulo} onChange={(e) => setFormProjeto((prev) => ({ ...prev, titulo: e.target.value }))} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
             </label>
-
             <label className="block text-xs font-black uppercase tracking-widest text-slate-500">
               Descrição
               <textarea value={formProjeto.descricao} onChange={(e) => setFormProjeto((prev) => ({ ...prev, descricao: e.target.value }))} className="mt-2 h-28 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100" />
             </label>
-
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-xs font-black uppercase tracking-widest text-slate-500">
                 Evento
                 <select value={formProjeto.evento} onChange={(e) => setFormProjeto((prev) => ({ ...prev, evento: e.target.value, temaId: "" }))} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
                   <option value="">Selecione</option>
-                  {eventos.map((evento) => (
-                    <option key={evento.id} value={evento.id}>{evento.titulo}</option>
-                  ))}
+                  {eventos.map((evento) => <option key={evento.id} value={evento.id}>{evento.titulo}</option>)}
                 </select>
               </label>
-
               <label className="block text-xs font-black uppercase tracking-widest text-slate-500">
                 Tema
                 <select value={formProjeto.temaId} onChange={(e) => setFormProjeto((prev) => ({ ...prev, temaId: e.target.value }))} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
@@ -2939,9 +3125,7 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
                   {projetoSelecionado.tema && !temasDoEventoSelecionado.some((tema) => tema.id === projetoSelecionado.tema?.id) && (
                     <option value={projetoSelecionado.tema.id}>{projetoSelecionado.tema.nome}</option>
                   )}
-                  {temasDoEventoSelecionado.map((tema) => (
-                    <option key={tema.id} value={tema.id}>{tema.nome}</option>
-                  ))}
+                  {temasDoEventoSelecionado.map((tema) => <option key={tema.id} value={tema.id}>{tema.nome}</option>)}
                 </select>
               </label>
             </div>
@@ -2949,108 +3133,52 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
             <div className="rounded-2xl border border-slate-200 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-500">Integrantes</p>
-                <button
-                  type="button"
-                  onClick={exibirInfoIntegrantes}
-                  className="group relative inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-cyan-100 text-cyan-600 shadow-sm transition-all duration-300 hover:bg-cyan-200 hover:text-cyan-800 hover:shadow-md animate-pulse hover:animate-none"
-                  aria-label="Informações sobre integrantes"
-                >
+                <button type="button" onClick={exibirInfoIntegrantes} className="group relative inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-cyan-100 text-cyan-600 shadow-sm transition-all duration-300 hover:bg-cyan-200 hover:text-cyan-800 hover:shadow-md animate-pulse hover:animate-none" aria-label="Informações sobre integrantes">
                   <Info size={13} />
-                  {/* Rastro de luz no hover */}
                   <span className="absolute inset-0 rounded-full bg-cyan-400 opacity-0 transition-opacity duration-300 group-hover:opacity-20" />
                 </button>
               </div>
-              <p className="mt-1 text-xs font-semibold text-slate-400">
-                Autor não entra em alunosIds. Grupo total: {formProjeto.alunosIds.length + 1}/7.
-              </p>
-
-              {/* Filtros de turma e ano */}
+              <p className="mt-1 text-xs font-semibold text-slate-400">Autor não entra em alunosIds. Grupo total: {formProjeto.alunosIds.length + 1}/7.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <select
-                  value={turmaFiltroEdicao}
-                  onChange={(e) => setTurmaFiltroEdicao(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
-                >
+                <select value={turmaFiltroEdicao} onChange={(e) => setTurmaFiltroEdicao(e.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
                   <option value="todas">Todas as turmas</option>
-                  {[...new Set(alunos.map((a) => a.turma).filter(Boolean))]
-                    .sort()
-                    .map((turma) => (
-                      <option key={turma} value={turma ?? ""}>
-                        {turma}
-                      </option>
-                    ))}
+                  {[...new Set(alunos.map((a) => a.turma).filter(Boolean))].sort().map((turma) => <option key={turma} value={turma ?? ""}>{turma}</option>)}
                 </select>
-
-                <select
-                  value={anoFiltroEdicao}
-                  onChange={(e) => setAnoFiltroEdicao(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100"
-                >
+                <select value={anoFiltroEdicao} onChange={(e) => setAnoFiltroEdicao(e.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
                   <option value="todos">Todos os anos</option>
-                  {[...new Set(alunos.map((a) => a.ano).filter((ano): ano is number => ano !== undefined && ano !== null))]
-                    .sort((a, b) => a - b)
-                    .map((ano) => (
-                      <option key={ano} value={String(ano)}>
-                        {ano}º ano
-                      </option>
-                    ))}
+                  {[...new Set(alunos.map((a) => a.ano).filter((ano): ano is number => ano !== undefined && ano !== null))].sort((a, b) => a - b).map((ano) => <option key={ano} value={String(ano)}>{ano}º ano</option>)}
                 </select>
               </div>
-
               <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                 {alunos.length === 0 ? (
                   <p className="text-sm font-semibold text-slate-500">Lista de alunos indisponível.</p>
                 ) : (
-                  alunos
-                    .filter((aluno) => {
-                      // Remove o autor
-                      if (String(aluno.id) === String(projetoSelecionado?.alunoAutor?.id)) return false;
-                      // Filtro de turma
-                      if (turmaFiltroEdicao !== "todas" && aluno.turma !== turmaFiltroEdicao) return false;
-                      // Filtro de ano
-                      if (anoFiltroEdicao !== "todos" && String(aluno.ano ?? "") !== anoFiltroEdicao) return false;
-                      return true;
-                    })
-                    .map((aluno) => {
-                      const estaNoProjetoAtual = formProjeto.alunosIds.includes(Number(aluno.id));
-                      const estaOcupadoEmOutroProjeto = alunosOcupadosIds.includes(Number(aluno.id)) && !estaNoProjetoAtual;
-
-                      return (
-                        <label
-                          key={aluno.id}
-                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${estaOcupadoEmOutroProjeto
-                            ? "border-red-200 bg-red-50 cursor-not-allowed opacity-75"
-                            : "border-slate-100 bg-slate-50 hover:bg-sectec-50"
-                            }`}
-                        >
-                          <span className="min-w-0">
-                            <span className="block text-sm font-black text-slate-800 truncate">{aluno.nome}</span>
-                            <span className="block text-xs font-semibold text-slate-500">
-                              {aluno.turma ?? "-"} {aluno.ano ? `· ${aluno.ano}º ano` : ""}
-                              {estaOcupadoEmOutroProjeto && (
-                                <span className="ml-1.5 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
-                                  Já está em outro projeto
-                                </span>
-                              )}
-                            </span>
+                  alunos.filter((aluno) => {
+                    if (String(aluno.id) === String(projetoSelecionado?.alunoAutor?.id)) return false;
+                    if (turmaFiltroEdicao !== "todas" && aluno.turma !== turmaFiltroEdicao) return false;
+                    if (anoFiltroEdicao !== "todos" && String(aluno.ano ?? "") !== anoFiltroEdicao) return false;
+                    return true;
+                  }).map((aluno) => {
+                    const estaNoProjetoAtual = formProjeto.alunosIds.includes(Number(aluno.id));
+                    const estaOcupadoEmOutroProjeto = alunosOcupadosIds.includes(Number(aluno.id)) && !estaNoProjetoAtual;
+                    return (
+                      <label key={aluno.id} className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${estaOcupadoEmOutroProjeto ? "border-red-200 bg-red-50 cursor-not-allowed opacity-75" : "border-slate-100 bg-slate-50 hover:bg-sectec-50"}`}>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-black text-slate-800 truncate">{aluno.nome}</span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            {aluno.turma ?? "-"} {aluno.ano ? `· ${aluno.ano}º ano` : ""}
+                            {estaOcupadoEmOutroProjeto && <span className="ml-1.5 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">Já está em outro projeto</span>}
                           </span>
-                          <input
-                            type="checkbox"
-                            checked={estaNoProjetoAtual}
-                            disabled={estaOcupadoEmOutroProjeto}
-                            onChange={() => alternarAlunoIntegrante(Number(aluno.id))}
-                            className="h-4 w-4 accent-sectec-700 disabled:opacity-40"
-                          />
-                        </label>
-                      );
-                    })
+                        </span>
+                        <input type="checkbox" checked={estaNoProjetoAtual} disabled={estaOcupadoEmOutroProjeto} onChange={() => alternarAlunoIntegrante(Number(aluno.id))} className="h-4 w-4 accent-sectec-700 disabled:opacity-40" />
+                      </label>
+                    );
+                  })
                 )}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
-              Banner real e troca direta de orientador dependem de suporte no backend.
-            </div>
+            {/* REMOVIDO: aviso amarelo "Banner real e troca direta de orientador dependem de suporte no backend." */}
 
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
               <button type="button" onClick={() => setEdicaoAberta(false)} className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50">
@@ -3064,6 +3192,309 @@ const ITENS_POR_PAGINA = 6; // 3 colunas x 2 linhas
           </div>
         )}
       </PainelDetalhes>
+
+      {/* ========== PAINEL DE TROCA DE ORIENTADOR ========== */}
+      <PainelDetalhes
+        aberto={trocaOrientadorAberto}
+        titulo="Gerenciar orientador"
+        onClose={() => {
+          setTrocaOrientadorAberto(false);
+          setBuscaOrientador("");
+          setOrientadorSelecionadoId(null);
+        }}
+      >
+        <div className="space-y-5">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+          >
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500">
+              {getOrientadorAceitoInfo(orientadorAceito.data).nome
+                ? "Trocar orientador do projeto"
+                : "Adicionar orientador ao projeto"}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-slate-600">
+              Pesquise pelo nome ou e-mail institucional do orientador desejado.
+            </p>
+          </motion.div>
+
+          {carregandoOrientadores ? (
+            <div className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+          ) : (
+            <div className="space-y-3">
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="relative"
+              >
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Nome ou e-mail institucional"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                  value={buscaOrientador}
+                  onChange={(e) => {
+                    setBuscaOrientador(e.target.value);
+                    setDropdownAberto(true);
+                  }}
+                  onFocus={() => setDropdownAberto(true)}
+                  onBlur={() => setTimeout(() => setDropdownAberto(false), 200)}
+                />
+                {buscaOrientador && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBuscaOrientador("");
+                      setOrientadorSelecionadoId(null);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </motion.div>
+
+              {/* Dropdown animado */}
+              <AnimatePresence>
+                {dropdownAberto && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                  >
+                    <div className="max-h-56 overflow-y-auto">
+                      {orientadoresFiltrados.length === 0 ? (
+                        <div className="px-4 py-3 text-xs font-semibold text-slate-500">
+                          Nenhum orientador encontrado.
+                        </div>
+                      ) : (
+                        orientadoresFiltrados.map((o, index) => (
+                          <motion.button
+                            key={o.id}
+                            type="button"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.03 }}
+                            onClick={() => {
+                              setOrientadorSelecionadoId(Number(o.id));
+                              setBuscaOrientador(`${o.nome} (${o.email_institucional})`);
+                              setDropdownAberto(false);
+                            }}
+                            className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold transition ${Number(o.id) === orientadorSelecionadoId
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "text-slate-700 hover:bg-slate-50"
+                              }`}
+                          >
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
+                              {o.nome.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold">{o.nome}</p>
+                              <p className="truncate text-xs text-slate-400">{o.email_institucional}</p>
+                            </div>
+                            {Number(o.id) === orientadorSelecionadoId && (
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring", stiffness: 500 }}
+                                className="ml-auto"
+                              >
+                                <CheckCircle size={16} className="text-emerald-500" />
+                              </motion.div>
+                            )}
+                          </motion.button>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Orientador selecionado */}
+              <AnimatePresence>
+                {orientadorSelecionadoId && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                    className="rounded-xl bg-emerald-50 p-3 flex items-center justify-between"
+                  >
+                    <p className="text-sm font-black text-emerald-900">
+                      {orientadores.find((o) => Number(o.id) === orientadorSelecionadoId)?.nome ?? ""}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrientadorSelecionadoId(null);
+                        setBuscaOrientador("");
+                      }}
+                      className="text-emerald-600 hover:text-emerald-800 transition"
+                    >
+                      <X size={14} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Botão confirmar */}
+              <motion.button
+                type="button"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (orientadorSelecionadoId && projetoSelecionado) {
+                    trocarOrientador(projetoSelecionado.id, orientadorSelecionadoId);
+                    setTrocaOrientadorAberto(false);
+                  }
+                }}
+                disabled={!orientadorSelecionadoId || acaoOrientadorLoading}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-sectec-700 px-4 py-3 text-sm font-black text-white transition hover:bg-sectec-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {acaoOrientadorLoading ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <Save size={16} />
+                )}
+                {acaoOrientadorLoading ? "Salvando..." : "Confirmar troca"}
+              </motion.button>
+            </div>
+          )}
+        </div>
+      </PainelDetalhes>
+
+      <BannersDownload
+        aberto={bannersAberto}
+        onClose={() => setBannersAberto(false)}
+      />
+
+      {/* ========== VISUALIZADOR DE PDF ESTILO BANNER ========== */}
+      <AnimatePresence>
+        {(pdfModalUrl || carregandoPdf) && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* Overlay com blur */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={fecharPdfModal} />
+
+            {/* Container do modal */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="relative z-10 flex max-h-[90vh] w-full max-w-[600px] flex-col overflow-visible rounded-3xl bg-white shadow-2xl"
+            >
+              {/* Barra superior */}
+              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-5 py-4 backdrop-blur">
+                {/* Lado esquerdo – ícone + título */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sectec-100 text-sectec-700">
+                    <Eye size={18} />
+                  </div>
+                  <p className="truncate text-sm font-black text-slate-800">Visualização do banner</p>
+                </div>
+
+                {/* Lado direito – ações */}
+                <div className="flex items-center gap-2">
+                  {pdfModalUrl && (
+                    <>
+                      <Tooltip label="Baixar PDF">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const a = document.createElement("a");
+                            a.href = pdfModalUrl;
+                            a.download = "banner.pdf";
+                            a.click();
+                          }}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sectec-300 hover:bg-sectec-50 hover:text-sectec-700"
+                        >
+                          <Download size={17} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label="Expandir para tela cheia">
+                        <button
+                          type="button"
+                          onClick={() => window.open(pdfModalUrl!, '_blank', 'noopener,noreferrer')}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-sectec-300 hover:bg-sectec-50 hover:text-sectec-700"
+                          aria-label="Expandir banner"
+                        >
+                          <Eye size={17} />
+                        </button>
+                      </Tooltip>
+                    </>
+                  )}
+                  <Tooltip label="Fechar visualizador">
+                    <button
+                      type="button"
+                      onClick={fecharPdfModal}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X size={17} />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+
+              {/* Corpo do visualizador – renderização direta com react-pdf */}
+              <div className="flex-1 overflow-auto bg-slate-100 p-6">
+                {carregandoPdf ? (
+                  <div className="flex h-80 items-center justify-center">
+                    <Loader2 className="animate-spin text-sectec-600" size={48} />
+                  </div>
+                ) : (
+                  <div className="flex justify-center">
+                    <div className="shadow-2xl rounded-lg overflow-hidden bg-white" style={{ width: '500px' }}>
+                      <Document
+                        file={pdfModalUrl!}
+                        onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                        loading={
+                          <div className="flex items-center justify-center py-20">
+                            <Loader2 className="animate-spin text-sectec-600" size={32} />
+                          </div>
+                        }
+                        error={
+                          <div className="flex items-center justify-center py-20 text-red-500 font-medium text-sm">
+                            Erro ao carregar o PDF.
+                          </div>
+                        }
+                      >
+                        {Array.from(new Array(numPages || 0), (_, index) => (
+                          <Page
+                            key={`page_${index + 1}`}
+                            pageNumber={index + 1}
+                            width={500}
+                            renderTextLayer={false}
+                            renderAnnotationLayer={false}
+                          />
+                        ))}
+                      </Document>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Rodapé sutil */}
+              <div className="border-t border-slate-200 bg-white px-5 py-2 text-right text-[10px] font-semibold text-slate-400">
+                Banner renderizado sem barras de ferramentas • {numPages} página(s)
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AdminPageShell>
   );
 }
@@ -3080,6 +3511,22 @@ function Administrador() {
   const [relatorioEixos, setRelatorioEixos] = useState<EixosPorEventoResponse>({});
   const [relatorioProjetosPorOrientador, setRelatorioProjetosPorOrientador] = useState<ProjetosPorOrientadorResponse>([]);
   const [relatorioProjetosPorTurma, setRelatorioProjetosPorTurma] = useState<ProjetosPorTurmaResponse>({});
+  const [modalAtualizacoesAberto, setModalAtualizacoesAberto] = useState(false);
+
+  const abasModal: AbaModal[] = [
+    {
+      id: "projetos",
+      rotulo: "Gerenciamento de Projetos",
+      icone: <FolderKanban size={18} />, // ou <ClipboardList size={18} />
+      conteudo: <ConteudoAtualizacoes />, // conteúdo permanece o mesmo ou pode ser alterado depois
+    },
+    {
+      id: "ajuda",
+      rotulo: "Ajuda",
+      icone: <HelpCircle size={18} />,
+      conteudo: <ConteudoAjuda />,
+    },
+  ];
 
   async function requestOrDefault<T>(path: string, fallback: T) {
     try {
@@ -3276,15 +3723,34 @@ function Administrador() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={carregarDashboard}
-                disabled={carregandoDashboard}
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white px-5 py-3 text-sm font-black text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-              >
-                {carregandoDashboard ? <Loader2 className="animate-spin" size={17} /> : <RefreshCw size={17} />}
-                {carregandoDashboard ? "Atualizando..." : "Atualizar dados"}
-              </button>
+              {/* Container que junta os dois botões */}
+              <div className="flex gap-2">
+                {/* Botão Novidades com bolinha vermelha */}
+                <button
+                  type="button"
+                  onClick={() => setModalAtualizacoesAberto(true)}
+                  className="relative inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20 sm:w-auto"
+                >
+                  <Megaphone size={17} />
+                  Novidades
+                  {/* Bolinha vermelha pulsante */}
+                  <span className="absolute -right-1 -top-1 flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+                  </span>
+                </button>
+
+                {/* Botão Atualizar dados (já existente) */}
+                <button
+                  type="button"
+                  onClick={carregarDashboard}
+                  disabled={carregandoDashboard}
+                  className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white px-5 py-3 text-sm font-black text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                >
+                  {carregandoDashboard ? <Loader2 className="animate-spin" size={17} /> : <RefreshCw size={17} />}
+                  {carregandoDashboard ? "Atualizando..." : "Atualizar dados"}
+                </button>
+              </div>
             </div>
 
             {erroDashboard && (
@@ -3397,6 +3863,15 @@ function Administrador() {
           </section>
         </div>
       </main>
+
+      {/* Modal de Atualizações */}
+      <ModalAtualizacoes
+        aberto={modalAtualizacoesAberto}
+        onClose={() => setModalAtualizacoesAberto(false)}
+        titulo="Central da Coordenação"
+        subtitulo="Atualizações, suporte e mais"
+        abas={abasModal}
+      />
     </MainLayout>
   );
 }

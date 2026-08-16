@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Check,
@@ -15,7 +15,10 @@ import {
   X,
   Calendar,
   Loader2,
-  Video
+  Video,
+  Filter,
+  CircleDot,
+  Grid
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -1135,31 +1138,152 @@ function FiltroTemaOrientador({
   contagemPorTema: (temaId: number | "todos") => number;
   onChange: (temaId: number | "todos") => void;
 }) {
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
+
+  // Fecha o dropdown ao clicar fora
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false);
+        setBusca("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   if (temas.length === 0) return null;
 
+  const termo = busca.toLowerCase().trim();
+  const temasFiltrados = termo
+    ? temas.filter((tema) => tema.nome.toLowerCase().includes(termo))
+    : temas;
+
+  const nomeAtivo =
+    temaAtivoId === "todos"
+      ? "Todos os temas"
+      : temas.find((t) => t.id === temaAtivoId)?.nome ?? "Tema";
+
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Filtro por tema</p>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          Aparecem aqui somente os temas que ficaram marcados para o orientador.
-        </p>
+    <div ref={containerRef} className="relative rounded-xl border border-slate-200 bg-white p-4">
+      {/* Cabeçalho fixo */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="p-1.5 rounded-lg bg-sectec-50">
+          <Filter size={16} className="text-sectec-600" />
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            Filtrar por tema
+          </p>
+        </div>
       </div>
-      <select
-        value={String(temaAtivoId)}
-        onChange={(event) => {
-          const value = event.target.value;
-          onChange(value === "todos" ? "todos" : Number(value));
+
+      {/* Botão que abre o dropdown */}
+      <button
+        type="button"
+        onClick={() => {
+          setAberto(!aberto);
+          setBusca("");
         }}
-        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100 sm:w-72"
+        className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sectec-300 hover:bg-sectec-50"
       >
-        <option value="todos">Todos ({contagemPorTema("todos")})</option>
-        {temas.map((tema) => (
-          <option key={tema.id} value={tema.id}>
-            {tema.nome} ({contagemPorTema(tema.id)})
-          </option>
-        ))}
-      </select>
+        <span className="truncate">{nomeAtivo}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs font-bold text-slate-400">
+            {contagemPorTema(temaAtivoId)}
+          </span>
+          <ChevronDown
+            size={16}
+            className={`text-slate-400 transition ${aberto ? "rotate-180" : ""}`}
+          />
+        </div>
+      </button>
+
+      {/* Dropdown */}
+      <AnimatePresence>
+        {aberto && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="absolute left-4 right-4 top-[calc(100%-0.25rem)] z-30 mt-1 rounded-xl border border-slate-200 bg-white shadow-xl"
+          >
+            {/* Campo de busca */}
+            <div className="p-2 border-b border-slate-100">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar tema..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:border-sectec-600 focus:ring-2 focus:ring-sectec-100"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Lista de opções */}
+            <div className="max-h-56 overflow-y-auto p-1">
+              {/* Opção "Todos" */}
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("todos");
+                  setAberto(false);
+                  setBusca("");
+                }}
+                className={`
+                  w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition
+                  ${temaAtivoId === "todos"
+                    ? "bg-sectec-50 text-sectec-700"
+                    : "text-slate-600 hover:bg-slate-50"
+                  }
+                `}
+              >
+                <Grid size={14} className="shrink-0" />
+                <span className="flex-1 text-left">Todos os temas</span>
+                <span className="text-xs font-bold text-slate-400">
+                  {contagemPorTema("todos")}
+                </span>
+              </button>
+
+              {temasFiltrados.length > 0 ? (
+                temasFiltrados.map((tema) => (
+                  <button
+                    key={tema.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(tema.id);
+                      setAberto(false);
+                      setBusca("");
+                    }}
+                    className={`
+                      w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition
+                      ${temaAtivoId === tema.id
+                        ? "bg-sectec-50 text-sectec-700"
+                        : "text-slate-600 hover:bg-slate-50"
+                      }
+                    `}
+                  >
+                    <CircleDot size={14} className="shrink-0" />
+                    <span className="flex-1 text-left truncate">{tema.nome}</span>
+                    <span className="text-xs font-bold text-slate-400">
+                      {contagemPorTema(tema.id)}
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-4 text-center text-sm text-slate-400">
+                  Nenhum tema encontrado.
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

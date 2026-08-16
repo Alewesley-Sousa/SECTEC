@@ -33,6 +33,9 @@ export class Projeto {
   @Column({ type: 'varchar', length: 255 })
   titulo!: string;
 
+  @Column({ type: 'boolean', default: false })
+  qrcodeGerado!: boolean;
+
   @Column({ type: 'text' })
   descricao!: string;
 
@@ -51,6 +54,9 @@ export class Projeto {
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
+  
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  qr_code!: string;
   
   
     // 3. Adicionamos a relação inversa para o Projeto ter acesso à lista de PDFs dele
