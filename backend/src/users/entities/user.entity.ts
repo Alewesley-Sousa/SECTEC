@@ -33,7 +33,8 @@ export class User {
   @Column()
   nome!: string;
 
-  @Column({ unique: true })
+  // Mapeia a coluna física do banco para a propriedade email_institucional
+  @Column({ name: 'email_institucional', unique: true })
   email_institucional!: string;
 
   @Column({ select: false })

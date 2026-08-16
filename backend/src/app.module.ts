@@ -18,12 +18,13 @@ import { OrientacoesModule } from './orientacoes/orientacoes.module';
 import { MateriaisModule } from './materiais/materiais.module';
 import { RelatorioModule } from './relatorio/relatorio.module';
 import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
-
-// 1. IMPORTAR O MÓDULO DE AVALIAÇÃO
 import { AvaliacaoModule } from './avaliacao/avaliacao.module';
+import { BannersDownloadModule } from './pdf/banners-download.module';
 
 @Module({
   imports: [
+    AvaliacaoModule,
+    BannersDownloadModule,
     ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mysql',
@@ -34,6 +35,7 @@ import { AvaliacaoModule } from './avaliacao/avaliacao.module';
       database: process.env.DB_NAME,
       autoLoadEntities: true,
       synchronize: true,
+      
     }),
     ScheduleModule.forRoot(),
 
@@ -50,14 +52,13 @@ import { AvaliacaoModule } from './avaliacao/avaliacao.module';
     ProjetosModule,
     EventoModule,
     PdfModule,
+    BannersDownloadModule,
 
     // ── MÓDULOS DO ORIENTADOR ──
     OrientacoesModule,
     MateriaisModule,
     RelatorioModule,
     RelatorioAlunoModule,
-
-    // ── 2. MÓDULO DO AVALIADOR ──
     AvaliacaoModule,
   ],
   controllers: [AppController],
