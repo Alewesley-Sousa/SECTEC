@@ -26,9 +26,10 @@ export class ProjectFile {
   @Column({ name: 'projeto_id' })
   projetoId!: number;
   
-  @ManyToOne(() => Projeto, (projeto) => projeto.arquivos, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'projeto_id' })
-  projeto!: Projeto;
+    @ManyToOne(() => Projeto, (projeto) => projeto.files, { onDelete: 'CASCADE' })
+projeto!: Projeto;
+  
+  
 
   @Column({ name: 'uploaded_by' })
   uploadedBy!: number;

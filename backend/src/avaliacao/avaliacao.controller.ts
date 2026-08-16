@@ -1,13 +1,24 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Request, Body } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AvaliacaoService } from './avaliacao.service';
-import { CreateAvaliacaoDto } from './dto/avaliacao.dto';
+import { LimitesAvaliacaoDto } from './dto/limites-avaliacao.dto'; // <-- IMPORTAR AQUI
 
-@Controller('avaliacao')
+@ApiTags('Avaliador')
+@ApiBearerAuth()
+@Controller('avaliador')
 export class AvaliacaoController {
   constructor(private readonly avaliacaoService: AvaliacaoService) {}
 
-  @Post()
-  submeter(@Body() dto: CreateAvaliacaoDto) {
-    return this.avaliacaoService.submeterAvaliacao(dto); // <-- Nome correto do método aqui
+  @ApiOperation({ summary: 'Gera a distribuição de projetos para o avaliador logado' })
+  @Post('projetos/gerar')
+  async gerarProjetos(@Request() req) {
+    const avaliadorId = req.user?.id || 107; 
+    return this.avaliacaoService.gerarDistribuicao(avaliadorId);
+  }
+
+  @ApiOperation({ summary: 'Configura os limites de avaliação (Exclusivo Coordenação)' })
+  @Post('configuracao/limites')
+  async salvarLimites(@Body() dto: LimitesAvaliacaoDto) {
+    return this.avaliacaoService.salvarLimites(dto);
   }
 }

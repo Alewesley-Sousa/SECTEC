@@ -1,36 +1,36 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-  Unique,
+import { 
+  Entity, 
+  PrimaryGeneratedColumn, 
+  Column, 
+  CreateDateColumn, 
+  ManyToOne, 
+  OneToMany, 
+  JoinColumn 
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { Evento } from '../../evento/entities/evento.entity';
 import { TemaEvento } from '../../evento/entities/tema-evento.entity';
-import { User } from '../../users/entities/user.entity';
-import { ProjetoAluno } from './projeto-aluno.entity';
-import { ProjetoOrientador } from './projeto-orientador.entity';
-import { ProjectFile } from '../../pdf/entities/project-file.entity'; // ajuste o caminho aqui
+import { ProjetoOrientador } from './projeto-orientador.entity'; // mesma pasta
 import { ProjetoMaterial } from '../../materiais/entities/projeto-material.entity';
+import { ProjectFile } from '../../pdf/entities/project-file.entity';
+import { AvaliadorProjeto } from '../../avaliacao/entities/avaliador-projeto.entity'; // ✅ Corrigido: 'avaliacao'
+import { ProjetoAluno } from './projeto-aluno.entity'; // mesma pasta
 
 @Entity('projetos')
-@Unique(['alunoAutor', 'evento'])
 export class Projeto {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @ManyToOne(() => Evento, (evento) => evento.projetos, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'evento_id' })
-  evento!: Evento;
+  @Column({ name: 'evento_id' })
+  eventoId!: number;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'aluno_autor_id' })
-  alunoAutor!: User;
+  @Column({ name: 'aluno_autor_id' })
+  alunoAutorId!: number;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ name: 'tema_id' })
+  temaId!: number;
+
+  @Column()
   titulo!: string;
 
   @Column({ type: 'boolean', default: false })
@@ -39,30 +39,45 @@ export class Projeto {
   @Column({ type: 'text' })
   descricao!: string;
 
-  @Column({ name: 'tema_id' })
-  temaId!: number;
+  @Column({ name: 'qr_code', nullable: true, unique: true })
+  qrCode?: string;
 
-  @ManyToOne(() => TemaEvento, { nullable: true, eager: false })
-  @JoinColumn({ name: 'tema_id', referencedColumnName: 'id' })
-  tema!: TemaEvento;
-
-  @OneToMany(() => ProjetoAluno, (projetoAluno) => projetoAluno.projeto)
-  projetoAlunos!: ProjetoAluno[];
-
-  @OneToMany(() => ProjetoOrientador, (projetoOrientador) => projetoOrientador.projeto)
-  orientadores!: ProjetoOrientador[];
+  @Column({ type: 'varchar', length: 20, default: 'APROVADO' })
+  status!: string;
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
-  
+// --------------------------------------------------
+  // RELAÇÕES
+  // --------------------------------------------------
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'aluno_autor_id' })
+  alunoAutor!: User;
+
+  @ManyToOne(() => Evento, (evento) => evento.projetos)
+  @JoinColumn({ name: 'evento_id' })
+  evento!: Evento;
+
+  @ManyToOne(() => TemaEvento)
+  @JoinColumn({ name: 'tema_id' })
+  tema!: TemaEvento;
+
+  @OneToMany(() => ProjetoOrientador, (po) => po.projeto)
+  orientadores!: ProjetoOrientador[];
+
+  @OneToMany(() => ProjetoMaterial, (m) => m.projeto)
+  materiais!: ProjetoMaterial[];
+
+  @OneToMany(() => ProjectFile, (pf) => pf.projeto)
+  files!: ProjectFile[];
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   qr_code!: string;
-  
-  
-    // 3. Adicionamos a relação inversa para o Projeto ter acesso à lista de PDFs dele
-  @OneToMany(() => ProjectFile, (projectFile) => projectFile.projeto)
-  arquivos!: ProjectFile[];
 
-  @OneToMany(() => ProjetoMaterial, (material) => material.projeto)
-  materiais!: ProjetoMaterial[];
+  @OneToMany(() => AvaliadorProjeto, (ap) => ap.projeto)
+  avaliadorProjetos!: AvaliadorProjeto[];
+
+  @OneToMany(() => ProjetoAluno, (pa) => pa.projeto)
+  projetoAlunos!: ProjetoAluno[];
 }

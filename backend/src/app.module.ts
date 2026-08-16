@@ -41,7 +41,6 @@ import { BannersDownloadModule } from './pdf/banners-download.module';
 
     // ── CONFIGURAÇÃO PARA SERVIR O REACT ──
     ServeStaticModule.forRoot({
-      // Adicionado o 'rootPath:' para corrigir a sintaxe do objeto
       rootPath: join(__dirname, '..', '..', 'frontend', 'dist'),
       exclude: ['/api'],
     }),
