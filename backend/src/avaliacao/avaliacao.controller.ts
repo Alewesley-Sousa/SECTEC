@@ -1,34 +1,24 @@
-import {
-  Controller,
-  Post,
-  Patch,
-  Body,
-  Param,
-  ParseIntPipe,
-} from '@nestjs/common';
+import { Controller, Post, Request, Body } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AvaliacaoService } from './avaliacao.service';
-import { ConfiguracaoLimitesDto } from './dto/configuracao-limites.dto';
+import { LimitesAvaliacaoDto } from './dto/limites-avaliacao.dto'; // <-- IMPORTAR AQUI
 
-@Controller('avaliacao')
+@ApiTags('Avaliador')
+@ApiBearerAuth()
+@Controller('avaliador')
 export class AvaliacaoController {
   constructor(private readonly avaliacaoService: AvaliacaoService) {}
 
-  // Rota para a Coordenação definir os limites (Tarefa 3)
-  @Patch('evento/:eventoId/limites')
-  async atualizarLimites(
-    @Param('eventoId', ParseIntPipe) eventoId: number,
-    @Body() dto: ConfiguracaoLimitesDto,
-  ) {
-    return this.avaliacaoService.atualizarLimitesEvento(
-      eventoId,
-      dto.minProjetosPorAvaliador,
-      dto.maxProjetosPorAvaliador,
-    );
+  @ApiOperation({ summary: 'Gera a distribuição de projetos para o avaliador logado' })
+  @Post('projetos/gerar')
+  async gerarProjetos(@Request() req) {
+    const avaliadorId = req.user?.id || 107; 
+    return this.avaliacaoService.gerarDistribuicao(avaliadorId);
   }
 
-  // Rota para disparar o algoritmo de distribuição automática
-  @Post('evento/:eventoId/distribuir')
-  async gerarDistribuicao(@Param('eventoId', ParseIntPipe) eventoId: number) {
-    return this.avaliacaoService.gerarDistribuicao(eventoId);
+  @ApiOperation({ summary: 'Configura os limites de avaliação (Exclusivo Coordenação)' })
+  @Post('configuracao/limites')
+  async salvarLimites(@Body() dto: LimitesAvaliacaoDto) {
+    return this.avaliacaoService.salvarLimites(dto);
   }
 }

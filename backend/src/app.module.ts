@@ -19,6 +19,9 @@ import { MateriaisModule } from './materiais/materiais.module';
 import { RelatorioModule } from './relatorio/relatorio.module';
 import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
 
+// 1. IMPORTAR O MÓDULO DE AVALIAÇÃO
+import { AvaliacaoModule } from './avaliacao/avaliacao.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -36,7 +39,6 @@ import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
 
     // ── CONFIGURAÇÃO PARA SERVIR O REACT ──
     ServeStaticModule.forRoot({
-      // Adicionado o 'rootPath:' para corrigir a sintaxe do objeto
       rootPath: join(__dirname, '..', '..', 'frontend', 'dist'),
       exclude: ['/api'],
     }),
@@ -54,6 +56,9 @@ import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
     MateriaisModule,
     RelatorioModule,
     RelatorioAlunoModule,
+
+    // ── 2. MÓDULO DO AVALIADOR ──
+    AvaliacaoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

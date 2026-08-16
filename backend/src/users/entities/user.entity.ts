@@ -1,25 +1,30 @@
-// user.entity.ts
-import { TemaEvento } from '../../evento/entities/tema-evento.entity';
-import { ProjetoAluno } from '../../projetos/entities/projeto-aluno.entity';
-import { ProjetoOrientador } from '../../projetos/entities/projeto-orientador.entity';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany, ManyToMany } from 'typeorm';
-// ... restante dos imports
+import { 
+  Entity, 
+  PrimaryGeneratedColumn, 
+  Column, 
+  CreateDateColumn, 
+  OneToMany, 
+  ManyToMany 
+} from 'typeorm';
 
+import { TemaEvento } from '../../evento/entities/tema-evento.entity';
+import { ProjetoOrientador } from '../../projetos/entities/projeto-orientador.entity';
 
 export enum UserRole {
   ALUNO = 'aluno',
   ORIENTADOR = 'orientador',
   COORDENACAO = 'coordenador',
-  COMISSAO = 'comissao', // 👈 igual ao enum do banco
-  AVALIADOR = 'avaliador', // 👈 igual ao enum do banco
+  COMISSAO = 'comissao',
+  AVALIADOR = 'avaliador',
 }
+
 export enum UserTurma {
   INFORMATICA = 'informatica',
   ENFERMAGEM = 'enfermagem',
   CONTABILIDADE = 'contabilidade',
 }
 
-@Entity('usuarios') // 👈 nome da tabela no banco
+@Entity('usuarios')
 export class User {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -30,37 +35,37 @@ export class User {
   @Column({ unique: true })
   email_institucional!: string;
 
+  @Column({ select: false })
+  senha!: string;
+
   @Column({ type: 'enum', enum: UserRole })
   role_cargo!: UserRole;
 
-  @Column({ select: false })
-  senha!: string;        // 👈 campo é 'senha' no seu banco
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  turma?: string;
+
+  @Column({ type: 'int', default: 1, nullable: true })
+  ano?: number;
+
+  @Column({ type: 'int', nullable: true, name: 'ano_progressao_processado' })
+  ano_progressao_processado?: number | null;
 
   @Column({ default: true })
   ativo!: boolean;
 
-  @Column({ default: 1})
-  ano!: number;
-
-  @Column({ type: 'int', nullable: true })
-  ano_progressao_processado!: number | null;
-
-  @Column({type: 'enum', enum: UserTurma, nullable: true})
-  turma!: UserTurma | null;
-  
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'criado_em' })
   criado_em!: Date;
 
-  // relacionamento de alunos com seus projetos
-  @OneToMany(() => ProjetoAluno, (projetoAluno) => projetoAluno.aluno)
-  projetosParticipados!: ProjetoAluno[];
+  // -------------------------------------------------------------
+  // RELACIONAMENTOS
+  // -------------------------------------------------------------
 
-  // Relacionamento para Orientadores: Ver convites/orientações vinculadas a ele
+  @OneToMany('ProjetoAluno', 'aluno')
+  projetosParticipados!: any[];
+
   @OneToMany(() => ProjetoOrientador, (projetoOrientador) => projetoOrientador.orientador)
   solicitacoesOrientacao!: ProjetoOrientador[];
-  
-  // user.entity.ts
-@ManyToMany(() => TemaEvento, (tema) => tema.orientadores)
-temasSelecionados!: TemaEvento[];
 
+  @ManyToMany(() => TemaEvento, (tema) => tema.orientadores)
+  temasSelecionados!: TemaEvento[];
 }
