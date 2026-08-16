@@ -44,10 +44,9 @@ export class Projeto {
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
-
-  // -------------------------------------------------------------
+// --------------------------------------------------
   // RELAÇÕES
-  // -------------------------------------------------------------
+  // --------------------------------------------------
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'aluno_autor_id' })
@@ -68,7 +67,10 @@ export class Projeto {
   materiais!: ProjetoMaterial[];
 
   @OneToMany(() => ProjectFile, (pf) => pf.projeto)
-  arquivos!: ProjectFile[];
+  files!: ProjectFile[];
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  qr_code!: string;
 
   @OneToMany(() => AvaliadorProjeto, (ap) => ap.projeto)
   avaliadorProjetos!: AvaliadorProjeto[];

@@ -15,7 +15,11 @@ export enum UserRole {
   ORIENTADOR = 'orientador',
   COORDENACAO = 'coordenador',
   COMISSAO = 'comissao',
+<<<<<<< HEAD
   AVALIADOR = 'avaliador',
+=======
+   AVALIADOR = 'avaliador' // 👈 igual ao enum do banco
+>>>>>>> feature/tarefa-1-banco-dados
 }
 
 export enum UserTurma {
