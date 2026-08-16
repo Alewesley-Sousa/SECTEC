@@ -264,8 +264,8 @@ export class UsersService {
         totalIgnorados: totalIgnorados,
         tipo: tipo,
       };
-    } catch (error) {
-      if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
+    } catch (error: any) {
+      if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
         throw new BadRequestException(
           'O arquivo enviado possui linhas com e-mails repetidos entre si.',
         );
@@ -341,14 +341,15 @@ export class UsersService {
     let anoFinal: number = 0;
 
     if (role_cargo === UserRole.ALUNO) {
-      senhaFinal = email_institucional.trim();
-      anoFinal = ano ? Number(ano) : 1;
-      turmaFinal = turma || UserTurma.INFORMATICA;
-    } else {
-      senhaFinal = senha || email_institucional.trim();
-      turmaFinal = null;
-      anoFinal = 0;
-    }
+  // Prioriza a senha digitada no DTO; se vier vazia, usa o e-mail como padrão
+  senhaFinal = senha && senha.trim() ? senha.trim() : email_institucional.trim();
+  anoFinal = ano ? Number(ano) : 1;
+  turmaFinal = turma || UserTurma.INFORMATICA;
+  } else {
+  senhaFinal = senha || email_institucional.trim();
+  turmaFinal = null;
+  anoFinal = 0;
+}
 
     const senhaHasheada = await this.hashingProvider.hash(senhaFinal);
 
