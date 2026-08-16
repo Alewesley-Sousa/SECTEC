@@ -64,6 +64,12 @@ prazoInicial!: Date;
 @Column({ name: 'prazo_final', type: 'datetime', nullable: true }) // Adicione o nullable aqui
 prazoFinal!: Date;
 
+@Column({ type: 'int', nullable: true })
+min_projetos_por_avaliador!: number;
+
+@Column({ type: 'int', nullable: true })
+max_projetos_por_avaliador!: number;
+
   @Column({
     type: 'enum',
     enum: EventoStatus,

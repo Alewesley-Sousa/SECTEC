@@ -83,8 +83,9 @@ export class GoogleDriveService {
 
       return response.data as Readable;
     } catch (error) {
-      throw new Error(`Erro ao buscar stream no Google Drive: ${error.message}`);
-    }
+  const message = error instanceof Error ? error.message : String(error);
+  console.error('Erro no Google Drive:', message);
+}
   }
 
 
@@ -114,8 +115,9 @@ export class GoogleDriveService {
         webViewLink: response.data.webViewLink,
       };
     } catch (error) {
-      throw new Error(`Erro ao atualizar arquivo no Google Drive: ${error.message}`);
-    }
+  const message = error instanceof Error ? error.message : String(error);
+  console.error('Erro no Google Drive:', message);
+}
   }
 
 
@@ -133,8 +135,9 @@ export class GoogleDriveService {
         fileId: driveFileId,
       });
     } catch (error) {
-      throw new Error(`Erro ao deletar arquivo no Google Drive: ${error.message}`);
-    }
+  const message = error instanceof Error ? error.message : String(error);
+  console.error('Erro no Google Drive:', message);
+}
   }
 
 

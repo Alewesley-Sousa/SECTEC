@@ -4,10 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToOne,   // <-- ADICIONE ISSO
-  JoinColumn,  // <-- ADICIONE ISSO
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
-import { Projeto } from '../../projetos/entities/projeto.entity'; // ajuste o caminho aqui
+import { Projeto } from '../../projetos/entities/projeto.entity';
 
 export enum FileStatus {
   PENDING   = 'PENDING',
@@ -18,57 +18,56 @@ export enum FileStatus {
 @Entity('project_files')
 export class ProjectFile {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ name: 'material_id' })
-  materialId: number;
+  materialId!: number;
 
   @Column({ name: 'projeto_id' })
-  projetoId: number;
+  projetoId!: number;
   
-    @ManyToOne(() => Projeto, (projeto) => projeto.arquivos, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'projeto_id' })
-  projeto: Projeto;
+    @ManyToOne(() => Projeto, (projeto) => projeto.files, { onDelete: 'CASCADE' })
+projeto!: Projeto;
   
   
 
   @Column({ name: 'uploaded_by' })
-  uploadedBy: number;
+  uploadedBy!: number;
 
   @Column({ name: 'original_name', length: 255 })
-  originalName: string;
+  originalName!: string;
 
   @Column({ name: 'drive_file_id', length: 255, nullable: true })
-  driveFileId: string;
+  driveFileId!: string | null;
 
   @Column({ name: 'drive_folder_id', length: 255 })
-  driveFolderId: string;
+  driveFolderId!: string;
 
   @Column({ name: 'drive_web_view_link', length: 1000, nullable: true })
-  driveWebViewLink: string;
+  driveWebViewLink!: string | null;
 
   @Column({ name: 'checksum_sha256', type: 'char', length: 64 })
-  checksumSha256: string;
+  checksumSha256!: string;
 
   @Column({ name: 'file_size_bytes', type: 'bigint' })
-  fileSizeBytes: number;
+  fileSizeBytes!: number;
 
   @Column({ name: 'page_count', type: 'int', nullable: true, default: null })
-  pageCount: number | null;
+  pageCount!: number | null;
 
   @Column({
     type: 'enum',
     enum: FileStatus,
     default: FileStatus.PENDING,
   })
-  status: FileStatus;
+  status!: FileStatus;
 
   @Column({ default: 1 })
-  version: number;
+  version!: number;
 
   @CreateDateColumn({ name: 'criado_em' })
-  criadoEm: Date;
+  criadoEm!: Date;
 
   @UpdateDateColumn({ name: 'atualizado_em' })
-  atualizadoEm: Date;
+  atualizadoEm!: Date;
 }

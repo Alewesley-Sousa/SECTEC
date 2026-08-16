@@ -18,10 +18,13 @@ import { OrientacoesModule } from './orientacoes/orientacoes.module';
 import { MateriaisModule } from './materiais/materiais.module';
 import { RelatorioModule } from './relatorio/relatorio.module';
 import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
+import { AvaliacaoModule } from './avaliacao/avaliacao.module';
 import { BannersDownloadModule } from './pdf/banners-download.module';
 
 @Module({
   imports: [
+    AvaliacaoModule,
+    BannersDownloadModule,
     ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mysql',
@@ -32,12 +35,12 @@ import { BannersDownloadModule } from './pdf/banners-download.module';
       database: process.env.DB_NAME,
       autoLoadEntities: true,
       synchronize: true,
+      
     }),
     ScheduleModule.forRoot(),
 
     // ── CONFIGURAÇÃO PARA SERVIR O REACT ──
     ServeStaticModule.forRoot({
-      // Adicionado o 'rootPath:' para corrigir a sintaxe do objeto
       rootPath: join(__dirname, '..', '..', 'frontend', 'dist'),
       exclude: ['/api'],
     }),
@@ -56,6 +59,7 @@ import { BannersDownloadModule } from './pdf/banners-download.module';
     MateriaisModule,
     RelatorioModule,
     RelatorioAlunoModule,
+    AvaliacaoModule,
   ],
   controllers: [AppController],
   providers: [AppService],
