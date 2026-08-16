@@ -21,6 +21,7 @@ import { ApiBody, ApiConsumes, ApiOperation, ApiTags, ApiResponse } from '@nestj
 import { UserRole } from './entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UsersImportService } from './users-import.service';
 
 class CsvFileValidator extends FileValidator {
   constructor() {
@@ -39,7 +40,10 @@ class CsvFileValidator extends FileValidator {
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly UsersImportService: UsersImportService
+  ) { }
 
   @Get('alunos')
   @ApiOperation({ summary: 'Listar todos os alunos ativos' })
@@ -89,7 +93,7 @@ export class UsersController {
     )
     file: Express.Multer.File,
   ) {
-    return this.usersService.processarCsv(file, UserRole.ALUNO);
+    return this.UsersImportService.processarCsv(file, UserRole.ALUNO);
   }
 
   // --- ROTA DE PROFESSORES ---
@@ -122,7 +126,7 @@ export class UsersController {
     )
     file: Express.Multer.File,
   ) {
-    return this.usersService.processarCsv(file, UserRole.ORIENTADOR);
+    return this.UsersImportService.processarCsv(file, UserRole.ORIENTADOR);
   }
   
     @Patch(':id/promote-comissao')
@@ -154,7 +158,7 @@ async createIndividual(@Body() createUserDto: CreateUserDto) {
   @ApiResponse({ status: 200, description: 'Usuário excluído com sucesso.' })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado.' })
   async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.removeUser(id);
+    return this.usersService.deactivateUser(id);
   }
 
 

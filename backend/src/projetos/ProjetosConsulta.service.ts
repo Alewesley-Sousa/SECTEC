@@ -1,0 +1,320 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Projeto } from './entities/projeto.entity';
+import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
+import { TipoMaterial } from '../materiais/entities/projeto-material.entity';
+import { GoogleDriveService } from '../pdf/google-drive.service';
+
+@Injectable()
+export class ProjetosConsultaService {
+  constructor(
+    @InjectRepository(Projeto)
+    private readonly projetoRepository: Repository<Projeto>,
+    @InjectRepository(Evento)
+    private readonly eventoRepository: Repository<Evento>,
+    private readonly googleDriveService: GoogleDriveService,
+  ) { }
+
+  // --------------------------------------------------
+  // LISTAGEM PÚBLICA COM FILTROS E PAGINAÇÃO
+  // --------------------------------------------------
+  async findAllPublic(
+    filters: {
+      search?: string;
+      curso?: string;
+      eixo?: string;
+      evento?: string;
+    },
+    page: number = 1,
+    limit: number = 8,
+  ) {
+    const queryBuilder = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.alunoAutor', 'autor')
+      .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
+      .leftJoinAndSelect('projetoAlunos.aluno', 'integrante')
+      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect('projeto.evento', 'evento')
+      .leftJoinAndSelect('projeto.materiais', 'materiais');
+
+    if (filters.search) {
+      queryBuilder.andWhere(
+        '(projeto.titulo LIKE :search OR autor.nome LIKE :search OR integrante.nome LIKE :search)',
+        { search: `%${filters.search}%` },
+      );
+    }
+
+    if (filters.curso) {
+      queryBuilder.andWhere(
+        '(autor.curso = :curso OR integrante.curso = :curso)',
+        { curso: filters.curso },
+      );
+    }
+
+    if (filters.eixo) {
+      queryBuilder.andWhere('tema.nome LIKE :eixo', {
+        eixo: `%${filters.eixo}%`,
+      });
+    }
+
+    if (filters.evento) {
+      queryBuilder.andWhere('evento.titulo LIKE :evento', {
+        evento: `%${filters.evento}%`,
+      });
+    }
+
+    const total = await queryBuilder.getCount();
+    const projetos = await queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    const data = projetos.map((projeto) => {
+      const equipe: { id: number; nome: string; role: 'autor' | 'integrante' }[] = [];
+      if (projeto.alunoAutor) {
+        equipe.push({
+          id: projeto.alunoAutor.id,
+          nome: projeto.alunoAutor.nome,
+          role: 'autor',
+        });
+      }
+      if (projeto.projetoAlunos) {
+        projeto.projetoAlunos.forEach((pa) => {
+          if (pa.aluno) {
+            equipe.push({
+              id: pa.aluno.id,
+              nome: pa.aluno.nome,
+              role: 'integrante',
+            });
+          }
+        });
+      }
+
+      let video: string | false = false;
+      let hasBanner = false;
+      if (projeto.materiais) {
+        projeto.materiais.forEach((material) => {
+          if (material.tipo === TipoMaterial.LINK) {
+            video = material.conteudo || false;
+          }
+          if (material.tipo === TipoMaterial.PDF) {
+            hasBanner = true;
+          }
+        });
+      }
+
+      return {
+        id: projeto.id,
+        titulo: projeto.titulo,
+        descricao: projeto.descricao,
+        tema: projeto.tema
+          ? { id: projeto.tema.id, nome: projeto.tema.nome }
+          : null,
+        equipe,
+        video,
+        hasBanner,
+      };
+    });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // --------------------------------------------------
+  // PROJETOS COM MATERIAIS APROVADOS (QR CODE)
+  // --------------------------------------------------
+  async findComMateriaisAprovados(filtros: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    evento?: string;
+    eixo_tematico?: string;
+    orientador?: string;
+  }): Promise<{ projetos: any[]; total: number; page: number; limit: number }> {
+    const page = Number(filtros.page) > 0 ? Number(filtros.page) : 1;
+    const limit = Number(filtros.limit) > 0 ? Number(filtros.limit) : 20;
+
+    const qb = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.evento', 'evento')
+      .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
+      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect(
+        'projeto.orientadores',
+        'projetoOrientador',
+        "projetoOrientador.status = 'aceito'",
+      )
+      .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
+      .where((qbSub) => {
+        const sub = qbSub
+          .subQuery()
+          .select('1')
+          .from('projeto_materiais', 'material')
+          .where('material.projeto_id = projeto.id')
+          .andWhere("material.status = 'aprovado'")
+          .getQuery();
+        return `EXISTS (${sub})`;
+      });
+
+    if (filtros.search?.trim()) {
+      const termo = filtros.search.trim();
+      const idBusca = Number(termo);
+      if (Number.isFinite(idBusca) && String(idBusca) === termo) {
+        qb.andWhere('projeto.id = :idBusca', { idBusca });
+      } else {
+        qb.andWhere('projeto.titulo LIKE :termo', { termo: `%${termo}%` });
+      }
+    }
+
+    if (filtros.evento) {
+      qb.andWhere('evento.id = :eventoId', { eventoId: Number(filtros.evento) });
+    }
+
+    if (filtros.eixo_tematico?.trim()) {
+      qb.andWhere('tema.nome = :eixo', { eixo: filtros.eixo_tematico.trim() });
+    }
+
+    if (filtros.orientador?.trim()) {
+      const nomes = filtros.orientador
+        .split(',')
+        .map((n) => n.trim())
+        .filter(Boolean);
+      if (nomes.length > 0) {
+        qb.andWhere('orientador.nome IN (:...nomes)', { nomes });
+      }
+    }
+
+    qb.orderBy('projeto.id', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [projetos, total] = await qb.getManyAndCount();
+
+    const projetosMapeados = projetos.map((projeto) => {
+      const orientadorAceito = projeto.orientadores?.[0]?.orientador;
+      return {
+        id: projeto.id,
+        titulo: projeto.titulo,
+        turma: projeto.alunoAutor
+          ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
+          : '',
+        orientador: orientadorAceito?.nome ?? 'Sem orientador',
+        qrcode: Boolean(projeto.qrcodeGerado),
+        eixo_tematico: projeto.tema?.nome ?? '',
+        evento: projeto.evento?.titulo ?? String(projeto.evento?.id ?? ''),
+      };
+    });
+
+    return { projetos: projetosMapeados, total, page, limit };
+  }
+
+  // --------------------------------------------------
+  // ALUNOS OCUPADOS NO EVENTO ATUAL
+  // --------------------------------------------------
+  async findAlunosOcupados(projetoIdAtual?: number): Promise<number[]> {
+    try {
+      const eventoAtual = await this.buscarUltimoEvento();
+      if (!eventoAtual) return [];
+
+      let query: string;
+      let params: any[];
+
+      if (projetoIdAtual) {
+        query = `
+          SELECT DISTINCT aluno_id FROM (
+            SELECT aluno_autor_id as aluno_id FROM projetos 
+            WHERE evento_id = ? AND aluno_autor_id IS NOT NULL AND id != ?
+            UNION
+            SELECT aluno_id FROM projeto_alunos pa
+            INNER JOIN projetos p ON p.id = pa.projeto_id
+            WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL AND p.id != ?
+          ) AS alunos_ocupados
+        `;
+        params = [eventoAtual.id, projetoIdAtual, eventoAtual.id, projetoIdAtual];
+      } else {
+        query = `
+          SELECT DISTINCT aluno_id FROM (
+            SELECT aluno_autor_id as aluno_id FROM projetos 
+            WHERE evento_id = ? AND aluno_autor_id IS NOT NULL
+            UNION
+            SELECT aluno_id FROM projeto_alunos pa
+            INNER JOIN projetos p ON p.id = pa.projeto_id
+            WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL
+          ) AS alunos_ocupados
+        `;
+        params = [eventoAtual.id, eventoAtual.id];
+      }
+
+      const rows = await this.projetoRepository.query(query, params);
+      return rows.map((row: any) => Number(row.aluno_id));
+    } catch (error) {
+      console.error('Erro ao buscar alunos ocupados:', error);
+      return [];
+    }
+  }
+
+  // --------------------------------------------------
+  // EVENTO ATUAL (compartilhado com ProjetosService)
+  // --------------------------------------------------
+  private async buscarUltimoEvento(): Promise<Evento | null> {
+    const anoAtual = new Date().getFullYear();
+    const inicioAno = new Date(`${anoAtual}-01-01T00:00:00`);
+    const fimAno = new Date(`${anoAtual}-12-31T23:59:59`);
+
+    return this.eventoRepository
+      .createQueryBuilder('evento')
+      .where('evento.status = :status', { status: EventoStatus.ATIVO })
+      .andWhere('evento.prazo_inicial BETWEEN :inicioAno AND :fimAno', { inicioAno, fimAno })
+      .orderBy('evento.criado_em', 'DESC')
+      .getOne();
+  }
+
+
+  /**
+ * Retorna o buffer e nome do arquivo PDF de um projeto.
+ * Utilizado pela rota pública.
+ */
+  async obterPdfProjetoPublico(projetoId: number): Promise<{ buffer: Buffer; nomeArquivo: string }> {
+    const projeto = await this.projetoRepository.findOne({
+      where: { id: projetoId },
+      relations: ['materiais'],
+    });
+
+    if (!projeto) {
+      throw new NotFoundException('Projeto não encontrado.');
+    }
+
+    const materialPdf = projeto.materiais?.find((m) => m.tipo === TipoMaterial.PDF);
+
+    if (!materialPdf) {
+      throw new NotFoundException('Este projeto não possui material em PDF.');
+    }
+
+    if (!materialPdf.conteudo) {
+      throw new BadRequestException('Conteúdo do PDF não disponível.');
+    }
+
+    const fileId = this.extrairGoogleDriveFileId(materialPdf.conteudo);
+    if (!fileId) {
+      throw new BadRequestException('Não foi possível identificar o arquivo no Google Drive.');
+    }
+
+    const buffer = await this.googleDriveService.downloadFile(fileId);
+    const nomeArquivo = `projeto_${projetoId}.pdf`;
+
+    return { buffer, nomeArquivo };
+  }
+
+  private extrairGoogleDriveFileId(url: string): string | null {
+    const match = url.match(/\/d\/([^/]+)/);
+    return match ? match[1] : null;
+  }
+}

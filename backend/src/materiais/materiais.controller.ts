@@ -11,7 +11,7 @@ import {
   Body,
   Get,
   UseGuards,
-  Req
+  BadRequestException, // ✅ vírgula adicionada
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { 
@@ -60,6 +60,19 @@ export class MateriaisController {
           cb(null, `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`);
         },
       }),
+      // ✅ FILTRO DE ARQUIVO: apenas PDF
+      fileFilter: (req, file, callback) => {
+        const extensaoValida = file.originalname.toLowerCase().endsWith('.pdf');
+        const mimeValido = file.mimetype === 'application/pdf';
+
+        if (!extensaoValida || !mimeValido) {
+          return callback(
+            new BadRequestException('Apenas arquivos PDF (.pdf) são permitidos.'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
     }),
   )
   async criarMaterial(
@@ -81,9 +94,6 @@ export class MateriaisController {
     return await this.materiaisService.cancelarMaterial(materialId, userId);
   }
 
-  
-  
-  
   @Patch(':id/avaliar')
   @ApiOperation({ summary: 'Aprova ou recusa o material postado por um aluno' })
   @ApiParam({ name: 'id', description: 'ID numérico do material a ser avaliado', type: Number })
@@ -114,9 +124,7 @@ export class MateriaisController {
   ) {
     return await this.materiaisService.avaliarMaterial(materialId, body);
   }
-    
-    
-    
+
   @Get('pendentes-orientador')
   @Roles(UserRole.ORIENTADOR) // Garante que apenas professores acessem
   @ApiOperation({ summary: 'Lista os materiais em análise dos projetos orientados pelo professor' })
@@ -130,10 +138,11 @@ export class MateriaisController {
   async findMateriaisPorOrientador(@GetUser('userId') orientadorId: number) {
     return await this.materiaisService.findMateriaisPorOrientador(orientadorId);
   }
+
   @Get('projeto/:projetoId')
-@Roles(UserRole.ALUNO)
-@ApiOperation({ summary: 'Lista os materiais de um projeto específico' })
-async listarPorProjeto(@Param('projetoId', ParseIntPipe) projetoId: number) {
-  return this.materiaisService.listarPorProjeto(projetoId);
-}
+  @Roles(UserRole.ALUNO)
+  @ApiOperation({ summary: 'Lista os materiais de um projeto específico' })
+  async listarPorProjeto(@Param('projetoId', ParseIntPipe) projetoId: number) {
+    return this.materiaisService.listarPorProjeto(projetoId);
+  }
 }
