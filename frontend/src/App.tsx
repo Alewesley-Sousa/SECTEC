@@ -17,6 +17,8 @@ import DashboardOrientador, {
   EntregasOrientador,
   TurmasOrientador,
 } from './pages/DashboardOrientador';
+import GerarQRCode from './pages/services/coordenacao/GerarQRCode';
+import ImprimirQRCode from './pages/services/coordenacao/ImprimirQrCode';
 
 function App() {
   const [auth, setAuth] = useState(() => ({
@@ -207,6 +209,23 @@ function App() {
           }
         />
         <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/dashboard/coordenacao/qrcode"
+          element={
+            <ProtectedRoute allowedRoles={['coordenador']}>
+              <GerarQRCode />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/coordenacao/qrcode/imprimir"
+          element={
+            <ProtectedRoute allowedRoles={['coordenador']}>
+              <ImprimirQRCode />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

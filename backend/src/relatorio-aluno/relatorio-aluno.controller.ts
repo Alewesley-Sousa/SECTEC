@@ -190,7 +190,11 @@ export class RelatorioAlunoController {
   async atualizarRelatorioAluno(
     @Param('id') id: string,
     @Body() updateRelatorioAlunoDto: UpdateRelatorioAlunoDto,
+    @GetUser('role') role: string
   ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException('Apenas coordenadores podem atualizar registros de alunos na modalidade relatório.');
+    }
     return this.relatorioAlunoService.atualizarRelatorioAluno(+id, updateRelatorioAlunoDto);
   }
 
