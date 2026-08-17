@@ -22,6 +22,7 @@ import ImprimirQRCode from './pages/services/coordenacao/ImprimirQrCode';
 
 // Componente da Tarefa 5
 import PainelConfiguracaoCoordenacao from './componentes/configurações/PainelConfiguracaoCoordenacao';
+import FichaAvaliacao from './pages/FichaAvaliacao';
 
 function App() {
   const [auth, setAuth] = useState(() => ({
@@ -210,6 +211,11 @@ function App() {
               <RelatorioAlunosCoordenacao />
             </ProtectedRoute>
           }
+        />
+
+        <Route
+          path="/ficha-avaliacao"
+          element={<FichaAvaliacao />}
         />
 
         {/* Rota da Tarefa 5 protegida para a coordenação */}
