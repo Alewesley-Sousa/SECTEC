@@ -73,7 +73,7 @@ export function Sidebar({
   const visibleItems = settingsItem
     ? filteredItems.filter((item) => item.id !== settingsItem.id)
     : filteredItems;
-  const showSettings = userRole !== "coordenador" && userRole !== "comissao";
+  const showSettings = Boolean(settingsItem);
 
   return (
     <motion.aside
@@ -484,6 +484,14 @@ export function MainLayout({
       icon: <ClipboardList size={20} />,
       href: `${dashboardPrefix}/gestao-relatorio-alunos`,
       isActive: location.pathname === `${dashboardPrefix}/gestao-relatorio-alunos`,
+      roles: ["coordenador"],
+    },
+    {
+      id: "coordenacao-config",
+      label: "Configurações",
+      icon: <Settings size={20} />,
+      href: `${dashboardPrefix}/configuracoes`,
+      isActive: location.pathname === `${dashboardPrefix}/configuracoes`,
       roles: ["coordenador"],
     },
   ];

@@ -6,18 +6,17 @@ import { MainLayout } from "../SideBarUniversal";
 import { API_BASE_URL } from "../../lib/api";
 
 export default function PainelConfiguracaoCoordenacao() {
-  const [minProjetos, setMinProjetos] = useState<number | string>("");
-  const [maxProjetos, setMaxProjetos] = useState<number | string>("");
+  const [minProjetos, setMinProjetos] = useState<number | string>(1);
+  const [maxProjetos, setMaxProjetos] = useState<number | string>(3);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true); // Novo estado para o carregamento inicial
+  const [fetching, setFetching] = useState(true);
 
-  // --- BUSCAR CONFIGURAÇÕES ATUAIS ---
   useEffect(() => {
     async function carregarConfiguracoes() {
       const token = localStorage.getItem("token");
       try {
-        const response = await fetch(`${API_BASE_URL}/coordenacao/configuracoes`, {
-          method: "GET",
+        const response = await fetch(`${API_BASE_URL}/avaliador/configuracao/limites`, {
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -25,9 +24,9 @@ export default function PainelConfiguracaoCoordenacao() {
 
         if (response.ok) {
           const data = await response.json();
-          // Ajuste os nomes das propriedades conforme o seu Backend retornar
-          setMinProjetos(data.min_projetos_por_avaliador || 1);
-          setMaxProjetos(data.max_projetos_por_avaliador || 5);
+          // Usa ?? para não sobrescrever com padrão se o valor for 0
+          setMinProjetos(data.min_projetos_por_avaliador ?? 1);
+          setMaxProjetos(data.max_projetos_por_avaliador ?? 3);
         }
       } catch (err) {
         console.error("Erro ao carregar configurações:", err);
@@ -44,11 +43,22 @@ export default function PainelConfiguracaoCoordenacao() {
     const minNum = Number(minProjetos);
     const maxNum = Number(maxProjetos);
 
+    // Validação de intervalo permitido (1 a 20)
+    if (minNum < 1 || maxNum > 20) {
+      Swal.fire({
+        icon: "error",
+        title: "Limites inválidos",
+        text: "Os valores devem estar entre 1 e 20 projetos por avaliador.",
+        confirmButtonColor: "#15803d",
+      });
+      return;
+    }
+
     if (minNum > maxNum) {
       Swal.fire({
         icon: "error",
         title: "Limites inválidos",
-        text: "O mínimo não pode ser maior que o máximo.",
+        text: "O mínimo não pode ser maior que o máximo. Exemplo: mínimo 1 e máximo 20.",
         confirmButtonColor: "#15803d",
       });
       return;
@@ -58,15 +68,15 @@ export default function PainelConfiguracaoCoordenacao() {
     const token = localStorage.getItem("token");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/coordenacao/configuracoes`, {
+      const response = await fetch(`${API_BASE_URL}/avaliador/configuracao/limites`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          min_projetos_por_avaliador: minNum,
-          max_projetos_por_avaliador: maxNum,
+          minAvaliacoes: minNum,
+          maxProjetosPorAvaliador: maxNum,
         }),
       });
 
@@ -75,14 +85,14 @@ export default function PainelConfiguracaoCoordenacao() {
       Swal.fire({
         icon: "success",
         title: "Sucesso!",
-        text: "Parâmetros atualizados.",
+        text: "Configurações salvas com sucesso.",
         confirmButtonColor: "#15803d",
       });
     } catch (err) {
       Swal.fire({
         icon: "error",
         title: "Erro",
-        text: "Falha ao conectar com o servidor.",
+        text: "Não foi possível salvar agora. Verifique sua conexão e tente novamente.",
         confirmButtonColor: "#15803d",
       });
     } finally {
@@ -104,7 +114,7 @@ export default function PainelConfiguracaoCoordenacao() {
     <MainLayout userRole="coordenador">
       <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-8 sm:py-8">
         <div className="mx-auto grid w-full max-w-6xl gap-6 grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-          
+          {/* Lado explicativo */}
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="bg-[#0b4d2c] px-6 py-6 text-white">
               <div className="flex items-center gap-5">
@@ -117,39 +127,54 @@ export default function PainelConfiguracaoCoordenacao() {
                 </div>
               </div>
             </div>
-            <div className="p-5">
+            <div className="p-5 space-y-4">
               <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 border border-slate-100">
                 <CheckCircle2 className="text-sectec-700 mt-1" size={18} />
                 <p className="text-xs text-slate-600">
-                  Estes valores definem quantos projetos o sistema tentará atribuir automaticamente para cada avaliador durante o sorteio.
+                  Aqui você define a quantidade de projetos que <strong>cada avaliador</strong> vai receber.
+                  O sistema sorteará os projetos e tentará respeitar esses limites.
                 </p>
               </div>
+              <p className="text-xs text-slate-500">
+                Hoje o sistema está configurado para <strong>{minProjetos} a {maxProjetos} projetos por avaliador</strong>.
+              </p>
             </div>
           </section>
 
+          {/* Formulário */}
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="text-xl font-extrabold text-slate-900">Configurar Limites</h2>
             <form onSubmit={handleSubmit} className="mt-6 space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Mínimo de Projetos</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Mínimo de projetos por avaliador
+                  </label>
                   <input
                     type="number"
+                    min={1}
+                    max={20}
                     value={minProjetos}
                     onChange={(e) => setMinProjetos(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-sectec-500"
                     required
                   />
+                  <p className="mt-1 text-xs text-slate-400">Valor entre 1 e 3</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Máximo de Projetos</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Máximo de projetos por avaliador
+                  </label>
                   <input
                     type="number"
+                    min={1}
+                    max={20}
                     value={maxProjetos}
                     onChange={(e) => setMaxProjetos(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-sectec-500"
                     required
                   />
+                  <p className="mt-1 text-xs text-slate-400">Valor entre 1 e 3</p>
                 </div>
               </div>
               <button

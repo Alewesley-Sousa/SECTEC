@@ -200,7 +200,7 @@ export function GestaoProjetosRelatorio({
                       </td>
                       <td className="px-4 py-3 font-bold text-slate-700">{item.projetos_atribuidos?.length || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-2 ">
                           <Tooltip label="Ver projetos">
                             <button
                               onClick={() => visualizacao.abrir(item)}
@@ -219,6 +219,7 @@ export function GestaoProjetosRelatorio({
                                   <PiPlus size={16} />
                                 </button>
                               </Tooltip>
+                              <Tooltip label="Editar">
                               <button
                                 onClick={() => {
                                   quantidadeInd.setEditandoId(item.id);
@@ -228,6 +229,7 @@ export function GestaoProjetosRelatorio({
                               >
                                 <Pencil size={16} />
                               </button>
+                              </Tooltip>
                             </>
                           )}
                         </div>

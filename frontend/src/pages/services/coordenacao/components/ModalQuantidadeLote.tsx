@@ -70,7 +70,7 @@ export function ModalQuantidadeLote({ hook }: Props) {
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 hidden">
             <input
               type="checkbox"
               checked={hook.aplicarParaTodos}

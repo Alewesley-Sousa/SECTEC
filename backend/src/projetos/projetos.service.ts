@@ -226,12 +226,17 @@ export class ProjetosService {
       eventoId = ultimo.id;
     }
 
-    if (dto.temaId) {
-      await this.validacaoService.validarEventoETema(eventoId, dto.temaId);
+    if (role !== 'coordenador') {
+      if (dto.temaId) {
+        await this.validacaoService.validarEventoETema(eventoId, dto.temaId);
+      }
     }
 
+
     if (dto.alunosIds) {
-      await this.validacaoService.validateGroupSize(dto.alunosIds);
+      if (role !== 'coordenador') {
+        await this.validacaoService.validateGroupSize(dto.alunosIds);
+      }
       await this.validacaoService.ensureAlunosAreAvailable(
         eventoId,
         [...dto.alunosIds, projeto.alunoAutor.id],
@@ -472,5 +477,5 @@ export class ProjetosService {
     };
   }
 
-  
+
 }

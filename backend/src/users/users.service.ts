@@ -14,17 +14,6 @@ import { ComissaoEvento } from 'src/evento/entities/comissao-evento.entity';
 import { HashingProvider } from '../common/providers/hashing.provider';
 import { CreateUserDto } from './dto/create-user.dto';
 
-interface ICsvRow {
-  nome?: string;
-  email?: string;
-  'email gsuite'?: string;
-  'email_gsuite'?: string;
-  'e-mail'?: string;
-  turma?: string;
-  ano?: string;
-  senha?: string;
-}
-
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
@@ -71,6 +60,14 @@ export class UsersService {
   async findAllOrientadores() {
     return this.usersRepository.find({
       where: { role_cargo: UserRole.ORIENTADOR, ativo: true },
+      select: ['id', 'nome', 'email_institucional'],
+      relations: ['temasSelecionados'],
+    });
+  }
+
+    async findAllAvaliadores() {
+    return this.usersRepository.find({
+      where: { role_cargo: UserRole.AVALIADOR, ativo: true },
       select: ['id', 'nome', 'email_institucional'],
       relations: ['temasSelecionados'],
     });
@@ -136,117 +133,6 @@ export class UsersService {
   }
 
   // ==================== MÉTODOS PÚBLICOS PRINCIPAIS ====================
-
-  /**
-   * Importação em lote via arquivo CSV.
-   */
-  async importCsvUsers(file: Express.Multer.File, tipo: UserRole) {
-    const csvString = file.buffer.toString('utf-8');
-    let registros: ICsvRow[];
-
-    try {
-      registros = parse(csvString, {
-        columns: (header: string[]) => header.map((h) => h.toLowerCase().trim()),
-        skip_empty_lines: true,
-        trim: true,
-        bom: true,
-        delimiter: [',', ';'],
-        skip_records_with_error: true,
-        relax_column_count: true,
-      });
-    } catch (e) {
-      throw new BadRequestException('Erro ao formatar CSV. Verifique o cabeçalho.');
-    }
-
-    const emailsNoCsv = registros
-      .map((reg) => {
-        const emailBruto = reg.email || reg['email gsuite'] || reg['email_gsuite'] || reg['e-mail'];
-        return emailBruto ? String(emailBruto).trim().toLowerCase() : null;
-      })
-      .filter(Boolean) as string[];
-
-    const usuariosExistentes = await this.usersRepository.find({
-      where: { email_institucional: In(emailsNoCsv) },
-      select: ['email_institucional'],
-    });
-
-    const emailsExistentesSet = new Set(
-      usuariosExistentes.map((u) => u.email_institucional.toLowerCase()),
-    );
-
-    const registrosFiltrados = registros.filter((reg) => {
-      const emailBruto = reg.email || reg['email gsuite'] || reg['email_gsuite'] || reg['e-mail'];
-      if (!emailBruto) return false;
-      return !emailsExistentesSet.has(String(emailBruto).trim().toLowerCase());
-    });
-
-    const totalIgnorados = registros.length - registrosFiltrados.length;
-
-    if (registrosFiltrados.length === 0) {
-      return {
-        filename: file.originalname,
-        totalCadastrados: 0,
-        totalIgnorados: totalIgnorados,
-        tipo: tipo,
-        mensagem: 'Todos os e-mails do CSV já constavam no sistema.',
-      };
-    }
-
-    const dadosFormatados = await Promise.all(
-      registrosFiltrados.map(async (reg, index) => {
-        const emailBruto = reg.email || reg['email gsuite'] || reg['email_gsuite'] || reg['e-mail'];
-        const nomeBruto = reg.nome;
-
-        if (!nomeBruto || !emailBruto) {
-          throw new BadRequestException(
-            `Erro na linha ${index + 2}: Colunas Nome e Email são obrigatórias (Verificado: ${nomeBruto}, ${emailBruto}).`,
-          );
-        }
-
-        const primeiroNome = String(nomeBruto).trim();
-        const primeiroEmail = String(emailBruto).trim();
-
-        const credenciais = this.resolverCredenciais({
-          email: primeiroEmail,
-          role: tipo,
-          senha: reg.senha,
-          turma: reg.turma,
-          ano: reg.ano,
-        });
-
-        const senhaHasheada = await this.hashingProvider.hash(credenciais.senhaFinal);
-
-        return {
-          nome: primeiroNome,
-          email_institucional: primeiroEmail,
-          senha: senhaHasheada,
-          turma: credenciais.turmaFinal,
-          ano: Math.min(credenciais.anoFinal, 4),
-          role_cargo: credenciais.roleFinal,
-          ativo: credenciais.roleFinal !== UserRole.ALUNO || credenciais.anoFinal < 4,
-          ano_progressao_processado: new Date().getFullYear(),
-        };
-      }),
-    );
-
-    try {
-      await this.usersRepository.save(dadosFormatados);
-
-      return {
-        filename: file.originalname,
-        totalCadastrados: dadosFormatados.length,
-        totalIgnorados: totalIgnorados,
-        tipo: tipo,
-      };
-    } catch (error: any) {
-      if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
-        throw new BadRequestException(
-          'O arquivo enviado possui linhas com e-mails repetidos entre si.',
-        );
-      }
-      throw new InternalServerErrorException('Erro ao salvar novos usuários no banco de dados.');
-    }
-  }
 
   /**
    * Promove um aluno a membro da COMISSÃO e o vincula ao evento ativo do ano.

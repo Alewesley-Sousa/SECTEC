@@ -43,6 +43,7 @@ import {
   HelpCircle,
   X,
   Info,
+  ChevronDown,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { MainLayout } from "../componentes/SideBarUniversal";
@@ -1419,13 +1420,13 @@ type UsuarioCoordenacao = {
   id: string;
   nome: string;
   email: string;
-  perfil: "Aluno" | "Orientador" | "Comissão";
+  perfil: "Aluno" | "Orientador" | "Comissão" | "Avaliador";
   turma?: string;
   ano?: number;
 };
 
 type CadastroUsuarioForm = {
-  tipo: "aluno" | "orientador";
+  tipo: "aluno" | "orientador" | "avaliador";
   nome: string;
   email: string;
   senha: string;
@@ -1434,14 +1435,17 @@ type CadastroUsuarioForm = {
 };
 
 function UsuariosCoordenacao() {
-  const [abaAtiva, setAbaAtiva] = useState<"alunos" | "orientadores" | "comissao">("alunos");
+  const [abaAtiva, setAbaAtiva] = useState<"alunos" | "orientadores" | "comissao" | "avaliadores">("alunos");
   const [busca, setBusca] = useState("");
+  const [menuCadastroAberto, setMenuCadastroAberto] = useState(false);
   const [turmaFiltro, setTurmaFiltro] = useState("todas");
   const [anoFiltro, setAnoFiltro] = useState<"todos" | string>("todos");
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [alunos, setAlunos] = useState<UsuarioCoordenacao[]>([]);
   const [orientadores, setOrientadores] = useState<UsuarioCoordenacao[]>([]);
   const [comissao, setComissao] = useState<UsuarioCoordenacao[]>([]);
+  const [avaliadores, setAvaliadores] = useState<UsuarioCoordenacao[]>([]);
+  const [menuImportacaoAberto, setMenuImportacaoAberto] = useState(false);
   const [projetosCoordenacao, setProjetosCoordenacao] = useState<ProjetoCoordenacaoListagem[]>([]);
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<UsuarioCoordenacao | null>(null);
   const [detalhesAberto, setDetalhesAberto] = useState(false);
@@ -1465,7 +1469,8 @@ function UsuariosCoordenacao() {
   const totalAlunos = alunos.length;
   const totalOrientadores = orientadores.length;
   const totalComissao = comissao.length;
-  const totalGeral = totalAlunos + totalOrientadores + totalComissao;
+  const totalAvaliadores = avaliadores.length;
+  const totalGeral = totalAlunos + totalOrientadores + totalComissao + totalAvaliadores;
 
   function normalizarUsuarios(lista: UsuarioApi[], perfil: UsuarioCoordenacao["perfil"]) {
     return lista.map((usuario) => ({
@@ -1483,15 +1488,17 @@ function UsuariosCoordenacao() {
     setErro("");
 
     try {
-      const [alunosResponse, orientadoresResponse, comissaoResponse] = await Promise.all([
+      const [alunosResponse, orientadoresResponse, comissaoResponse, avaliadoresResponse] = await Promise.all([
         apiRequest<UsuarioApi[]>("/users/alunos"),
         apiRequest<UsuarioApi[]>("/users/orientadores"),
         apiRequest<UsuarioApi[]>("/users/comissao"),
+        apiRequest<UsuarioApi[]>("/users/avaliadores"),
       ]);
 
       setAlunos(normalizarUsuarios(alunosResponse, "Aluno"));
       setOrientadores(normalizarUsuarios(orientadoresResponse, "Orientador"));
       setComissao(normalizarUsuarios(comissaoResponse, "Comissão"));
+      setAvaliadores(normalizarUsuarios(avaliadoresResponse, "Avaliador"));
     } catch (error) {
       const erro = mensagemErroApi(error, "Não foi possível carregar os dados.");
       setErro(`${erro.amigavel} Tente novamente em alguns instantes.`);
@@ -1600,21 +1607,32 @@ function UsuariosCoordenacao() {
       return;
     }
 
-    const payload =
-      cadastroForm.tipo === "aluno"
-        ? {
-          nome,
-          email_institucional: email,
-          role_cargo: "aluno",
-          turma: cadastroForm.turma,
-          ano: Number(cadastroForm.ano),
-        }
-        : {
-          nome,
-          email_institucional: email,
-          role_cargo: "orientador",
-          ...(cadastroForm.senha.trim() ? { senha: cadastroForm.senha.trim() } : {}),
-        };
+    let payload: any;
+
+    if (cadastroForm.tipo === "aluno") {
+      payload = {
+        nome,
+        email_institucional: email,
+        role_cargo: "aluno",
+        turma: cadastroForm.turma,
+        ano: Number(cadastroForm.ano),
+      };
+    } else if (cadastroForm.tipo === "orientador") {
+      payload = {
+        nome,
+        email_institucional: email,
+        role_cargo: "orientador",
+        ...(cadastroForm.senha.trim() ? { senha: cadastroForm.senha.trim() } : {}),
+      };
+    } else {
+      // avaliador
+      payload = {
+        nome,
+        email_institucional: email,
+        role_cargo: "avaliador",
+        ...(cadastroForm.senha.trim() ? { senha: cadastroForm.senha.trim() } : {}),
+      };
+    }
 
     setSalvandoCadastro(true);
     try {
@@ -1625,14 +1643,14 @@ function UsuariosCoordenacao() {
 
       await Swal.fire({
         icon: "success",
-        title: cadastroForm.tipo === "aluno" ? "Aluno cadastrado" : "Orientador cadastrado",
+        title: cadastroForm.tipo === "aluno" ? "Aluno cadastrado" : cadastroForm.tipo === "orientador" ? "Orientador cadastrado" : "Avaliador cadastrado",
         showConfirmButton: false,
         timer: 1300,
         timerProgressBar: true,
       });
 
       setCadastroAberto(false);
-      setAbaAtiva(cadastroForm.tipo === "aluno" ? "alunos" : "orientadores");
+      setAbaAtiva(cadastroForm.tipo === "aluno" ? "alunos" : cadastroForm.tipo === "orientador" ? "orientadores" : "avaliadores");
       await carregarUsuarios();
     } catch (error) {
       await Swal.fire({
@@ -1813,10 +1831,18 @@ function UsuariosCoordenacao() {
     setUsuarioSelecionado(null);
   }
 
-  const listaAtual = abaAtiva === "alunos" ? alunos : abaAtiva === "orientadores" ? orientadores : comissao;
+  const listaAtual =
+    abaAtiva === "alunos"
+      ? alunos
+      : abaAtiva === "orientadores"
+        ? orientadores
+        : abaAtiva === "comissao"
+          ? comissao
+          : avaliadores;
+
   const termo = busca.trim().toLowerCase();
-  const podeFiltrarTurma = abaAtiva !== "orientadores";
-  const podeFiltrarAno = abaAtiva !== "orientadores" && listaAtual.some((usuario) => usuario.ano !== undefined && usuario.ano !== null);
+  const podeFiltrarTurma = abaAtiva !== "orientadores" && abaAtiva !== "avaliadores";
+  const podeFiltrarAno = abaAtiva !== "orientadores" && abaAtiva !== "avaliadores" && listaAtual.some((usuario) => usuario.ano !== undefined && usuario.ano !== null);
   const turmasDisponiveis = podeFiltrarTurma
     ? [
       "todas",
@@ -1992,40 +2018,115 @@ function UsuariosCoordenacao() {
               className="hidden"
               onChange={(event) => handleUploadCsv("orientadores", event.target.files?.[0])}
             />
-            <button
-              type="button"
-              onClick={() => abrirCadastro("aluno")}
-              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100"
-            >
-              <PiPlus size={18} />
-              Cadastrar aluno
-            </button>
-            <button
-              type="button"
-              onClick={() => abrirCadastro("orientador")}
-              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100"
-            >
-              <PiPlus size={18} />
-              Cadastrar orientador
-            </button>
-            <button
-              type="button"
-              onClick={() => confirmarImportacaoCSV("alunos")}
-              disabled={importandoTipo !== null}
-              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {importandoTipo === "alunos" ? <Loader2 className="animate-spin" size={18} /> : <PiUploadSimple size={18} />}
-              {importandoTipo === "alunos" ? "Importando alunos..." : "Importar CSV (alunos)"}
-            </button>
-            <button
-              type="button"
-              onClick={() => confirmarImportacaoCSV("orientadores")}
-              disabled={importandoTipo !== null}
-              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {importandoTipo === "orientadores" ? <Loader2 className="animate-spin" size={18} /> : <PiUploadSimple size={18} />}
-              {importandoTipo === "orientadores" ? "Importando orientadores..." : "Importar CSV (orientadores)"}
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuCadastroAberto((v) => !v)}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100"
+              >
+                <PiPlus size={18} />
+                Cadastrar usuário
+                <ChevronDown size={16} />
+              </button>
+
+              {menuCadastroAberto && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setMenuCadastroAberto(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-2 w-full min-w-[200px] rounded-2xl border border-slate-200 bg-white shadow-lg z-20 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        abrirCadastro("aluno");
+                        setMenuCadastroAberto(false);
+                      }}
+                      className="group flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700 transition-all duration-150 hover:bg-emerald-50 hover:text-emerald-700 hover:pl-5"
+                    >
+                      <PiUsersThree size={16} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                      Aluno
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        abrirCadastro("orientador");
+                        setMenuCadastroAberto(false);
+                      }}
+                      className="group flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700 transition-all duration-150 hover:bg-emerald-50 hover:text-emerald-700 hover:pl-5"
+                    >
+                      <PiBookOpen size={16} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                      Orientador
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        abrirCadastro("avaliador");
+                        setMenuCadastroAberto(false);
+                      }}
+                      className="group flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700 transition-all duration-150 hover:bg-emerald-50 hover:text-emerald-700 hover:pl-5"
+                    >
+                      <PiCheckCircle size={16} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                      Avaliador
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuImportacaoAberto((v) => !v)}
+                disabled={importandoTipo !== null}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {importandoTipo !== null ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Importando...
+                  </>
+                ) : (
+                  <>
+                    <PiUploadSimple size={18} />
+                    Importar CSV
+                    <ChevronDown size={16} />
+                  </>
+                )}
+              </button>
+
+              {menuImportacaoAberto && importandoTipo === null && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setMenuImportacaoAberto(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-2 w-full min-w-[200px] rounded-2xl border border-slate-200 bg-white shadow-lg z-20 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        confirmarImportacaoCSV("alunos");
+                        setMenuImportacaoAberto(false);
+                      }}
+                      className="group flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700 transition-all duration-150 hover:bg-emerald-50 hover:text-emerald-700 hover:pl-5"
+                    >
+                      <PiUsersThree size={16} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                      Alunos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        confirmarImportacaoCSV("orientadores");
+                        setMenuImportacaoAberto(false);
+                      }}
+                      className="group flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700 transition-all duration-150 hover:bg-emerald-50 hover:text-emerald-700 hover:pl-5"
+                    >
+                      <PiBookOpen size={16} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                      Orientadores
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2034,6 +2135,7 @@ function UsuariosCoordenacao() {
             { label: "Total de alunos", value: totalAlunos, icon: <PiUsersThree size={18} />, target: "alunos" as const },
             { label: "Total de orientadores", value: totalOrientadores, icon: <PiBookOpen size={18} />, target: "orientadores" as const },
             { label: "Total de comissão", value: totalComissao, icon: <PiCheckCircle size={18} />, target: "comissao" as const },
+            { label: "Total de avaliadores", value: totalAvaliadores, icon: <PiCheckCircle size={18} />, target: "avaliadores" as const },
             { label: "Total geral", value: totalGeral, icon: <UsersRound size={18} />, target: "alunos" as const },
           ].map((card) => (
             <button
@@ -2068,13 +2170,14 @@ function UsuariosCoordenacao() {
               { id: "alunos", label: "Alunos" },
               { id: "orientadores", label: "Orientadores" },
               { id: "comissao", label: "Comissão" },
+              { id: "avaliadores", label: "Avaliadores" },
             ].map((aba) => {
               const ativa = abaAtiva === aba.id;
               return (
                 <button
                   key={aba.id}
                   type="button"
-                  onClick={() => setAbaAtiva(aba.id as "alunos" | "orientadores" | "comissao")}
+                  onClick={() => setAbaAtiva(aba.id as "alunos" | "orientadores" | "comissao" | "avaliadores")}
                   className={`shrink-0 cursor-pointer px-4 py-2 text-sm font-black transition ${ativa
                     ? "rounded-xl bg-white text-sectec-700 shadow-sm"
                     : "text-slate-500 hover:bg-sectec-50 hover:text-sectec-700"
@@ -2310,7 +2413,13 @@ function UsuariosCoordenacao() {
         )}
       </PainelDetalhes>
 
-      <PainelDetalhes aberto={cadastroAberto} titulo={cadastroForm.tipo === "aluno" ? "Cadastrar aluno" : "Cadastrar orientador"} onClose={() => setCadastroAberto(false)}>
+      <PainelDetalhes aberto={cadastroAberto} titulo={
+        cadastroForm.tipo === "aluno"
+          ? "Cadastrar aluno"
+          : cadastroForm.tipo === "orientador"
+            ? "Cadastrar orientador"
+            : "Cadastrar avaliador"
+      } onClose={() => setCadastroAberto(false)}>
         <form className="space-y-4" onSubmit={salvarCadastroIndividual}>
           <div>
             <label className="text-xs font-black uppercase tracking-widest text-slate-400">Nome</label>
@@ -2376,7 +2485,9 @@ function UsuariosCoordenacao() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-5 text-slate-500">
             {cadastroForm.tipo === "aluno"
               ? "Para alunos, o backend usa o email institucional como senha inicial."
-              : "Para orientadores, a senha informada é opcional. Sem senha, o backend usa o email institucional."}
+              : cadastroForm.tipo === "orientador"
+                ? "Para orientadores, a senha informada é opcional. Sem senha, o backend usa o email institucional."
+                : "Para avaliadores, a senha informada é opcional. Sem senha, o backend usa o email institucional."}
           </div>
 
           <button
@@ -2736,7 +2847,7 @@ function ProjetosCoordenacao() {
       await Swal.fire({ icon: "warning", title: "Preencha os campos obrigatórios", confirmButtonColor: "#15803d" });
       return;
     }
-    if (totalGrupo < 3 || totalGrupo > 7) {
+    if (totalGrupo < 1 || totalGrupo > 7) {
       await Swal.fire({
         icon: "warning",
         title: "Grupo inválido",
@@ -3138,7 +3249,7 @@ function ProjetosCoordenacao() {
                   <span className="absolute inset-0 rounded-full bg-cyan-400 opacity-0 transition-opacity duration-300 group-hover:opacity-20" />
                 </button>
               </div>
-              <p className="mt-1 text-xs font-semibold text-slate-400">Autor não entra em alunosIds. Grupo total: {formProjeto.alunosIds.length + 1}/7.</p>
+              <p className="mt-1 text-xs font-semibold text-slate-400">Autor não entra em alunosIds. Grupo total: {formProjeto.alunosIds.length + 1}.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <select value={turmaFiltroEdicao} onChange={(e) => setTurmaFiltroEdicao(e.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
                   <option value="todas">Todas as turmas</option>
@@ -3286,8 +3397,8 @@ function ProjetosCoordenacao() {
                               setDropdownAberto(false);
                             }}
                             className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold transition ${Number(o.id) === orientadorSelecionadoId
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "text-slate-700 hover:bg-slate-50"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "text-slate-700 hover:bg-slate-50"
                               }`}
                           >
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">

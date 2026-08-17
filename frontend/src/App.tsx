@@ -191,7 +191,7 @@ function App() {
           path="/dashboard/coordenacao/configuracoes"
           element={
             <ProtectedRoute allowedRoles={["coordenador"]}>
-              <ConfigAluno userRole="coordenador" />
+              <PainelConfiguracaoCoordenacao />
             </ProtectedRoute>
           }
         />

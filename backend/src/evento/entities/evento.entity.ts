@@ -23,7 +23,7 @@ export enum EventoStatus {
 }
 
 
-   
+
 // Value Object ajustado para apenas DATA
 export class Periodo {
   @Column({ type: 'datetime', nullable: true }) // Mudança para 'date'
@@ -55,20 +55,20 @@ export class Evento {
   avaliacao!: Periodo;
 
   // --- Configurações Gerais ---
-@Column({ name: 'coordenador_id', nullable: true })
-coordenadorId?: number;
+  @Column({ name: 'coordenador_id', nullable: true })
+  coordenadorId?: number;
 
-@Column({ name: 'prazo_inicial', type: 'datetime', nullable: true }) // Adicione o nullable aqui
-prazoInicial!: Date;
+  @Column({ name: 'prazo_inicial', type: 'datetime', nullable: true }) // Adicione o nullable aqui
+  prazoInicial!: Date;
 
-@Column({ name: 'prazo_final', type: 'datetime', nullable: true }) // Adicione o nullable aqui
-prazoFinal!: Date;
+  @Column({ name: 'prazo_final', type: 'datetime', nullable: true }) // Adicione o nullable aqui
+  prazoFinal!: Date;
 
-@Column({ type: 'int', nullable: true })
-min_projetos_por_avaliador!: number;
+  @Column({ type: 'int', nullable: true })
+  min_projetos_por_avaliador!: number;
 
-@Column({ type: 'int', nullable: true })
-max_projetos_por_avaliador!: number;
+  @Column({ type: 'int', nullable: true })
+  max_projetos_por_avaliador!: number;
 
   @Column({
     type: 'enum',
@@ -85,7 +85,7 @@ max_projetos_por_avaliador!: number;
   atualizadoEm!: Date;
 
   // --- Relacionamentos ---
-  @ManyToOne(() => User) 
+  @ManyToOne(() => User)
   @JoinColumn({ name: 'coordenador_id' })
   coordenador!: User;
 
@@ -94,7 +94,7 @@ max_projetos_por_avaliador!: number;
 
   @OneToMany(() => TemaEvento, (tema) => tema.evento)
   temas!: TemaEvento[];
-  
-   @OneToMany(() => ComissaoEvento, (comissao) => comissao.evento)
+
+  @OneToMany(() => ComissaoEvento, (comissao) => comissao.evento)
   comissaoAlunos!: ComissaoEvento[];
 }

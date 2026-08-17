@@ -83,9 +83,10 @@ export class GoogleDriveService {
 
       return response.data as Readable;
     } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error('Erro no Google Drive:', message);
-}
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Erro no Google Drive:', message);
+      throw new Error(`Erro na operação: ${message}`);
+    }
   }
 
 
@@ -115,9 +116,10 @@ export class GoogleDriveService {
         webViewLink: response.data.webViewLink,
       };
     } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error('Erro no Google Drive:', message);
-}
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Erro no Google Drive:', message);
+      throw new Error(`Erro na operação: ${message}`);
+    }
   }
 
 
@@ -135,9 +137,10 @@ export class GoogleDriveService {
         fileId: driveFileId,
       });
     } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error('Erro no Google Drive:', message);
-}
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Erro no Google Drive:', message);
+      throw new Error(`Erro na operação: ${message}`);
+    }
   }
 
 

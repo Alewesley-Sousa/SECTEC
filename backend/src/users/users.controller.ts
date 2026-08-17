@@ -62,7 +62,11 @@ export class UsersController {
   getOrientadores() {
     return this.usersService.findAllOrientadores();
   }
-
+  @Get('avaliadores')
+  @ApiOperation({ summary: 'Listar todos os avaliadores ativos' })
+  getAvaliadores() {
+    return this.usersService.findAllAvaliadores();
+  }
   // --- ROTA DE ALUNOS ---
   @Post('upload-csv/alunos')
   @ApiOperation({ summary: 'Upload de CSV exclusivo para ALUNOS' })

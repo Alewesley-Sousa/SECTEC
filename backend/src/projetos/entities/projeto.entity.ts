@@ -1,11 +1,12 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  CreateDateColumn, 
-  ManyToOne, 
-  OneToMany, 
-  JoinColumn 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+  Index
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Evento } from '../../evento/entities/evento.entity';
@@ -17,6 +18,7 @@ import { AvaliadorProjeto } from '../../avaliacao/entities/avaliador-projeto.ent
 import { ProjetoAluno } from './projeto-aluno.entity'; // mesma pasta
 
 @Entity('projetos')
+@Index(['alunoAutorId', 'eventoId'], { unique: true })
 export class Projeto {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -33,7 +35,7 @@ export class Projeto {
   @Column()
   titulo!: string;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ name: 'qrcode_gerado', type: 'boolean', default: false })
   qrcodeGerado!: boolean;
 
   @Column({ type: 'text' })
@@ -47,7 +49,7 @@ export class Projeto {
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
-// --------------------------------------------------
+  // --------------------------------------------------
   // RELAÇÕES
   // --------------------------------------------------
 
@@ -71,9 +73,6 @@ export class Projeto {
 
   @OneToMany(() => ProjectFile, (pf) => pf.projeto)
   files!: ProjectFile[];
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  qr_code!: string;
 
   @OneToMany(() => AvaliadorProjeto, (ap) => ap.projeto)
   avaliadorProjetos!: AvaliadorProjeto[];
