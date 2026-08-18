@@ -128,6 +128,61 @@ export class ProjetosConsultaService {
     };
   }
 
+  async findAllProjetosComFiltros(filtros: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    evento?: string;
+    eixo_tematico?: string;
+    orientador?: string;
+  }) {
+    const { page = 1, limit = 10, search, evento, eixo_tematico, orientador } = filtros;
+
+    const query = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect('projeto.evento', 'evento')
+      .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
+      .leftJoinAndSelect('projeto.orientadores', 'orientadores')
+      .leftJoinAndSelect('orientadores.orientador', 'orientadorUser')
+      .where('1 = 1');
+
+    if (search) {
+      query.andWhere(
+        '(projeto.titulo LIKE :search OR alunoAutor.nome LIKE :search OR orientadorUser.nome LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (evento) {
+      query.andWhere('evento.id = :evento', { evento });
+    }
+
+    if (eixo_tematico) {
+      query.andWhere('tema.nome = :eixo_tematico', { eixo_tematico });
+    }
+
+    if (orientador) {
+      query.andWhere('orientadorUser.nome LIKE :orientador', {
+        orientador: `%${orientador}%`,
+      });
+    }
+
+    query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('projeto.id', 'DESC');
+
+    const [projetos, total] = await query.getManyAndCount();
+
+    return {
+      projetos,
+      total,
+      page,
+      limit,
+    };
+  }
+
   // --------------------------------------------------
   // PROJETOS COM MATERIAIS APROVADOS (QR CODE)
   // --------------------------------------------------

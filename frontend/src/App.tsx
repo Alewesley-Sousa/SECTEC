@@ -6,6 +6,8 @@ import Dashboard from './pages/DashboardAluno';
 import Administrador from './pages/Administrador';
 import RelatorioAlunosCoordenacao from './pages/services/coordenacao/components/RelatorioAlunosCoordenacao';
 import NotasAluno from './pages/Notas';
+import GerenciarNotaProjetos from './pages/services/coordenacao/components/GerenciarNotaProjetos';
+import GerenciarAvaliadores from './pages/services/coordenacao/components/GerenciarAvaliadores';
 import RelatoriosAluno from './pages/Relatoriosaluno';
 import RelatorioStatusAlunos from './pages/RelatorioStatusAlunos';
 import Comissao from './pages/Comissao';
@@ -19,6 +21,7 @@ import DashboardOrientador, {
 } from './pages/DashboardOrientador';
 import GerarQRCode from './pages/services/coordenacao/GerarQRCode';
 import ImprimirQRCode from './pages/services/coordenacao/ImprimirQrCode';
+import { DashboardPage as PainelAvaliador } from './pages/DashboardAvaliador';
 
 // Componente da Tarefa 5
 import PainelConfiguracaoCoordenacao from './componentes/configurações/PainelConfiguracaoCoordenacao';
@@ -214,8 +217,21 @@ function App() {
         />
 
         <Route
-          path="/ficha-avaliacao"
-          element={<FichaAvaliacao />}
+          path="/dashboard/avaliador"
+          element={
+            <ProtectedRoute allowedRoles={['avaliador']}>
+              <PainelAvaliador />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/avaliador/avaliacao/:projetoId"
+          element={
+            <ProtectedRoute allowedRoles={['avaliador']}>
+              <FichaAvaliacao />
+            </ProtectedRoute>
+          }
         />
 
         {/* Rota da Tarefa 5 protegida para a coordenação */}
@@ -237,7 +253,22 @@ function App() {
             </ProtectedRoute>
           }
         />
-
+        <Route
+          path="/dashboard/coordenacao/avaliacoes/notas"
+          element={
+            <ProtectedRoute allowedRoles={['coordenador']}>
+              <GerenciarNotaProjetos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/coordenacao/avaliacoes/avaliadores"
+          element={
+            <ProtectedRoute allowedRoles={['coordenador']}>
+              <GerenciarAvaliadores />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard/coordenacao/qrcode/imprimir"
           element={

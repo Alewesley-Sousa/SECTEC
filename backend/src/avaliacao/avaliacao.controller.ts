@@ -3,8 +3,12 @@ import {
   Post,
   Request,
   Body,
+  Get,
   UseGuards,
   ConflictException,
+  Param,
+  ParseIntPipe,
+  BadRequestException
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AvaliacaoService } from './avaliacao.service';
@@ -16,7 +20,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @ApiBearerAuth()
 @Controller(['avaliacao', 'avaliador'])
 export class AvaliacaoController {
-  constructor(private readonly avaliacaoService: AvaliacaoService) {}
+  constructor(private readonly avaliacaoService: AvaliacaoService) { }
 
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Submete a avaliação de um projeto com cálculo da média e validação do prazo' })
@@ -35,6 +39,22 @@ export class AvaliacaoController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Valida se o projeto está designado ao avaliador logado' })
+  @Get('projetos/:projetoId/designado')
+  async validarProjetoDesignado(
+    @Request() req,
+    @Param('projetoId', ParseIntPipe) projetoId: number,
+  ) {
+    const avaliadorId = Number(req.user?.userId ?? req.user?.id);
+    if (!avaliadorId || Number.isNaN(avaliadorId)) {
+      throw new BadRequestException('Avaliador não identificado.');
+    }
+
+    return this.avaliacaoService.validarProjetoDesignado(avaliadorId, projetoId);
+  }
+
+
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Gera a distribuição de projetos para o avaliador logado' })
   @Post('projetos/gerar')
   async gerarProjetos(@Request() req) {
@@ -47,5 +67,16 @@ export class AvaliacaoController {
   @Post('configuracao/limites')
   async salvarLimites(@Body() dto: LimitesAvaliacaoDto) {
     return this.avaliacaoService.salvarLimites(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Lista os projetos designados ao avaliador logado' })
+  @Get('projetos/designados')
+  async listarProjetosDesignados(@Request() req) {
+    const avaliadorId = Number(req.user?.userId ?? req.user?.id);
+    if (!avaliadorId || Number.isNaN(avaliadorId)) {
+      throw new ConflictException('Avaliador não identificado.');
+    }
+    return this.avaliacaoService.listarProjetosDesignados(avaliadorId);
   }
 }

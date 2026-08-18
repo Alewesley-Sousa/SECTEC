@@ -65,6 +65,8 @@ export class ProjetosController {
     });
   }
 
+  
+
   // ===========================================================================
   // ROTA PÚBLICA (SEM AUTENTICAÇÃO)
   // ===========================================================================
@@ -163,6 +165,35 @@ export class ProjetosController {
   // ===========================================================================
   // ROTAS DE CONSULTA (REQUEREM AUTENTICAÇÃO, EXCETO A PÚBLICA)
   // ===========================================================================
+
+  @Get('todos')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Lista todos os projetos (independente de material) com filtros e paginação',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'evento', required: false, type: String })
+  @ApiQuery({ name: 'eixo_tematico', required: false, type: String })
+  @ApiQuery({ name: 'orientador', required: false, type: String })
+  async findAllProjetos(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('evento') evento?: string,
+    @Query('eixo_tematico') eixo_tematico?: string,
+    @Query('orientador') orientador?: string,
+  ) {
+    return this.consultaService.findAllProjetosComFiltros({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      evento,
+      eixo_tematico,
+      orientador,
+    });
+  }
 
   @Get()
   @UseGuards(JwtAuthGuard)

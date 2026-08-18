@@ -16,7 +16,8 @@ import {
   Users,
   GraduationCap,
   FileText,
-  QrCode
+  QrCode,
+  Star,
 } from "lucide-react";
 
 import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
@@ -332,7 +333,9 @@ export function MainLayout({
       ? "coordenacao"
       : userRole === "orientador"
         ? "orientador"
-        : "aluno";
+        : userRole === "avaliador"
+          ? "avaliador"
+          : "aluno";
 
   const dashboardPrefix = `/dashboard/${rolePath}`;
 
@@ -349,6 +352,7 @@ export function MainLayout({
     [`${dashboardPrefix}/configuracoes`]: "Configurações",
     [`${dashboardPrefix}/qrcode`]: "Gerar QR Code",
     [`${dashboardPrefix}/qrcode/imprimir`]: "Imprimir QR Codes",
+    [`${dashboardPrefix}/avaliador`]: "Painel do Avaliador",
   };
 
   const currentPage =
@@ -486,6 +490,31 @@ export function MainLayout({
       isActive: location.pathname === `${dashboardPrefix}/gestao-relatorio-alunos`,
       roles: ["coordenador"],
     },
+
+    {
+      id: "coordenacao-avaliacoes",
+      label: "Avaliações",
+      icon: <Star size={20} />,
+      isActive:
+        location.pathname === `${dashboardPrefix}/avaliacoes/notas` ||
+        location.pathname === `${dashboardPrefix}/avaliacoes/avaliadores`,
+      roles: ["coordenador"],
+      subItems: [
+        {
+          id: "coordenacao-avaliacoes-notas",
+          label: "Gerenciar nota projetos",
+          href: `${dashboardPrefix}/avaliacoes/notas`,
+          roles: ["coordenador"],
+        },
+        {
+          id: "coordenacao-avaliacoes-avaliadores",
+          label: "Gerenciar avaliadores",
+          href: `${dashboardPrefix}/avaliacoes/avaliadores`,
+          roles: ["coordenador"],
+        },
+      ],
+    },
+
     {
       id: "coordenacao-config",
       label: "Configurações",
@@ -496,12 +525,25 @@ export function MainLayout({
     },
   ];
 
+  const avaliadorMenu: NavItem[] = [
+    {
+      id: "avaliador-painel",
+      label: "Painel",
+      icon: <LayoutDashboard size={20} />,
+      href: dashboardPrefix,
+      isActive: location.pathname === dashboardPrefix,
+      roles: ["avaliador"],
+    }
+  ];
+
   const menuConfig =
     userRole === "orientador"
       ? orientadorMenu
       : userRole === "coordenador" || userRole === "comissao"
         ? coordenadorMenu
-        : alunoMenu;
+        : userRole === "avaliador"
+          ? avaliadorMenu
+          : alunoMenu;
 
   return (
     <div className="flex min-h-screen bg-[#f4f9f6] w-full font-sans antialiased overflow-x-hidden">

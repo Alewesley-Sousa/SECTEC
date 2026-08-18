@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 // Valores espelham exatamente o enum UserRole do backend:
 // ALUNO = 'aluno' | ORIENTADOR = 'orientador' | COORDENACAO = 'coordenador' | COMISSAO = 'comissao'
-export type UserRole = "coordenador" | "orientador" | "aluno" | "comissao";
+export type UserRole = "coordenador" | "orientador" | "aluno" | "comissao" | "avaliador";
 
 export type NavItem = {
   id: string;

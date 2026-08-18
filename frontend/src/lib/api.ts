@@ -18,7 +18,7 @@ type ApiRequestOptions = Omit<RequestInit, "body"> & {
   auth?: boolean;
 };
 
-export type BackendRole = "aluno" | "orientador" | "coordenador" | "comissao";
+export type BackendRole = "aluno" | "orientador" | "coordenador" | "comissao" | "avaliador";
 
 export type AuthUser = {
   id: string | number;
@@ -180,6 +180,7 @@ export function getRoleRedirect(role: BackendRole) {
     orientador: "/dashboard/orientador",
     coordenador: "/dashboard/coordenacao",
     comissao: "/dashboard/comissao",
+    avaliador: "/dashboard/avaliador",
   };
 
   return routes[role];

@@ -8,7 +8,7 @@ import { User } from '../users/entities/user.entity';
 import { Projeto } from '../projetos/entities/projeto.entity';
 import { AvaliadorProjeto } from './entities/avaliador-projeto.entity';
 import { Avaliacao } from './entities/avaliacao.entity';
-import { AvaliacaoCriterio } from '../avaliacoes/entities/avaliacao-criterio.entity';
+import { AvaliacaoCriterio } from './entities/avaliacao-criterio.entity';
 
 @Module({
   imports: [

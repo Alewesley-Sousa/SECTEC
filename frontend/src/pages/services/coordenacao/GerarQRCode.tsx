@@ -187,7 +187,7 @@ function GerarQRCode() {
 
     try {
       const data = await apiRequest<Projeto[] | { projetos: Projeto[]; total?: number }>(
-        `/projetos/com-materiais-aprovados?${params.toString()}`
+        `/projetos/todos?${params.toString()}`
       );
 
       const lista = Array.isArray(data) ? data : data.projetos ?? [];
