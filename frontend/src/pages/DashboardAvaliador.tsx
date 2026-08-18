@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import Swal from 'sweetalert2';
 import { MainLayout } from '../componentes/SideBarUniversal';
 import { Pagination } from '../componentes/PaginationUniversal';
 import { apiRequest } from '../lib/api';
@@ -126,18 +127,17 @@ function TabsTrigger({
     <button
       type="button"
       onClick={() => setActiveTab(value)}
-      className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition ${
-        isActive
+      className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition ${isActive
           ? 'bg-[#15803d]/10 text-[#0b4d2c]'
           : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-      } ${className}`}
+        } ${className}`}
     >
       {children}
     </button>
   );
 }
 
-// ===== Modal de Leitor QR Code (com correção para câmera duplicada) =====
+// ===== Modal de Leitor QR Code =====
 function QrCodeScannerModal({
   onClose,
   onSuccess,
@@ -256,7 +256,6 @@ export function DashboardPage() {
 
   const itemsPerPage = 6;
 
-  // Filtra projetos conforme a aba ativa
   const filteredProjects = activeTab === 'painel'
     ? projects.filter((p) => p.status === 'Pendente')
     : projects.filter((p) => p.status === 'Avaliado');
@@ -289,7 +288,6 @@ export function DashboardPage() {
     carregarProjetos();
   }, []);
 
-  // Reinicia a página quando a aba muda
   useEffect(() => {
     setPage(1);
   }, [activeTab]);
@@ -330,13 +328,32 @@ export function DashboardPage() {
     const projetoId = match[1];
 
     try {
-      await apiRequest<{ id: number; titulo: string }>(
+      const data = await apiRequest<{ id: number; titulo: string; designado: boolean }>(
         `/avaliador/projetos/${projetoId}/designado`,
       );
-      navigate(`/dashboard/avaliador/avaliacao/${projetoId}`);
+
+      if (data.designado) {
+        navigate(`/dashboard/avaliador/avaliacao/${projetoId}`);
+      } else {
+        const result = await Swal.fire({
+          title: 'Projeto não designado',
+          text: 'O projeto não lhe foi designado, quer mesmo avaliar ele?',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, avaliar mesmo assim',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#15803d',
+          cancelButtonColor: '#64748b',
+        });
+
+        if (result.isConfirmed) {
+          navigate(`/dashboard/avaliador/avaliacao/${projetoId}?override=true`);
+        } else {
+          setQrSuccess('Avaliação cancelada.');
+        }
+      }
     } catch (err) {
-      setQrSuccess('Este projeto não está designado a você.');
-      navigate('/dashboard/avaliador');
+      setQrSuccess('Projeto não encontrado ou erro ao validar.');
     }
   }
 
@@ -346,7 +363,6 @@ export function DashboardPage() {
   return (
     <MainLayout userRole="avaliador">
       <main className="min-h-screen bg-[#f4f9f6] px-4 py-6 sm:px-6 lg:px-10">
-        {/* Abas controladas */}
         <Tabs
           value={activeTab}
           onValueChange={(val) => setActiveTab(val as 'painel' | 'avaliados')}
@@ -362,7 +378,6 @@ export function DashboardPage() {
           </TabsList>
         </Tabs>
 
-        {/* Ações e Cards de números */}
         <div className="mt-6 flex flex-col gap-4">
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
@@ -422,7 +437,6 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Lista filtrada */}
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-slate-700 px-1 mb-3">
             {activeTab === 'painel' ? 'Projetos pendentes' : 'Projetos avaliados'}

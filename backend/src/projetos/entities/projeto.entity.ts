@@ -6,16 +6,17 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-  Index
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Evento } from '../../evento/entities/evento.entity';
 import { TemaEvento } from '../../evento/entities/tema-evento.entity';
-import { ProjetoOrientador } from './projeto-orientador.entity'; // mesma pasta
+import { ProjetoOrientador } from './projeto-orientador.entity';
 import { ProjetoMaterial } from '../../materiais/entities/projeto-material.entity';
 import { ProjectFile } from '../../pdf/entities/project-file.entity';
-import { AvaliadorProjeto } from '../../avaliacao/entities/avaliador-projeto.entity'; // ✅ Corrigido: 'avaliacao'
-import { ProjetoAluno } from './projeto-aluno.entity'; // mesma pasta
+import { AvaliadorProjeto } from '../../avaliacao/entities/avaliador-projeto.entity';
+import { ProjetoAluno } from './projeto-aluno.entity';
+import { Avaliacao } from '../../avaliacao/entities/avaliacao.entity';
 
 @Entity('projetos')
 @Index(['alunoAutorId', 'eventoId'], { unique: true })
@@ -49,6 +50,7 @@ export class Projeto {
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
+
   // --------------------------------------------------
   // RELAÇÕES
   // --------------------------------------------------
@@ -79,4 +81,7 @@ export class Projeto {
 
   @OneToMany(() => ProjetoAluno, (pa) => pa.projeto)
   projetoAlunos!: ProjetoAluno[];
+
+  @OneToMany(() => Avaliacao, (avaliacao) => avaliacao.projeto)
+  avaliacoes!: Avaliacao[];
 }

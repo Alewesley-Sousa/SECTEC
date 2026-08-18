@@ -5,16 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, DataSource } from 'typeorm';
+import { Repository, In, DataSource, Between } from 'typeorm';
+import { StreamableFile } from '@nestjs/common';
 
 import { Projeto } from '../projetos/entities/projeto.entity';
 import { AvaliadorProjeto } from './entities/avaliador-projeto.entity';
 import { Avaliacao } from './entities/avaliacao.entity';
 import { AvaliacaoCriterio } from './entities/avaliacao-criterio.entity';
-import { Evento } from '../evento/entities/evento.entity';
 import { LimitesAvaliacaoDto } from './dto/limites-avaliacao.dto';
 import { CreateAvaliacaoDto } from './dto/avaliacao.dto';
-
+import { Evento, EventoStatus } from '../evento/entities/evento.entity';
 @Injectable()
 export class AvaliacaoService {
   private limitesAtuais = {
@@ -46,7 +46,9 @@ export class AvaliacaoService {
       throw new BadRequestException(`${campo} deve seguir o passo de 0,5.`);
     }
   }
+  
   async validarProjetoDesignado(avaliadorId: number, projetoId: number) {
+    // Busca a atribuição, se existir
     const atribuicao = await this.avaliadorProjetoRepository.findOne({
       where: { avaliadorId, projetoId },
       relations: [
@@ -59,11 +61,19 @@ export class AvaliacaoService {
       ],
     });
 
-    if (!atribuicao) {
-      throw new BadRequestException('Este projeto não está designado a você.');
+    // Se não houver atribuição, busca apenas o projeto para exibir dados
+    let projeto = atribuicao?.projeto;
+    if (!projeto) {
+      projeto = await this.projetoRepository.findOne({
+        where: { id: projetoId },
+        relations: ['evento', 'tema', 'alunoAutor', 'projetoAlunos', 'projetoAlunos.aluno'],
+      });
+
+      if (!projeto) {
+        throw new NotFoundException(`Projeto ${projetoId} não encontrado.`);
+      }
     }
 
-    const projeto = atribuicao.projeto;
     const autores = [
       projeto.alunoAutor?.nome,
       ...(projeto.projetoAlunos?.map((pa) => pa.aluno?.nome) ?? []),
@@ -78,7 +88,8 @@ export class AvaliacaoService {
       local: projeto.evento?.local ?? 'Local não informado',
       autores,
       tag: projeto.tema?.nome ?? 'Sem tema',
-      status: atribuicao.status ?? 'pendente',
+      status: atribuicao?.status ?? 'pendente',
+      designado: !!atribuicao, // true se existe atribuição, false caso contrário
     };
   }
 
@@ -106,11 +117,11 @@ export class AvaliacaoService {
     const avaliacoesExistentes = await this.avaliacaoRepository.find({
       where: {
         avaliadorId,
-        projetoId: In(projetosIds),
+        projeto: In(projetosIds),
       },
     });
 
-    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projetoId));
+    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projeto));
 
     // Mapeia para o formato esperado pelo frontend
     const projetos = atribuicoes.map((atribuicao) => {
@@ -179,7 +190,7 @@ export class AvaliacaoService {
         }
 
         const jaExiste = await manager.findOne(Avaliacao, {
-          where: { avaliadorId, projetoId },
+          where: { avaliadorId, projeto: { id: projetoId } },
         });
 
         if (jaExiste) {
@@ -193,7 +204,7 @@ export class AvaliacaoService {
         // Salva avaliação
         const avaliacaoSalva = await manager.save(Avaliacao, {
           avaliadorId,
-          projetoId,
+          projeto: { id: projetoId },
           nota: media,
         });
 
@@ -224,7 +235,7 @@ export class AvaliacaoService {
         // Atualiza a atribuição para 'avaliado'
         await manager.update(
           AvaliadorProjeto,
-          { avaliadorId, projetoId },
+          { avaliadorId, projeto: { id: projetoId } },
           { status: 'avaliado' },
         );
 
@@ -252,27 +263,102 @@ export class AvaliacaoService {
   }
 
 
-async listarMediasProjetos(): Promise<any[]> {
-  const query = this.projetoRepository
-    .createQueryBuilder('projeto')
-    .leftJoinAndSelect('projeto.avaliacoes', 'avaliacao')
-    .leftJoinAndSelect('projeto.orientadores', 'orientadores')
-    .leftJoinAndSelect('orientadores.orientador', 'orientadorUser')
-    .where('orientadores.status = :status', { status: 'aceito' }) // se houver campo status
-    .select([
-      'projeto.id',
-      'projeto.titulo',
-      'orientadorUser.nome AS orientador',
-      'AVG(avaliacao.nota) AS mediaFinal',
-      'COUNT(avaliacao.id) AS quantidadeAvaliacoes',
-    ])
-    .groupBy('projeto.id')
-    .addGroupBy('projeto.titulo')
-    .addGroupBy('orientadorUser.nome')
-    .orderBy('mediaFinal', 'DESC');
 
-  return query.getRawMany();
-}
+  async exportarMediasProjetosCsv(eventoId?: number): Promise<StreamableFile> {
+    const dados = await this.listarMediasProjetos(eventoId);
+
+    // Cabeçalho do CSV (apenas 3 colunas)
+    const cabecalho = ['Titulo', 'Orientador', 'Media Final'];
+    const linhas = dados.map((item) => [
+      item.titulo ?? item.projeto_titulo ?? '',
+      item.orientador ?? '',
+      Number(item.mediaFinal ?? 0).toFixed(2).replace('.', ','),
+    ]);
+
+    // Junta tudo com \r\n para quebra de linha no Windows
+    const conteudo = [
+      cabecalho.join(';'),
+      ...linhas.map((linha) => linha.join(';')),
+    ].join('\r\n');
+
+    // Adiciona BOM para acentuação correta no Excel
+    const buffer = Buffer.from(`\uFEFF${conteudo}`, 'utf-8');
+
+    return new StreamableFile(buffer, {
+      type: 'text/csv',
+      disposition: 'attachment; filename="medias-projetos.csv"',
+    });
+  }
+
+
+  async listarMediasProjetos(eventoId?: number): Promise<any[]> {
+    try {
+      console.log('🔍 Buscando projetos com relações...');
+
+      let where: any = {};
+
+      if (eventoId) {
+        where.eventoId = eventoId;
+      } else {
+        // Busca o evento ativo do ano atual
+        const anoAtual = new Date().getFullYear();
+        const inicioAno = `${anoAtual}-01-01`;
+        const fimAno = `${anoAtual}-12-31`;
+
+        const eventoAtual = await this.eventoRepository.findOne({
+          where: {
+            prazoInicial: Between(inicioAno as any, fimAno as any),
+            status: EventoStatus.ATIVO,
+          },
+          order: { criadoEm: 'DESC' },
+        });
+
+        if (!eventoAtual) {
+          console.warn('⚠️ Nenhum evento ativo do ano atual encontrado.');
+          return [];
+        }
+
+        where.eventoId = eventoAtual.id;
+        console.log(`🎯 Evento atual selecionado: ${eventoAtual.id}`);
+      }
+
+      const projetos = await this.projetoRepository.find({
+        where,
+        relations: ['avaliacoes', 'orientadores', 'orientadores.orientador'],
+      });
+
+      console.log(`📊 Total de projetos encontrados: ${projetos.length}`);
+
+      const resultado = projetos
+        .map((projeto) => {
+          const avaliacoes = projeto.avaliacoes ?? [];
+          const notas = avaliacoes.map((a) => Number(a.nota) || 0);
+          const media = notas.length
+            ? Number((notas.reduce((soma, n) => soma + n, 0) / notas.length).toFixed(2))
+            : 0;
+
+          const orientadores = projeto.orientadores
+            ?.filter((po) => po.status === 'aceito')
+            .map((po) => po.orientador?.nome)
+            .filter(Boolean) ?? [];
+
+          return {
+            id: projeto.id,
+            titulo: projeto.titulo,
+            orientador: orientadores.join(', ') || 'Sem orientador',
+            mediaFinal: media,
+            quantidadeAvaliacoes: notas.length,
+          };
+        })
+        .sort((a, b) => b.mediaFinal - a.mediaFinal);
+
+      console.log('✅ Médias calculadas:', JSON.stringify(resultado, null, 2));
+      return resultado;
+    } catch (error) {
+      console.error('❌ Erro ao listar médias dos projetos:', error);
+      throw error;
+    }
+  }
 
   /**
    * Gera a distribuição individual de projetos para um avaliador,

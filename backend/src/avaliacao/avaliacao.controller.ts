@@ -8,9 +8,11 @@ import {
   ConflictException,
   Param,
   ParseIntPipe,
-  BadRequestException
+  BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { StreamableFile } from '@nestjs/common';
 import { AvaliacaoService } from './avaliacao.service';
 import { LimitesAvaliacaoDto } from './dto/limites-avaliacao.dto';
 import { CreateAvaliacaoDto } from './dto/avaliacao.dto';
@@ -53,6 +55,27 @@ export class AvaliacaoController {
     return this.avaliacaoService.validarProjetoDesignado(avaliadorId, projetoId);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Lista todos os projetos com suas médias finais' })
+  @Get('projetos/medias')
+  async listarMediasProjetos(
+    @Query('eventoId') eventoId?: string,
+  ) {
+    return this.avaliacaoService.listarMediasProjetos(
+      eventoId ? Number(eventoId) : undefined,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Exporta relatório CSV com médias dos projetos' })
+  @Get('projetos/medias/export')
+  async exportarMediasProjetosCsv(
+    @Query('eventoId') eventoId?: string,
+  ): Promise<StreamableFile> {
+    return this.avaliacaoService.exportarMediasProjetosCsv(
+      eventoId ? Number(eventoId) : undefined,
+    );
+  }
 
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Gera a distribuição de projetos para o avaliador logado' })

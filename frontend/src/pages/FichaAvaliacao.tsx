@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle2, Gauge, Star, Loader2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { apiRequest } from '../lib/api';
 import { MainLayout } from '../componentes/SideBarUniversal';
 
@@ -150,7 +151,6 @@ export default function FichaAvaliacao() {
         setProjetoInfo(data);
         setProjetoValido(true);
       } catch {
-        // Se não for designado, redireciona para o painel
         navigate('/dashboard/avaliador');
       } finally {
         setValidandoProjeto(false);
@@ -170,6 +170,33 @@ export default function FichaAvaliacao() {
 
   const handleSubmit = async () => {
     if (!projetoId || !projetoValido) return;
+
+    // Confirmação antes de enviar
+    const confirmacao = await Swal.fire({
+      title: 'Enviar avaliação?',
+      html: `
+        <div style="text-align: left; font-size: 14px;">
+          <p>Confira as notas antes de enviar:</p>
+          <div style="margin-top: 1rem;">
+            ${criterios
+              .map(
+                (c) =>
+                  `<p><strong>${c.label}:</strong> ${formatarNota(notas[c.key])}</p>`
+              )
+              .join('')}
+            <p style="margin-top: 0.75rem; font-size: 16px;"><strong>Média final:</strong> ${media.toFixed(1)}</p>
+          </div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, enviar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#15803d',
+      cancelButtonColor: '#64748b',
+    });
+
+    if (!confirmacao.isConfirmed) return;
 
     try {
       setCarregandoEnvio(true);
@@ -191,13 +218,28 @@ export default function FichaAvaliacao() {
 
       setEnviada(true);
 
-      // Redireciona após 2 segundos
-      setTimeout(() => {
-        navigate('/dashboard/avaliador');
-      }, 2000);
+      // Modal de sucesso bem visível
+      await Swal.fire({
+        title: 'Avaliação enviada!',
+        text: 'Sua avaliação foi registrada com sucesso.',
+        icon: 'success',
+        confirmButtonText: 'Voltar ao painel',
+        confirmButtonColor: '#15803d',
+      });
+
+      // Redireciona após fechar o modal de sucesso
+      navigate('/dashboard/avaliador');
     } catch (error) {
       setEnviada(false);
       setErro(error instanceof Error ? error.message : 'Não foi possível enviar a avaliação.');
+
+      await Swal.fire({
+        title: 'Erro',
+        text: error instanceof Error ? error.message : 'Não foi possível enviar a avaliação.',
+        icon: 'error',
+        confirmButtonText: 'Entendi',
+        confirmButtonColor: '#15803d',
+      });
     } finally {
       setCarregandoEnvio(false);
     }
@@ -230,7 +272,6 @@ export default function FichaAvaliacao() {
     <MainLayout userRole="avaliador">
       <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-4xl">
-          {/* Cabeçalho da página com dados do projeto escaneado */}
           <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
@@ -262,7 +303,6 @@ export default function FichaAvaliacao() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-            {/* Critérios */}
             <div className="space-y-4">
               {criterios.map((criterio) => (
                 <div
@@ -303,7 +343,6 @@ export default function FichaAvaliacao() {
               ))}
             </div>
 
-            {/* Resumo e envio */}
             <aside className="space-y-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
@@ -348,7 +387,7 @@ export default function FichaAvaliacao() {
                   disabled={carregandoEnvio}
                   className="mt-4 w-full rounded-2xl bg-[#15803d] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0b4d2c] disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  {carregandoEnvio ? 'Enviando...' : enviada ? 'Avaliação enviada' : 'Enviar avaliação'}
+                  {carregandoEnvio ? 'Enviando...' : 'Enviar avaliação'}
                 </button>
 
                 {erro && (
@@ -370,4 +409,4 @@ export default function FichaAvaliacao() {
       </main>
     </MainLayout>
   );
-} 
+}

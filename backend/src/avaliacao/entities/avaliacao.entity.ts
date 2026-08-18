@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { Projeto } from '../../projetos/entities/projeto.entity';
 
 @Entity('avaliacoes')
 export class Avaliacao {
@@ -8,8 +16,9 @@ export class Avaliacao {
   @Column({ name: 'avaliador_id' })
   avaliadorId!: number;
 
-  @Column({ name: 'projeto_id' })
-  projetoId!: number;
+  @ManyToOne(() => Projeto, (projeto) => projeto.avaliacoes)
+  @JoinColumn({ name: 'projeto_id' })
+  projeto!: Projeto;
 
   @Column({ type: 'decimal', precision: 4, scale: 2 })
   nota!: number;
