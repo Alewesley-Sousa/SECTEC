@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
 import { Users, Search, Settings2, X, CheckCircle2, Loader2, Trash2, PlusCircle } from "lucide-react";
 import Swal from "sweetalert2";
 import { MainLayout } from "../../../../componentes/SideBarUniversal"; // Ajuste o caminho se necessário
