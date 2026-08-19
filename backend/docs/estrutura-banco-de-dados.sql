@@ -106,4 +106,17 @@ CREATE TABLE IF NOT EXISTS `avaliacao_criterios` (
   CONSTRAINT `fk_ac_avaliacao` FOREIGN KEY (`avaliacao_id`) REFERENCES `avaliacoes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+-- 5. TABELA: orientador_areas
+-- --------------------------------------------------------
+
+CREATE TABLE `orientador_areas` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `userId` INT(11) NOT NULL,
+  `area` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `FK_orientador_user` (`userId`),
+  CONSTRAINT `FK_orientador_user` FOREIGN KEY (`userId`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 COMMIT;

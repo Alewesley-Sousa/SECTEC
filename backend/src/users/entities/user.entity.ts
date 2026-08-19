@@ -9,6 +9,7 @@ import {
 
 import { TemaEvento } from '../../evento/entities/tema-evento.entity';
 import { ProjetoOrientador } from '../../projetos/entities/projeto-orientador.entity';
+import { OrientadorArea } from './orientador-area.entity';
 
 export enum UserRole {
   ALUNO = 'aluno',
@@ -70,4 +71,7 @@ export class User {
 
   @ManyToMany(() => TemaEvento, (tema) => tema.orientadores)
   temasSelecionados!: TemaEvento[];
+
+  @OneToMany(() => OrientadorArea, (orientadorArea) => orientadorArea.user)
+  areas: OrientadorArea[];
 }

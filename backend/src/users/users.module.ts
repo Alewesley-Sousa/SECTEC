@@ -6,6 +6,7 @@ import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
 import { StudentProgressionService } from './student-progression.service';
 import { UsersImportService } from './users-import.service';
+import { OrientadorArea } from './entities/orientador-area.entity'; // <--- 1. Importe a entidade
 
 // 🚀 IMPORTANTE: Importe as entidades que o UsersService exige no construtor
 import { Evento } from '../evento/entities/evento.entity'; 
@@ -16,6 +17,7 @@ import { ComissaoEvento } from '../evento/entities/comissao-evento.entity';
     // ── ADICIONE AS ENTIDADES NO ARRAY DO FORFEATURE ──
     TypeOrmModule.forFeature([
       User, 
+      OrientadorArea,
       Evento, 
       ComissaoEvento
     ]),

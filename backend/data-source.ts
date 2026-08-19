@@ -11,7 +11,7 @@ const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD || '', // Agora lerá a senha do .env
   database: process.env.DB_NAME || 'sectec_dev',
   entities: ['dist/**/*.entity.js'],
-  migrations: ['dist/migrations/*.js'],
+  migrations: ['src/migrations/*.ts', 'dist/migrations/*.js'],
   synchronize: false,
 });
 

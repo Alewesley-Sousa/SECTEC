@@ -10,6 +10,7 @@ import { parse } from 'csv-parse/sync';
 import { User, UserRole } from './entities/user.entity';
 import { HashingProvider } from '../common/providers/hashing.provider';
 import { UsersService } from './users.service';
+import { OrientadorArea } from './entities/orientador-area.entity';
 
 interface ICsvRow {
   nome: string;
@@ -17,6 +18,8 @@ interface ICsvRow {
   senha?: string;
   turma?: string;
   ano?: string;
+  area?: string;
+  areas?: string;
   [key: string]: any;
 }
 
@@ -27,6 +30,8 @@ export class UsersImportService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(OrientadorArea)
+    private orientadorAreaRepository: Repository<OrientadorArea>,
     private usersService: UsersService,
     private hashingProvider: HashingProvider,
   ) {}
@@ -74,7 +79,30 @@ export class UsersImportService {
     );
 
     try {
-      await this.usersRepository.save(dadosFormatados);
+      // 1. Salva os usuários no banco e obtém as instâncias com os IDs gerados
+      const usuariosSalvos = await this.usersRepository.save(dadosFormatados);
+
+      // 2. Itera sobre os registros para salvar as áreas caso sejam orientadores
+      for (let i = 0; i < registrosFiltrados.length; i++) {
+        const reg = registrosFiltrados[i];
+        const usuarioSalvo = usuariosSalvos[i];
+
+        const areasBrutas = reg.area || reg.areas;
+        if (usuarioSalvo && usuarioSalvo.role_cargo === 'orientador' && areasBrutas) {
+          const listaAreas = String(areasBrutas).split(',');
+
+          for (const areaTexto of listaAreas) {
+            const areaNormalizada = normalizeArea(areaTexto);
+            if (areaNormalizada) {
+              await this.orientadorAreaRepository.save({
+                userId: usuarioSalvo.id,
+                area: areaNormalizada,
+              });
+            }
+          }
+        }
+      }
+
       return {
         filename: file.originalname,
         totalCadastrados: dadosFormatados.length,
@@ -170,4 +198,13 @@ export class UsersImportService {
       ano_progressao_processado: new Date().getFullYear(),
     };
   }
+}
+
+function normalizeArea(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
 }
