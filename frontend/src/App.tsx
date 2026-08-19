@@ -12,8 +12,8 @@ import RelatoriosAluno from './pages/Relatoriosaluno';
 import RelatorioStatusAlunos from './pages/RelatorioStatusAlunos';
 import Comissao from './pages/Comissao';
 import ConfigAluno from './componentes/configurações/config';
+import { getRoleRedirect, type BackendRole, isTokenExpirado, clearSession } from './lib/api';
 import ProtectedRoute from './componentes/ProtectedRoute';
-import { getRoleRedirect, type BackendRole } from './lib/api';
 import DashboardOrientador, {
   ConfigOrientador,
   EntregasOrientador,
@@ -33,6 +33,7 @@ function App() {
     role: localStorage.getItem('role'),
   }));
 
+  // Atualiza o estado auth quando o localStorage muda (login/logout, outra aba)
   useEffect(() => {
     const readAuth = () =>
       setAuth({
@@ -48,6 +49,22 @@ function App() {
       window.removeEventListener('storage', readAuth);
       window.removeEventListener('auth-change', readAuth);
     };
+  }, []);
+
+  // Verifica expiração do token periodicamente e ao montar
+  useEffect(() => {
+    const verificarToken = () => {
+      const tokenAtual = localStorage.getItem('token');
+      if (tokenAtual && isTokenExpirado(tokenAtual)) {
+        clearSession();
+        window.location.href = '/login';
+      }
+    };
+
+    verificarToken();
+    const intervalo = setInterval(verificarToken, 30000); // 30 segundos
+
+    return () => clearInterval(intervalo);
   }, []);
 
   const { token, role } = auth;

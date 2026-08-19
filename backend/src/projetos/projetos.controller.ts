@@ -65,7 +65,7 @@ export class ProjetosController {
     });
   }
 
-  
+
 
   // ===========================================================================
   // ROTA PÚBLICA (SEM AUTENTICAÇÃO)
@@ -390,6 +390,22 @@ export class ProjetosController {
     return this.projetosService.remove(id, userId, role);
   }
 
+  @Post('gerar-qrcodes')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '[Coordenador] Gera o QR Code de todos os projetos pendentes (sem filtro de material)',
+  })
+  async gerarQrCodeEmLote(
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException(
+        'Apenas coordenadores podem gerar o QR Code dos projetos.',
+      );
+    }
+    return this.projetosService.gerarQrCodeEmLote(userId);
+  }
 
   @Post(':id/gerar-qrcode')
   @ApiOperation({
