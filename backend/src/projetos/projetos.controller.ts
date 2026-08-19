@@ -109,8 +109,6 @@ export class ProjetosController {
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="${encodeURIComponent(originalName)}"`,
-      'X-Frame-Options': 'ALLOWALL',
-      'Content-Security-Policy': "frame-ancestors 'self' https://sectec-publico.up.railway.app",
     });
 
     stream.pipe(res);
