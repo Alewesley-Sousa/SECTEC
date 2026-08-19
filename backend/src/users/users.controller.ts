@@ -50,7 +50,7 @@ export class UsersController {
   getAlunos() {
     return this.usersService.findAllAlunos();
   }
-  
+
   @Get('comissao')
   @ApiOperation({ summary: 'Listar todos os alunos ativos' })
   getComissao() {
@@ -132,20 +132,20 @@ export class UsersController {
   ) {
     return this.UsersImportService.processarCsv(file, UserRole.ORIENTADOR);
   }
-  
-    @Patch(':id/promote-comissao')
+
+  @Patch(':id/promote-comissao')
   async promote(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.promoteToComissao(id);
   }
-  
-  
+
+
   @Post()
-@ApiOperation({ summary: 'Cadastrar um usuário individualmente (Aluno, Orientador ou Coordenador)' })
-@ApiResponse({ status: 201, description: 'Usuário cadastrado com sucesso.' })
-@ApiResponse({ status: 400, description: 'Dados inválidos ou e-mail já existente.' })
-async createIndividual(@Body() createUserDto: CreateUserDto) {
-  return this.usersService.createIndividual(createUserDto);
-}
+  @ApiOperation({ summary: 'Cadastrar um usuário individualmente (Aluno, Orientador ou Coordenador)' })
+  @ApiResponse({ status: 201, description: 'Usuário cadastrado com sucesso.' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos ou e-mail já existente.' })
+  async createIndividual(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.createIndividual(createUserDto);
+  }
 
 
   @Patch(':id/demote-comissao')
@@ -163,6 +163,38 @@ async createIndividual(@Body() createUserDto: CreateUserDto) {
   @ApiResponse({ status: 404, description: 'Usuário não encontrado.' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.deactivateUser(id);
+  }
+
+  @Post('consertar-turmas-alunos')
+  @ApiOperation({ summary: 'Atualiza turma e ano de alunos a partir de CSV (colunas TURMA, ANO, Nome, Email GSuite)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Arquivo CSV contendo TURMA, ANO, Nome, Email GSuite',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Dados atualizados com sucesso.' })
+  @ApiResponse({ status: 400, description: 'Arquivo inválido ou formato incorreto.' })
+  @UseInterceptors(FileInterceptor('file'))
+  consertarTurmasAlunos(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 }),
+          new CsvFileValidator(),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.UsersImportService.consertarTurmasAlunos(file);
   }
 
 
