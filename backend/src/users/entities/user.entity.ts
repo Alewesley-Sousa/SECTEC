@@ -17,6 +17,7 @@ export enum UserRole {
   COORDENACAO = 'coordenador',
   COMISSAO = 'comissao',
   AVALIADOR = 'avaliador',
+  ORIENTADOR_AREAS = 'orientador_areas'
 }
 
 
@@ -44,7 +45,7 @@ export class User {
   @Column({ type: 'enum', enum: UserRole })
   role_cargo!: UserRole;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
+  @Column({ type: 'enum', enum: UserTurma, nullable: true })
   turma?: string;
 
   @Column({ type: 'int', default: 1, nullable: true })
