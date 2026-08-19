@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Readable } from 'stream';
 
 import { Projeto } from './entities/projeto.entity';
 import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
@@ -22,7 +23,7 @@ export class ProjetosConsultaService {
     @InjectRepository(ProjectFile)
     private readonly projectFileRepository: Repository<ProjectFile>,
     private readonly googleDriveService: GoogleDriveService,
-  ) {}
+  ) { }
 
   // --------------------------------------------------
   // LISTAGEM PÚBLICA COM FILTROS E PAGINAÇÃO
@@ -355,9 +356,7 @@ export class ProjetosConsultaService {
    * Retorna o buffer e nome do arquivo PDF público de um projeto,
    * buscando o ProjectFile mais recente com status VALID.
    */
-  async obterPdfProjetoPublico(
-    projetoId: number,
-  ): Promise<{ buffer: Buffer; nomeArquivo: string }> {
+  async obterPdfProjetoPublico(projetoId: number): Promise<{ stream: Readable; originalName: string }> {
     const projectFile = await this.projectFileRepository.findOne({
       where: {
         projetoId,
@@ -370,11 +369,11 @@ export class ProjetosConsultaService {
       throw new NotFoundException('Nenhum PDF válido encontrado para este projeto.');
     }
 
-    const buffer = await this.googleDriveService.downloadFile(
-      projectFile.driveFileId,
-    );
-    const nomeArquivo = `projeto_${projetoId}.pdf`;
+    const stream = await this.googleDriveService.downloadFileStream(projectFile.driveFileId);
 
-    return { buffer, nomeArquivo };
+    return {
+      stream,
+      originalName: projectFile.originalName,
+    };
   }
 }

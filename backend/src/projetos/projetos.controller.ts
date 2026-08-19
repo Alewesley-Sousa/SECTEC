@@ -104,12 +104,14 @@ export class ProjetosController {
     @Param('id', ParseIntPipe) id: number,
     @Res() res: any,
   ) {
-    const { buffer, nomeArquivo } = await this.consultaService.obterPdfProjetoPublico(id);
+    const { stream, originalName } = await this.consultaService.obterPdfProjetoPublico(id);
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${nomeArquivo}"`);
-    res.setHeader('Content-Length', buffer.length);
-    res.send(buffer);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${encodeURIComponent(originalName)}"`,
+    });
+
+    stream.pipe(res);
   }
 
   // ===========================================================================
