@@ -55,7 +55,7 @@ export class User {
   role_cargo!: UserRole;
 
   @Column({ type: 'enum', enum: UserTurma, nullable: true })
-  turma?: string;
+  turma?: UserTurma;
 
   @Column({ type: 'int', default: 1, nullable: true })
   ano?: number;

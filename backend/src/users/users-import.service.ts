@@ -7,10 +7,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { parse } from 'csv-parse/sync';
-import { User, UserRole } from './entities/user.entity';
 import { HashingProvider } from '../common/providers/hashing.provider';
 import { UsersService } from './users.service';
 import { OrientadorArea } from './entities/orientador-area.entity';
+import { User, UserRole, UserTurma } from './entities/user.entity';
 
 interface ICsvRow {
   nome: string;
