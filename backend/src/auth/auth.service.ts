@@ -25,7 +25,6 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
-  console.log('Email recebido no login:', email);
 
   const user = await this.usersRepository
     .createQueryBuilder('user')
@@ -33,14 +32,12 @@ export class AuthService {
     .where('user.email_institucional = :email', { email: email.trim() })
     .getOne();
 
-  console.log('Usuário retornado do banco:', user);
 
   if (!user) {
     throw new UnauthorizedException('Credenciais inválidas');
   }
 
   const isPasswordValid = await this.hashingProvider.compare(pass, user.senha);
-  console.log('Senha é válida?:', isPasswordValid);
 
   if (!isPasswordValid) {
     throw new UnauthorizedException('Credenciais inválidas');
