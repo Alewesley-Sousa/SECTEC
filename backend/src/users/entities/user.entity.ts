@@ -1,10 +1,10 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  CreateDateColumn, 
-  OneToMany, 
-  ManyToMany 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  OneToMany,
+  ManyToMany
 } from 'typeorm';
 
 import { TemaEvento } from '../../evento/entities/tema-evento.entity';
@@ -43,8 +43,8 @@ export class User {
   @Column({ type: 'enum', enum: UserRole })
   role_cargo!: UserRole;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  turma?: string;
+  @Column({ type: 'enum', enum: UserTurma, nullable: true })
+  turma?: UserTurma;
 
   @Column({ type: 'int', default: 1, nullable: true })
   ano?: number;
