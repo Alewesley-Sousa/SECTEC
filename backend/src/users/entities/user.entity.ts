@@ -20,11 +20,20 @@ export enum UserRole {
   ORIENTADOR_AREAS = 'orientador_areas'
 }
 
-
 export enum UserTurma {
   INFORMATICA = 'informatica',
   ENFERMAGEM = 'enfermagem',
   CONTABILIDADE = 'contabilidade',
+}
+
+export enum UserArea{
+  INFORMATICA = 'informatica',
+  ENFERMAGEM = 'enfermagem',
+  CONTABILIDADE = 'contabilidade',
+  HUMANAS = 'humanas',
+  EXATAS = 'exatas',
+  NATUREZAS = 'naturezas',
+  LINGUAGENS = 'linguagens'
 }
 
 @Entity('usuarios')
@@ -56,6 +65,14 @@ export class User {
 
   @Column({ default: true })
   ativo!: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: UserArea,
+    nullable: true,
+    default: null,
+  })
+  area: UserArea | null;
 
   @CreateDateColumn({ name: 'criado_em' })
   criado_em!: Date;
