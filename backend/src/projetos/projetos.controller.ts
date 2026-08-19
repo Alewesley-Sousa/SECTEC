@@ -100,21 +100,16 @@ export class ProjetosController {
 
   @Get('public/:id/pdf')
   @Public()
-  @ApiOperation({ summary: 'Retorna o PDF público do projeto pelo ID' })
-  @ApiParam({ name: 'id', type: Number, description: 'ID do projeto' })
-  @ApiResponse({ status: 200, description: 'Arquivo PDF do projeto' })
-  @ApiResponse({ status: 404, description: 'Projeto não encontrado ou não possui PDF' })
   async obterPdfProjetoPublico(
     @Param('id', ParseIntPipe) id: number,
-    @Res({ passthrough: true }) res: any,
+    @Res() res: any,
   ) {
     const { buffer, nomeArquivo } = await this.consultaService.obterPdfProjetoPublico(id);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${nomeArquivo}"`);
     res.setHeader('Content-Length', buffer.length);
-
-    return new StreamableFile(buffer);
+    res.send(buffer);
   }
 
   // ===========================================================================

@@ -51,4 +51,4 @@ import { ProjectFile } from 'src/pdf/entities/project-file.entity'; // ✅ impor
   ],
   exports: [ProjetosService],
 })
-export class ProjetosModule {}
+export class ProjetosModule {}  
