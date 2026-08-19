@@ -75,6 +75,8 @@ export class UsersService {
 
   // ==================== MÉTODOS PRIVADOS AUXILIARES ====================
 
+
+  
   /**
    * Centraliza a definição de senha, turma e ano conforme o perfil do usuário.
    */

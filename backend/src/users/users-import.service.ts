@@ -7,9 +7,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { parse } from 'csv-parse/sync';
-import { User, UserRole } from './entities/user.entity';
 import { HashingProvider } from '../common/providers/hashing.provider';
 import { UsersService } from './users.service';
+import { User, UserRole, UserTurma } from './entities/user.entity';
 
 interface ICsvRow {
   nome: string;
@@ -29,7 +29,7 @@ export class UsersImportService {
     private usersRepository: Repository<User>,
     private usersService: UsersService,
     private hashingProvider: HashingProvider,
-  ) {}
+  ) { }
 
   /**
    * Processa arquivo CSV para cadastro em lote de usuários.
@@ -95,7 +95,110 @@ export class UsersImportService {
     }
   }
 
+  /**
+   * Recebe um CSV com as colunas TURMA, ANO, Nome e Email GSuite.
+   * Para cada linha, localiza o aluno pelo e-mail e atualiza a turma (e ano, se presente).
+   */
+  async consertarTurmasAlunos(file: Express.Multer.File) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Arquivo não enviado ou corrompido.');
+    }
+
+    const csvString = file.buffer.toString('utf-8');
+    let registros: ICsvRow[];
+
+    try {
+      registros = parse(csvString, {
+        columns: (header: string[]) => header.map((h) => h.toLowerCase().trim()),
+        skip_empty_lines: true,
+        trim: true,
+        bom: true,
+        delimiter: [',', ';', '\t'],
+        skip_records_with_error: true,
+        relax_column_count: true,
+      });
+    } catch (e) {
+      throw new BadRequestException('Erro ao formatar CSV. Verifique o cabeçalho.');
+    }
+
+    let atualizados = 0;
+    let naoEncontrados = 0;
+    const erros: string[] = [];
+
+    for (const reg of registros) {
+      const emailBruto =
+        reg.email ||
+        reg['email gsuite'] ||
+        reg['email_gsuite'] ||
+        reg['e-mail'];
+
+      if (!emailBruto) {
+        erros.push('Linha sem e-mail: ' + JSON.stringify(reg));
+        continue;
+      }
+
+      const email = String(emailBruto).trim().toLowerCase();
+      const turmaCsv = reg.turma ? String(reg.turma).trim() : undefined;
+      const ano = reg.ano ? Number(reg.ano) : undefined;
+
+      if (!turmaCsv) {
+        erros.push(`E-mail ${email}: turma não informada.`);
+        continue;
+      }
+
+      const turmaEnum = this.mapCsvTurma(turmaCsv);
+      if (!turmaEnum) {
+        erros.push(`E-mail ${email}: turma inválida (${turmaCsv}).`);
+        continue;
+      }
+
+      const usuario = await this.usersRepository.findOne({
+        where: { email_institucional: email },
+      });
+
+      if (!usuario) {
+        naoEncontrados++;
+        erros.push(`Usuário com e-mail ${email} não encontrado.`);
+        continue;
+      }
+
+      usuario.turma = turmaEnum;
+      if (ano && !Number.isNaN(ano)) {
+        usuario.ano = ano;
+      }
+
+      try {
+        await this.usersRepository.save(usuario);
+        atualizados++;
+      } catch (err: any) {
+        erros.push(`Erro ao salvar ${email}: ${err.message}`);
+      }
+    }
+
+    return {
+      filename: file.originalname,
+      totalProcessados: registros.length,
+      totalAtualizados: atualizados,
+      totalNaoEncontrados: naoEncontrados,
+      erros,
+    };
+  }
+
   // ==================== MÉTODOS PRIVADOS AUXILIARES ====================
+
+  private mapCsvTurma(turmaCsv: string): UserTurma | undefined {
+    const turmaNormalizada = turmaCsv.trim().toUpperCase();
+    switch (turmaNormalizada) {
+      case 'INFO':
+        return UserTurma.INFORMATICA;
+      case 'ENF':
+        return UserTurma.ENFERMAGEM;
+      case 'CONT':
+        return UserTurma.CONTABILIDADE;
+      default:
+        return undefined;
+    }
+  }
 
   private extrairEmailsDoCsv(registros: ICsvRow[]): string[] {
     return registros
