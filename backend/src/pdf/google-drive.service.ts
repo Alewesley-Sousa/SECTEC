@@ -71,23 +71,23 @@ export class GoogleDriveService {
  * Obtém o Stream de um arquivo do Google Drive para download
  * @param driveFileId ID do arquivo na nuvem do Google
  */
-  async downloadFileStream(driveFileId: string): Promise<Readable> {
-    try {
-      const response = await this.drive.files.get(
-        {
-          fileId: driveFileId,
-          alt: 'media', // Informa à API que queremos o conteúdo binário do arquivo, não os metadados
-        },
-        { responseType: 'stream' }, // Configura o Axios interno para retornar um Stream do Node.js
-      );
+    async downloadFileStream(driveFileId: string): Promise<Readable> {
+      try {
+        const response = await this.drive.files.get(
+          {
+            fileId: driveFileId,
+            alt: 'media', // Informa à API que queremos o conteúdo binário do arquivo, não os metadados
+          },
+          { responseType: 'stream' }, // Configura o Axios interno para retornar um Stream do Node.js
+        );
 
-      return response.data as Readable;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('Erro no Google Drive:', message);
-      throw new Error(`Erro na operação: ${message}`);
+        return response.data as Readable;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Erro no Google Drive:', message);
+        throw new Error(`Erro na operação: ${message}`);
+      }
     }
-  }
 
 
 

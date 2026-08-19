@@ -333,16 +333,6 @@ export class ProjetosService {
       throw new NotFoundException(`Projeto #${id} nao encontrado.`);
     }
 
-    const possuiMaterialAprovado = (projeto.materiais ?? []).some(
-      (material) => material.status === 'aprovado',
-    );
-
-    if (!possuiMaterialAprovado) {
-      throw new BadRequestException(
-        'Este projeto nao possui nenhum material aprovado. Nao e possivel gerar o QR Code.',
-      );
-    }
-
     projeto.qrcodeGerado = true;
     await this.projetoRepository.save(projeto);
 
@@ -357,6 +347,47 @@ export class ProjetosService {
       id: projeto.id,
       qrcode: true,
       url: `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${id}`,
+    };
+  }
+
+  /**
+   * Gera o QR Code para todos os projetos pendentes, independente de material aprovado.
+   */
+  async gerarQrCodeEmLote(userId: number): Promise<{
+    total: number;
+    sucessos: number;
+    falhas: number;
+    detalhes: { id: number; sucesso: boolean; mensagem?: string }[];
+  }> {
+    // Busca todos os projetos com QR Code ainda não gerado
+    const projetosPendentes = await this.projetoRepository.find({
+      where: { qrcodeGerado: false },
+    });
+
+    let sucessos = 0;
+    let falhas = 0;
+    const detalhes: { id: number; sucesso: boolean; mensagem?: string }[] = [];
+
+    for (const projeto of projetosPendentes) {
+      try {
+        await this.gerarQrCode(projeto.id, userId);
+        sucessos++;
+        detalhes.push({ id: projeto.id, sucesso: true });
+      } catch (error: any) {
+        falhas++;
+        detalhes.push({
+          id: projeto.id,
+          sucesso: false,
+          mensagem: error.message || 'Erro ao gerar QR Code.',
+        });
+      }
+    }
+
+    return {
+      total: projetosPendentes.length,
+      sucessos,
+      falhas,
+      detalhes,
     };
   }
 

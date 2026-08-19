@@ -1,10 +1,10 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  CreateDateColumn, 
-  OneToMany, 
-  ManyToMany 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  OneToMany,
+  ManyToMany
 } from 'typeorm';
 
 import { TemaEvento } from '../../evento/entities/tema-evento.entity';

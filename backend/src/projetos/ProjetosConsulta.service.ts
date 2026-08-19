@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Readable } from 'stream';
+
 import { Projeto } from './entities/projeto.entity';
 import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
 import { TipoMaterial } from '../materiais/entities/projeto-material.entity';
 import { GoogleDriveService } from '../pdf/google-drive.service';
+import { ProjectFile, FileStatus } from '../pdf/entities/project-file.entity';
 
 @Injectable()
 export class ProjetosConsultaService {
@@ -13,6 +20,8 @@ export class ProjetosConsultaService {
     private readonly projetoRepository: Repository<Projeto>,
     @InjectRepository(Evento)
     private readonly eventoRepository: Repository<Evento>,
+    @InjectRepository(ProjectFile)
+    private readonly projectFileRepository: Repository<ProjectFile>,
     private readonly googleDriveService: GoogleDriveService,
   ) { }
 
@@ -136,7 +145,8 @@ export class ProjetosConsultaService {
     eixo_tematico?: string;
     orientador?: string;
   }) {
-    const { page = 1, limit = 10, search, evento, eixo_tematico, orientador } = filtros;
+    const { page = 1, limit = 10, search, evento, eixo_tematico, orientador } =
+      filtros;
 
     const query = this.projetoRepository
       .createQueryBuilder('projeto')
@@ -175,8 +185,15 @@ export class ProjetosConsultaService {
 
     const [projetos, total] = await query.getManyAndCount();
 
+    const projetosComUrl = projetos.map((projeto) => ({
+      ...projeto,
+      urlQrCode: projeto.qrcodeGerado
+        ? `${process.env.FRONTEND_PUBLIC_URL ?? ''}/publico/projeto/${projeto.id}`
+        : undefined,
+    }));
+
     return {
-      projetos,
+      projetos: projetosComUrl,
       total,
       page,
       limit,
@@ -284,27 +301,27 @@ export class ProjetosConsultaService {
 
       if (projetoIdAtual) {
         query = `
-          SELECT DISTINCT aluno_id FROM (
-            SELECT aluno_autor_id as aluno_id FROM projetos 
-            WHERE evento_id = ? AND aluno_autor_id IS NOT NULL AND id != ?
-            UNION
-            SELECT aluno_id FROM projeto_alunos pa
-            INNER JOIN projetos p ON p.id = pa.projeto_id
-            WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL AND p.id != ?
-          ) AS alunos_ocupados
-        `;
+            SELECT DISTINCT aluno_id FROM (
+              SELECT aluno_autor_id as aluno_id FROM projetos 
+              WHERE evento_id = ? AND aluno_autor_id IS NOT NULL AND id != ?
+              UNION
+              SELECT aluno_id FROM projeto_alunos pa
+              INNER JOIN projetos p ON p.id = pa.projeto_id
+              WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL AND p.id != ?
+            ) AS alunos_ocupados
+          `;
         params = [eventoAtual.id, projetoIdAtual, eventoAtual.id, projetoIdAtual];
       } else {
         query = `
-          SELECT DISTINCT aluno_id FROM (
-            SELECT aluno_autor_id as aluno_id FROM projetos 
-            WHERE evento_id = ? AND aluno_autor_id IS NOT NULL
-            UNION
-            SELECT aluno_id FROM projeto_alunos pa
-            INNER JOIN projetos p ON p.id = pa.projeto_id
-            WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL
-          ) AS alunos_ocupados
-        `;
+            SELECT DISTINCT aluno_id FROM (
+              SELECT aluno_autor_id as aluno_id FROM projetos 
+              WHERE evento_id = ? AND aluno_autor_id IS NOT NULL
+              UNION
+              SELECT aluno_id FROM projeto_alunos pa
+              INNER JOIN projetos p ON p.id = pa.projeto_id
+              WHERE p.evento_id = ? AND pa.aluno_id IS NOT NULL
+            ) AS alunos_ocupados
+          `;
         params = [eventoAtual.id, eventoAtual.id];
       }
 
@@ -327,49 +344,36 @@ export class ProjetosConsultaService {
     return this.eventoRepository
       .createQueryBuilder('evento')
       .where('evento.status = :status', { status: EventoStatus.ATIVO })
-      .andWhere('evento.prazo_inicial BETWEEN :inicioAno AND :fimAno', { inicioAno, fimAno })
+      .andWhere('evento.prazo_inicial BETWEEN :inicioAno AND :fimAno', {
+        inicioAno,
+        fimAno,
+      })
       .orderBy('evento.criado_em', 'DESC')
       .getOne();
   }
 
-
   /**
- * Retorna o buffer e nome do arquivo PDF de um projeto.
- * Utilizado pela rota pública.
- */
-  async obterPdfProjetoPublico(projetoId: number): Promise<{ buffer: Buffer; nomeArquivo: string }> {
-    const projeto = await this.projetoRepository.findOne({
-      where: { id: projetoId },
-      relations: ['materiais'],
+   * Retorna o buffer e nome do arquivo PDF público de um projeto,
+   * buscando o ProjectFile mais recente com status VALID.
+   */
+  async obterPdfProjetoPublico(projetoId: number): Promise<{ stream: Readable; originalName: string }> {
+    const projectFile = await this.projectFileRepository.findOne({
+      where: {
+        projetoId,
+        status: FileStatus.VALID,
+      },
+      order: { criadoEm: 'DESC' },
     });
 
-    if (!projeto) {
-      throw new NotFoundException('Projeto não encontrado.');
+    if (!projectFile || !projectFile.driveFileId) {
+      throw new NotFoundException('Nenhum PDF válido encontrado para este projeto.');
     }
 
-    const materialPdf = projeto.materiais?.find((m) => m.tipo === TipoMaterial.PDF);
+    const stream = await this.googleDriveService.downloadFileStream(projectFile.driveFileId);
 
-    if (!materialPdf) {
-      throw new NotFoundException('Este projeto não possui material em PDF.');
-    }
-
-    if (!materialPdf.conteudo) {
-      throw new BadRequestException('Conteúdo do PDF não disponível.');
-    }
-
-    const fileId = this.extrairGoogleDriveFileId(materialPdf.conteudo);
-    if (!fileId) {
-      throw new BadRequestException('Não foi possível identificar o arquivo no Google Drive.');
-    }
-
-    const buffer = await this.googleDriveService.downloadFile(fileId);
-    const nomeArquivo = `projeto_${projetoId}.pdf`;
-
-    return { buffer, nomeArquivo };
-  }
-
-  private extrairGoogleDriveFileId(url: string): string | null {
-    const match = url.match(/\/d\/([^/]+)/);
-    return match ? match[1] : null;
+    return {
+      stream,
+      originalName: projectFile.originalName,
+    };
   }
 }

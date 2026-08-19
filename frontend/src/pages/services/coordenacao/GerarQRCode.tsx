@@ -27,6 +27,7 @@ type Projeto = {
   turma: string;
   orientador: string;
   qrcode: boolean;
+  urlQrCode?: string;   // ✅ adicionado
   eixo_tematico: string;
   evento: string;
   integrantes?: string[];
@@ -38,6 +39,7 @@ type ApiProjetoLike = Partial<Projeto> & {
   turma_nome?: string;
   professor?: string;
   qrCode?: boolean;
+  qrcodeGerado?: boolean;   // ✅ Adicionado para mapear corretamente o campo do backend
   eixo?: string;
   evento_id?: string;
 };
@@ -64,7 +66,8 @@ const normalizeProjeto = (p: ApiProjetoLike | null | undefined): Projeto => ({
   titulo: p?.titulo ?? p?.title ?? 'Projeto sem título',
   turma: p?.turma ?? p?.turma_nome ?? 'Sem turma',
   orientador: p?.orientador ?? p?.professor ?? 'Sem orientador',
-  qrcode: Boolean(p?.qrcode ?? p?.qrCode),
+  qrcode: Boolean(p?.qrcodeGerado ?? p?.qrcode ?? p?.qrCode),
+  urlQrCode: (p as any)?.urlQrCode,   // ✅ adiciona se vier do backend
   eixo_tematico: p?.eixo_tematico ?? p?.eixo ?? '',
   evento: p?.evento ?? p?.evento_id ?? '',
   integrantes: (p as any)?.integrantes ?? [],
@@ -75,10 +78,8 @@ const normalizeProjeto = (p: ApiProjetoLike | null | undefined): Projeto => ({
 // rota — ajuste aqui assim que a rota pública existir.
 const buildPublicProjectUrl = (id: number) => `${window.location.origin}/publico/projeto/${id}`;
 
-const buildQrDataUrl = (id: number) =>
-  `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
-    buildPublicProjectUrl(id)
-  )}`;
+const buildQrDataUrl = (targetUrl: string) =>
+  `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(targetUrl)}`;
 
 // ---------------------------------------------------------------------------
 // Componente
@@ -224,11 +225,17 @@ function GerarQRCode() {
    */
   const gerarQrCodeProjeto = async (projeto: Projeto): Promise<boolean> => {
     try {
-      // TODO(back): endpoint ainda não implementado — POST /projetos/:id/gerar-qrcode
-      await apiRequest(`/projetos/${projeto.id}/gerar-qrcode`, { method: 'POST' });
+      const response = await apiRequest<{ id: number; qrcode: boolean; url: string }>(
+        `/projetos/${projeto.id}/gerar-qrcode`,
+        { method: 'POST' }
+      );
 
       setProjetos((atual) =>
-        atual.map((p) => (p.id === projeto.id ? { ...p, qrcode: true } : p))
+        atual.map((p) =>
+          p.id === projeto.id
+            ? { ...p, qrcode: true, urlQrCode: response.url }
+            : p
+        )
       );
       return true;
     } catch {
@@ -565,7 +572,9 @@ function GerarQRCode() {
 
               <div className="flex justify-center py-2">
                 <img
-                  src={buildQrDataUrl(selecionado.id)}
+                    src={buildQrDataUrl(
+    selecionado.urlQrCode || buildPublicProjectUrl(selecionado.id)
+  )}
                   alt={`QR Code do projeto ${selecionado.titulo}`}
                   className="h-52 w-52 rounded-xl border border-slate-100"
                 />

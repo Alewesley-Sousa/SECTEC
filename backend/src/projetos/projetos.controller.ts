@@ -65,7 +65,7 @@ export class ProjetosController {
     });
   }
 
-  
+
 
   // ===========================================================================
   // ROTA PÚBLICA (SEM AUTENTICAÇÃO)
@@ -100,21 +100,18 @@ export class ProjetosController {
 
   @Get('public/:id/pdf')
   @Public()
-  @ApiOperation({ summary: 'Retorna o PDF público do projeto pelo ID' })
-  @ApiParam({ name: 'id', type: Number, description: 'ID do projeto' })
-  @ApiResponse({ status: 200, description: 'Arquivo PDF do projeto' })
-  @ApiResponse({ status: 404, description: 'Projeto não encontrado ou não possui PDF' })
   async obterPdfProjetoPublico(
     @Param('id', ParseIntPipe) id: number,
-    @Res({ passthrough: true }) res: any,
+    @Res() res: any,
   ) {
-    const { buffer, nomeArquivo } = await this.consultaService.obterPdfProjetoPublico(id);
+    const { stream, originalName } = await this.consultaService.obterPdfProjetoPublico(id);
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${nomeArquivo}"`);
-    res.setHeader('Content-Length', buffer.length);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${encodeURIComponent(originalName)}"`,
+    });
 
-    return new StreamableFile(buffer);
+    stream.pipe(res);
   }
 
   // ===========================================================================
@@ -390,6 +387,22 @@ export class ProjetosController {
     return this.projetosService.remove(id, userId, role);
   }
 
+  @Post('gerar-qrcodes')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '[Coordenador] Gera o QR Code de todos os projetos pendentes (sem filtro de material)',
+  })
+  async gerarQrCodeEmLote(
+    @GetUser('userId') userId: number,
+    @GetUser('role') role: string,
+  ) {
+    if (role !== 'coordenador') {
+      throw new ForbiddenException(
+        'Apenas coordenadores podem gerar o QR Code dos projetos.',
+      );
+    }
+    return this.projetosService.gerarQrCodeEmLote(userId);
+  }
 
   @Post(':id/gerar-qrcode')
   @ApiOperation({

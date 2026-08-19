@@ -18,6 +18,18 @@ type ApiRequestOptions = Omit<RequestInit, "body"> & {
   auth?: boolean;
 };
 
+export function isTokenExpirado(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const payloadBase64 = token.split('.')[1];
+    const payload = JSON.parse(atob(payloadBase64));
+    const agora = Math.floor(Date.now() / 1000);
+    return payload.exp ? payload.exp < agora : false;
+  } catch {
+    return true;
+  }
+}
+
 export type BackendRole = "aluno" | "orientador" | "coordenador" | "comissao" | "avaliador";
 
 export type AuthUser = {
@@ -83,6 +95,13 @@ export async function apiRequest<T>(
   if (!response.ok) {
     let errorData: any;
     let message = "Não foi possível concluir a solicitação.";
+
+    // ✅ Se não autorizado, encerra a sessão e redireciona
+    if (response.status === 401) {
+      clearSession();
+      window.location.href = '/login';
+      throw new ApiError('Sessão expirada. Faça login novamente.', response.status);
+    }
 
     try {
       errorData = await response.json();

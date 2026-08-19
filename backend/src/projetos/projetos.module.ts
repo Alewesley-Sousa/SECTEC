@@ -14,7 +14,7 @@ import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
 import { Evento } from 'src/evento/entities/evento.entity';
 import { AuditoriaModule } from 'src/auditoria/auditoria.module';
-import { User } from 'src/users/entities/user.entity'; 
+import { User } from 'src/users/entities/user.entity';
 import { ProjetosEquipeService } from './ProjetosEquipe.service';
 import { ProjetosOrientadorService } from './ProjetosOrientador.service';
 import { ProjetosConsultaService } from './ProjetosConsulta.service';
@@ -22,18 +22,10 @@ import { ProjetosPdfService } from './ProjetosPdf.service';
 import { ProjetosValidacaoService } from './ProjetosValidacao.service';
 import { ProjetoMaterial } from '../materiais/entities/projeto-material.entity';
 import { PdfModule } from 'src/pdf/pdf.module';
-/**
- * Módulo responsável pela gestão de projetos científicos e acadêmicos.
- * * Este módulo integra as relações entre alunos, orientadores e os eventos
- * aos quais os projetos estão vinculados, utilizando o TypeORM para persistência.
- */
+import { ProjectFile } from 'src/pdf/entities/project-file.entity'; // ✅ import
+
 @Module({
   imports: [
-    /**
-     * Registra as entidades no escopo deste módulo.
-     * Isso habilita a injeção de repositórios (via @InjectRepository) 
-     * dentro do ProjetosService.
-     */
     TypeOrmModule.forFeature([
       Projeto,
       ProjetoAluno,
@@ -43,16 +35,20 @@ import { PdfModule } from 'src/pdf/pdf.module';
       AuditoriaModule,
       User,
       ProjetoMaterial,
+      ProjectFile, // ✅ adicionado
     ]),
     AuditoriaModule,
     PdfModule,
   ],
   controllers: [ProjetosController],
-  providers: [ProjetosService, ProjetosEquipeService, ProjetosOrientadorService, ProjetosConsultaService, ProjetosPdfService, ProjetosValidacaoService],
-  /**
-   * Exportamos o ProjetosService para que outros módulos (como o Módulo de Eventos)
-   * possam consultar dados de projetos se necessário.
-   */
+  providers: [
+    ProjetosService,
+    ProjetosEquipeService,
+    ProjetosOrientadorService,
+    ProjetosConsultaService,
+    ProjetosPdfService,
+    ProjetosValidacaoService,
+  ],
   exports: [ProjetosService],
 })
-export class ProjetosModule {}
+export class ProjetosModule {}  
