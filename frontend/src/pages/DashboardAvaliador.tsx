@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   User,
-  MapPin,
+  GraduationCap,
   Loader2,
   AlertCircle,
   Sparkles,
@@ -22,7 +22,7 @@ type ProjetoDesignado = {
   id: number;
   titulo: string;
   descricao: string;
-  local: string;
+  local: string; // conterá turma e ano do aluno autor
   autores: string;
   tag: string;
   status: 'Pendente' | 'Avaliado';
@@ -33,11 +33,23 @@ type ProjetoDesignado = {
 type CardProps = {
   className?: string;
   children: ReactNode;
+  onClick?: () => void; // ✅ adicionado
 };
 
-function Card({ className = '', children }: CardProps) {
+function Card({ className = '', children, onClick }: CardProps) {
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${className}`}>
+    <div
+      className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${className}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
       {children}
     </div>
   );
@@ -127,10 +139,11 @@ function TabsTrigger({
     <button
       type="button"
       onClick={() => setActiveTab(value)}
-      className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition ${isActive
+      className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition ${
+        isActive
           ? 'bg-[#15803d]/10 text-[#0b4d2c]'
           : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-        } ${className}`}
+      } ${className}`}
     >
       {children}
     </button>
@@ -467,7 +480,11 @@ export function DashboardPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {visibleProjects.map((project) => (
-                  <Card key={project.id} className="border-0 shadow-sm bg-white">
+                  <Card
+                    key={project.id}
+                    className="border-0 shadow-sm bg-white cursor-pointer transition hover:shadow-md hover:border-sectec-200"
+                    onClick={() => navigate(`/dashboard/avaliador/avaliacao/${project.id}`)}
+                  >
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-xs text-slate-400 font-mono">
@@ -489,7 +506,7 @@ export function DashboardPage() {
                       </h3>
                       <div className="space-y-1.5 text-xs text-slate-500">
                         <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
                           <span>{project.local}</span>
                         </div>
                         <div className="flex items-center gap-2">
