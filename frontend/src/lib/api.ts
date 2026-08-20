@@ -191,6 +191,9 @@ export function clearSession() {
   localStorage.removeItem("role");
   localStorage.removeItem("nome");
   localStorage.removeItem("userId");
+  localStorage.removeItem("email");        // ✅ remove email se existir
+  localStorage.removeItem("user");         // ✅ remove objeto user se existir
+  localStorage.removeItem("passwordChangedAt"); // ✅ remove possíveis marcas
   notifyAuthChange();
 }
 

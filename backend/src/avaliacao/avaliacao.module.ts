@@ -26,5 +26,6 @@ import { AvaliadoresController } from './avaliadores.controller';
   ],
   controllers: [AvaliacaoController, AvaliadoresController],
   providers: [AvaliacaoService],
+  exports: [AvaliacaoService],
 })
 export class AvaliacaoModule {}

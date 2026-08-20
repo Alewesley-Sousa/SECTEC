@@ -56,13 +56,16 @@ function App() {
     const verificarToken = () => {
       const tokenAtual = localStorage.getItem('token');
       if (tokenAtual && isTokenExpirado(tokenAtual)) {
+        // ✅ Limpa TODA a sessão (pode até usar localStorage.clear() se não houver dados persistentes importantes)
         clearSession();
+        // ✅ Garante que o estado seja atualizado antes de redirecionar
+        window.dispatchEvent(new Event('auth-change'));
         window.location.href = '/login';
       }
     };
 
     verificarToken();
-    const intervalo = setInterval(verificarToken, 30000); // 30 segundos
+    const intervalo = setInterval(verificarToken, 30000);
 
     return () => clearInterval(intervalo);
   }, []);

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 // Service e Controller do Módulo
 import { ProjetosService } from './projetos.service';
 import { ProjetosController } from './projetos.controller';
+import { AvaliacaoModule } from '../avaliacao/avaliacao.module';
 
 // Entidades Locais (Escopo de Projetos)
 import { Projeto } from './entities/projeto.entity';
@@ -25,21 +26,21 @@ import { PdfModule } from 'src/pdf/pdf.module';
 import { ProjectFile } from 'src/pdf/entities/project-file.entity'; // ✅ import
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Projeto,
-      ProjetoAluno,
-      ProjetoOrientador,
-      TemaEvento,
-      Evento,
-      AuditoriaModule,
-      User,
-      ProjetoMaterial,
-      ProjectFile, // ✅ adicionado
-    ]),
-    AuditoriaModule,
-    PdfModule,
-  ],
+imports: [
+  TypeOrmModule.forFeature([
+    Projeto,
+    ProjetoAluno,
+    ProjetoOrientador,
+    TemaEvento,
+    Evento,
+    User,
+    ProjetoMaterial,
+    ProjectFile,
+  ]),
+  AuditoriaModule,
+  PdfModule,
+  AvaliacaoModule, // ✅ adicionado aqui
+],
   controllers: [ProjetosController],
   providers: [
     ProjetosService,
