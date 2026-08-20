@@ -739,14 +739,17 @@ export class AvaliacaoService {
 
     const avaliacoesIds = avaliacoes.map((a) => a.id);
     const criterios = await this.avaliacaoCriterioRepository.find({
-      where: { avaliacao: In(avaliacoesIds) },
+      where: { avaliacao: { id: In(avaliacoesIds) } },
+      relations: ['avaliacao'], // ✅ ESSENCIAL: carrega a relação para acessar avaliacao.id
     });
 
     const criteriosPorAvaliacao = new Map<number, AvaliacaoCriterio[]>();
     for (const criterio of criterios) {
-      const lista = criteriosPorAvaliacao.get(criterio.avaliacao.id) ?? [];
+      const avaliacaoId = criterio.avaliacao?.id;
+      if (!avaliacaoId) continue;
+      const lista = criteriosPorAvaliacao.get(avaliacaoId) ?? [];
       lista.push(criterio);
-      criteriosPorAvaliacao.set(criterio.avaliacao.id, lista);
+      criteriosPorAvaliacao.set(avaliacaoId, lista);
     }
 
     return {
@@ -765,7 +768,7 @@ export class AvaliacaoService {
         data: avaliacao.createdAt,
       })),
     };
-  } 
+  }
 
 
 }
