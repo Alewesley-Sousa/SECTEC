@@ -1852,19 +1852,6 @@ function UsuariosCoordenacao() {
     };
   }, []);
 
-  function getProjetosDoUsuario(usuario: UsuarioCoordenacao) {
-    const usuarioId = String(usuario.id);
-
-    return projetosCoordenacao.filter((projeto) => {
-      const autorId = projeto.alunoAutor?.id ? String(projeto.alunoAutor.id) : null;
-      const ehAutor = autorId === usuarioId;
-      const ehIntegrante = Array.isArray(projeto.projetoAlunos)
-        ? projeto.projetoAlunos.some((vinculo) => String(vinculo.aluno?.id) === usuarioId)
-        : false;
-      return ehAutor || ehIntegrante;
-    });
-  }
-
   function abrirDetalhesUsuario(usuario: UsuarioCoordenacao) {
     setUsuarioSelecionado(usuario);
     setDetalhesAberto(true);
