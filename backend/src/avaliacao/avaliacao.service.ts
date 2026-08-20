@@ -540,6 +540,41 @@ export class AvaliacaoService {
   }
 
   /**
+   * Lista projetos do evento atual que não possuem nenhum avaliador designado.
+   */
+  async listarProjetosSemAvaliadores(): Promise<Projeto[]> {
+    const eventoAtual = await this.buscarEventoAtivoDoAno();
+    if (!eventoAtual) return [];
+
+    // Projetos que já possuem ao menos um avaliador designado
+    const subQuery = this.avaliadorProjetoRepository
+      .createQueryBuilder('ap')
+      .select('ap.projetoId')
+      .where('ap.projetoId IS NOT NULL');
+
+    const query = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
+      .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
+      .leftJoinAndSelect('orientador.areas', 'area')
+      .where('projeto.status = :status', { status: 'APROVADO' })
+      .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
+      .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
+      .setParameters(subQuery.getParameters());
+
+    // Aplica filtro de áreas permitidas, se configurado
+    if (this.limitesAtuais.areasPermitidas.length > 0) {
+      query.andWhere(
+        '(orientador.area IN (:...areasPermitidas) OR area.area IN (:...areasPermitidas))',
+        { areasPermitidas: this.limitesAtuais.areasPermitidas },
+      );
+    }
+
+    return query.getMany();
+  }
+
+
+  /**
    * Embaralha array usando Fisher-Yates.
    */
   private embaralhar<T>(array: T[]): T[] {

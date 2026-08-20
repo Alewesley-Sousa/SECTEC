@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, Search, Settings2, X, CheckCircle2, Loader2, Trash2, PlusCircle } from "lucide-react";
+import { Users, Search, Settings2, X, CheckCircle2, Loader2, Trash2, PlusCircle, FileWarning } from "lucide-react";
 import Swal from "sweetalert2";
 import { MainLayout } from "../../../../componentes/SideBarUniversal";
 import { Pagination } from "../../../../componentes/PaginationUniversal";
@@ -41,6 +41,11 @@ export default function GerenciarAvaliadores() {
   const [buscaAtuais, setBuscaAtuais] = useState("");
   const [buscaDisponiveis, setBuscaDisponiveis] = useState("");
 
+  // ✅ Estados do relatório de projetos sem avaliadores
+  const [modalSemAvaliadoresAberto, setModalSemAvaliadoresAberto] = useState(false);
+  const [projetosSemAvaliadores, setProjetosSemAvaliadores] = useState<Projeto[]>([]);
+  const [carregandoSemAvaliadores, setCarregandoSemAvaliadores] = useState(false);
+
   const carregarAvaliadores = async () => {
     setFetching(true);
     const token = localStorage.getItem("token");
@@ -61,9 +66,27 @@ export default function GerenciarAvaliadores() {
     }
   };
 
+  const carregarProjetosSemAvaliadores = async () => {
+    setCarregandoSemAvaliadores(true);
+    const token = localStorage.getItem("token");
+    try {
+      const response = await fetch(`${API_BASE_URL}/avaliadores/projetos-sem-avaliadores`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProjetosSemAvaliadores(data);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar projetos sem avaliadores:", err);
+    } finally {
+      setCarregandoSemAvaliadores(false);
+    }
+  };
+
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      setPage(1); // ✅ reseta para primeira página ao buscar
+      setPage(1);
       carregarAvaliadores();
     }, 500);
     return () => clearTimeout(delayDebounceFn);
@@ -224,17 +247,30 @@ export default function GerenciarAvaliadores() {
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <h2 className="text-xl font-extrabold text-slate-900">Avaliadores Cadastrados</h2>
-              <div className="relative w-full sm:w-72">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-slate-400" />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalSemAvaliadoresAberto(true);
+                    carregarProjetosSemAvaliadores();
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-black text-orange-700 transition hover:bg-orange-100"
+                >
+                  <FileWarning size={16} />
+                  Projetos sem avaliadores
+                </button>
+                <div className="relative w-full sm:w-72">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Buscar nome ou e-mail..."
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 outline-none focus:ring-2 focus:ring-sectec-500 text-sm transition-all"
+                  />
                 </div>
-                <input
-                  type="text"
-                  placeholder="Buscar nome ou e-mail..."
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 outline-none focus:ring-2 focus:ring-sectec-500 text-sm transition-all"
-                />
               </div>
             </div>
 
@@ -294,7 +330,7 @@ export default function GerenciarAvaliadores() {
                   </table>
                 </div>
 
-                {/* ✅ Paginação universal */}
+                {/* Paginação universal */}
                 {!fetching && totalAvaliadores > limit && (
                   <Pagination
                     page={page}
@@ -311,6 +347,7 @@ export default function GerenciarAvaliadores() {
         </div>
       </main>
 
+      {/* Modal de gerenciamento de cota */}
       {modalAberto && avaliadorSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
@@ -428,6 +465,53 @@ export default function GerenciarAvaliadores() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de projetos sem avaliadores */}
+      {modalSemAvaliadoresAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between bg-[#0b4d2c] px-6 py-5 text-white">
+              <div>
+                <h3 className="text-lg font-bold">Projetos sem avaliadores</h3>
+                <p className="text-xs text-white/70 mt-1">
+                  Projetos aprovados do evento atual que ainda não possuem avaliador designado.
+                </p>
+              </div>
+              <button
+                onClick={() => setModalSemAvaliadoresAberto(false)}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 bg-slate-50">
+              {carregandoSemAvaliadores ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-sectec-700" />
+                </div>
+              ) : projetosSemAvaliadores.length === 0 ? (
+                <p className="text-center text-sm text-slate-500 py-10">
+                  Nenhum projeto sem avaliador no momento.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {projetosSemAvaliadores.map((projeto) => (
+                    <div
+                      key={projeto.id}
+                      className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                    >
+                      <p className="font-semibold text-slate-800">
+                        #{projeto.id} — {projeto.titulo}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

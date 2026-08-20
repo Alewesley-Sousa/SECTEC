@@ -23,7 +23,7 @@ export class AvaliadoresController {
   constructor(
     private readonly usersService: UsersService,
     private readonly avaliacaoService: AvaliacaoService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Lista avaliadores com suas cotas de projetos' })
@@ -101,5 +101,12 @@ export class AvaliadoresController {
       body.remover_todos,
     );
     return { message: 'Projetos removidos com sucesso.' };
+  }
+
+  @Get('projetos-sem-avaliadores')
+  @ApiOperation({ summary: 'Lista projetos sem avaliadores no evento atual' })
+  async projetosSemAvaliadores() {
+    const projetos = await this.avaliacaoService.listarProjetosSemAvaliadores();
+    return projetos.map((p) => ({ id: p.id, titulo: p.titulo }));
   }
 }
