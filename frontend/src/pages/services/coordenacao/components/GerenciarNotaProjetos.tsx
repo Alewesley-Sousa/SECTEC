@@ -1,7 +1,5 @@
-// frontend/src/pages/services/coordenacao/components/GerenciarNotaProjetos.tsx
-
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays } from 'lucide-react';
+import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays, Eye, X } from 'lucide-react';
 import { MainLayout } from '../../../../componentes/SideBarUniversal';
 import { Pagination } from '../../../../componentes/PaginationUniversal';
 import { apiRequest, API_BASE_URL, ApiError } from '../../../../lib/api';
@@ -21,6 +19,20 @@ type Evento = {
   vigente?: boolean;
 };
 
+type DetalheAvaliacao = {
+  avaliador: {
+    id: number;
+    nome: string;
+    email: string;
+  };
+  nota: number;
+  criterios: Array<{
+    criterio: string;
+    nota: number;
+  }>;
+  data: string;
+};
+
 export default function GerenciarNotaProjetos() {
   const userRole = (localStorage.getItem('role') as UserRole) || 'coordenador';
   const [projetos, setProjetos] = useState<MediaProjeto[]>([]);
@@ -32,6 +44,11 @@ export default function GerenciarNotaProjetos() {
 
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [eventoSelecionado, setEventoSelecionado] = useState<number | ''>('');
+
+  // ✅ Estados para modal de detalhes
+  const [projetoDetalhes, setProjetoDetalhes] = useState<MediaProjeto | null>(null);
+  const [avaliacoesDetalhes, setAvaliacoesDetalhes] = useState<DetalheAvaliacao[]>([]);
+  const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
 
   const fetchMedias = async () => {
     setCarregando(true);
@@ -70,7 +87,25 @@ export default function GerenciarNotaProjetos() {
     }
   };
 
-  // Carrega eventos e define o evento ativo
+  // ✅ Buscar detalhes das avaliações de um projeto
+  const abrirDetalhes = async (projeto: MediaProjeto) => {
+    setProjetoDetalhes(projeto);
+    setCarregandoDetalhes(true);
+    setAvaliacoesDetalhes([]);
+
+    try {
+      const data = await apiRequest<{ avaliacoes: DetalheAvaliacao[] }>(
+        `/avaliacao/projetos/${projeto.id}/detalhes`
+      );
+      setAvaliacoesDetalhes(data.avaliacoes ?? []);
+    } catch (err) {
+      setAvaliacoesDetalhes([]);
+      console.error('Erro ao carregar detalhes das avaliações:', err);
+    } finally {
+      setCarregandoDetalhes(false);
+    }
+  };
+
   useEffect(() => {
     async function carregarEventos() {
       try {
@@ -99,12 +134,10 @@ export default function GerenciarNotaProjetos() {
     void carregarEventos();
   }, []);
 
-  // Busca médias quando o evento selecionado mudar
   useEffect(() => {
     if (eventoSelecionado !== '') {
       void fetchMedias();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventoSelecionado]);
 
   const filtrados = useMemo(() => {
@@ -180,30 +213,12 @@ export default function GerenciarNotaProjetos() {
           </p>
         </header>
 
-        {/* Cards de resumo */}
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <ResumoCard
-            icone={<BarChart3 size={20} />}
-            cor="emerald"
-            label="Projetos listados"
-            valor={projetos.length}
-          />
-          <ResumoCard
-            icone={<Star size={20} />}
-            cor="emerald"
-            label="Média geral"
-            valor={mediaGeral}
-            formato="decimal"
-          />
-          <ResumoCard
-            icone={<BarChart3 size={20} />}
-            cor="orange"
-            label="Total de avaliações"
-            valor={totalAvaliacoes}
-          />
+          <ResumoCard icone={<BarChart3 size={20} />} cor="emerald" label="Projetos listados" valor={projetos.length} />
+          <ResumoCard icone={<Star size={20} />} cor="emerald" label="Média geral" valor={mediaGeral} formato="decimal" />
+          <ResumoCard icone={<BarChart3 size={20} />} cor="orange" label="Total de avaliações" valor={totalAvaliacoes} />
         </section>
 
-        {/* Filtros */}
         <section className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
@@ -225,13 +240,9 @@ export default function GerenciarNotaProjetos() {
                   onChange={(e) => setEventoSelecionado(Number(e.target.value))}
                   className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none"
                 >
-                  <option value="" disabled>
-                    Selecione um evento
-                  </option>
+                  <option value="" disabled>Selecione um evento</option>
                   {eventos.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.titulo}
-                    </option>
+                    <option key={ev.id} value={ev.id}>{ev.titulo}</option>
                   ))}
                 </select>
               </div>
@@ -247,7 +258,6 @@ export default function GerenciarNotaProjetos() {
           </div>
         </section>
 
-        {/* Tabela */}
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -257,25 +267,26 @@ export default function GerenciarNotaProjetos() {
                   <th className="px-4 py-3">Orientador</th>
                   <th className="px-4 py-3">Média final</th>
                   <th className="px-4 py-3">Avaliações</th>
+                  <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {carregando ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
                       <Loader2 className="mx-auto mb-2 animate-spin" size={20} />
                       Carregando médias...
                     </td>
                   </tr>
                 ) : erro ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center font-semibold text-red-600">
+                    <td colSpan={5} className="px-4 py-10 text-center font-semibold text-red-600">
                       {erro}
                     </td>
                   </tr>
                 ) : projetosPaginados.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
                       Nenhum projeto encontrado.
                     </td>
                   </tr>
@@ -297,6 +308,16 @@ export default function GerenciarNotaProjetos() {
                           {projeto.quantidadeAvaliacoes}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => abrirDetalhes(projeto)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                        >
+                          <Eye size={14} />
+                          Ver detalhes
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -305,7 +326,6 @@ export default function GerenciarNotaProjetos() {
           </div>
         </section>
 
-        {/* Paginação */}
         {!carregando && total > limit && (
           <Pagination
             page={page}
@@ -317,6 +337,71 @@ export default function GerenciarNotaProjetos() {
           />
         )}
       </div>
+
+      {/* Modal de detalhes das avaliações */}
+      {projetoDetalhes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between bg-[#0b4d2c] px-6 py-5 text-white">
+              <div>
+                <h3 className="text-lg font-bold">{projetoDetalhes.titulo}</h3>
+                <p className="text-xs text-white/70 mt-1">
+                  Média final: {projetoDetalhes.mediaFinal.toFixed(2).replace('.', ',')} ·
+                  {projetoDetalhes.quantidadeAvaliacoes} avaliação(ões)
+                </p>
+              </div>
+              <button
+                onClick={() => setProjetoDetalhes(null)}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 bg-slate-50">
+              {carregandoDetalhes ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-sectec-700" />
+                </div>
+              ) : avaliacoesDetalhes.length === 0 ? (
+                <p className="text-center text-sm text-slate-500 py-10">
+                  Nenhuma avaliação encontrada para este projeto.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {avaliacoesDetalhes.map((avaliacao, index) => (
+                    <div key={index} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-black text-slate-900">{avaliacao.avaliador.nome}</p>
+                          <p className="text-xs text-slate-500">{avaliacao.avaliador.email}</p>
+                        </div>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-700">
+                          <Star size={12} />
+                          {avaliacao.nota.toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+
+                      {avaliacao.criterios.length > 0 && (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {avaliacao.criterios.map((criterio) => (
+                            <div key={criterio.criterio} className="rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                              <span className="text-slate-500 capitalize">{criterio.criterio}:</span>{' '}
+                              <span className="font-bold text-slate-700">
+                                {Number(criterio.nota).toFixed(1).replace('.', ',')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }

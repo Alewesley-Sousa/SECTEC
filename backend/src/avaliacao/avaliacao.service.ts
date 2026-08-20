@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource, Between } from 'typeorm';
 import { StreamableFile } from '@nestjs/common';
+import { User } from '../users/entities/user.entity';
 
 import { Projeto } from '../projetos/entities/projeto.entity';
 import { AvaliadorProjeto } from './entities/avaliador-projeto.entity';
@@ -135,11 +136,11 @@ export class AvaliacaoService {
     const avaliacoesExistentes = await this.avaliacaoRepository.find({
       where: {
         avaliadorId,
-        projeto: In(projetosIds),
+        projeto: { id: In(projetosIds) },
       },
     });
 
-    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projeto));
+    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projeto.id));
 
     // Mapeia para o formato esperado pelo frontend
     const projetos = atribuicoes.map((atribuicao) => {
@@ -272,7 +273,7 @@ export class AvaliacaoService {
         // Atualiza a atribuição para 'avaliado'
         await manager.update(
           AvaliadorProjeto,
-          { avaliadorId, projeto: { id: projetoId } },
+          { avaliadorId, projetoId },
           { status: 'avaliado' },
         );
 
@@ -715,6 +716,55 @@ export class AvaliacaoService {
         projetoId: In(projetosIds),
       });
     }
+  }
+
+
+  async listarDetalhesAvaliacaoProjeto(projetoId: number) {
+    const avaliacoes = await this.avaliacaoRepository.find({
+      where: { projeto: { id: projetoId } },
+    });
+
+    if (avaliacoes.length === 0) {
+      throw new NotFoundException('Nenhuma avaliação encontrada para este projeto.');
+    }
+
+    const avaliadoresIds = avaliacoes.map((a) => a.avaliadorId);
+
+    const usuarios = await this.dataSource.getRepository(User).find({
+      where: { id: In(avaliadoresIds) },
+      select: ['id', 'nome', 'email_institucional'],
+    });
+
+    const mapaUsuarios = new Map(usuarios.map((u) => [u.id, u]));
+
+    const avaliacoesIds = avaliacoes.map((a) => a.id);
+    const criterios = await this.avaliacaoCriterioRepository.find({
+      where: { avaliacao: In(avaliacoesIds) },
+    });
+
+    const criteriosPorAvaliacao = new Map<number, AvaliacaoCriterio[]>();
+    for (const criterio of criterios) {
+      const lista = criteriosPorAvaliacao.get(criterio.avaliacao.id) ?? [];
+      lista.push(criterio);
+      criteriosPorAvaliacao.set(criterio.avaliacao.id, lista);
+    }
+
+    return {
+      projetoId,
+      avaliacoes: avaliacoes.map((avaliacao) => ({
+        avaliador: {
+          id: avaliacao.avaliadorId,
+          nome: mapaUsuarios.get(avaliacao.avaliadorId)?.nome ?? 'Avaliador',
+          email: mapaUsuarios.get(avaliacao.avaliadorId)?.email_institucional ?? '',
+        },
+        nota: Number(avaliacao.nota),
+        criterios: (criteriosPorAvaliacao.get(avaliacao.id) ?? []).map((criterio) => ({
+          criterio: criterio.criterio,
+          nota: Number(criterio.nota),
+        })),
+        data: avaliacao.createdAt,
+      })),
+    };
   }
 
 

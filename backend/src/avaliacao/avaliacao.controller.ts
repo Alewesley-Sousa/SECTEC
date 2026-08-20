@@ -33,6 +33,14 @@ export class AvaliacaoController {
     return this.avaliacaoService.getLimitesAtuais();
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Lista os detalhes das avaliações de um projeto (avaliadores e notas)' })
+  @Get('projetos/:projetoId/detalhes')
+  async detalhesAvaliacaoProjeto(
+    @Param('projetoId', ParseIntPipe) projetoId: number,
+  ) {
+    return this.avaliacaoService.listarDetalhesAvaliacaoProjeto(projetoId);
+  }
 
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Submete a avaliação de um projeto com cálculo da média e validação do prazo' })
