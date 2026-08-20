@@ -136,11 +136,11 @@ export class AvaliacaoService {
     const avaliacoesExistentes = await this.avaliacaoRepository.find({
       where: {
         avaliadorId,
-        projeto: { id: In(projetosIds) },
+        projeto: In(projetosIds),
       },
     });
 
-    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projeto.id));
+    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projeto));
 
     // Mapeia para o formato esperado pelo frontend
     const projetos = atribuicoes.map((atribuicao) => {
@@ -273,7 +273,7 @@ export class AvaliacaoService {
         // Atualiza a atribuição para 'avaliado'
         await manager.update(
           AvaliadorProjeto,
-          { avaliadorId, projetoId },
+          { avaliadorId, projeto: { id: projetoId } },
           { status: 'avaliado' },
         );
 
@@ -765,7 +765,7 @@ export class AvaliacaoService {
         data: avaliacao.createdAt,
       })),
     };
-  }
+  } 
 
 
 }
