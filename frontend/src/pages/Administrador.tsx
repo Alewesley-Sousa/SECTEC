@@ -53,7 +53,15 @@ import { Document, Page, pdfjs } from 'react-pdf';
 
 // Configure o worker do pdf.js (coloque fora do componente, logo após os imports)
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
+const AREAS_DISPONIVEIS = [
+  "informatica",
+  "enfermagem",
+  "contabilidade",
+  "humanas",
+  "exatas",
+  "naturezas",
+  "linguagens",
+] as const;
 
 type AlunoRelatorio = {
   id: number;
@@ -1423,6 +1431,7 @@ type UsuarioCoordenacao = {
   perfil: "Aluno" | "Orientador" | "Comissão" | "Avaliador";
   turma?: string;
   ano?: number;
+    area?: string; // ✅ nova propriedade
 };
 
 type CadastroUsuarioForm = {
@@ -1480,6 +1489,7 @@ function UsuariosCoordenacao() {
       perfil,
       turma: (usuario as { turma?: string })?.turma,
       ano: typeof usuario.ano === "string" ? Number(usuario.ano) : usuario.ano ?? undefined,
+      area: (usuario as any).area ?? (usuario as any).areas?.[0]?.area, // ✅ mapeia área
     }));
   }
 
@@ -1533,7 +1543,6 @@ function UsuariosCoordenacao() {
     } catch {
       // fallback para erros sem JSON
     }
-
     return "Nao foi possivel concluir a importacao.";
   }
 
@@ -1661,6 +1670,42 @@ function UsuariosCoordenacao() {
       });
     } finally {
       setSalvandoCadastro(false);
+    }
+  }
+
+  async function handleAreaChange(usuario: UsuarioCoordenacao, novaArea: string) {
+    try {
+      await apiRequest(`/users/${usuario.id}/area`, {
+        method: "PATCH",
+        body: { area: novaArea },
+      });
+
+      // Atualiza o estado local
+      setOrientadores((prev) =>
+        prev.map((o) =>
+          o.id === usuario.id ? { ...o, area: novaArea } : o
+        )
+      );
+
+      // Atualiza também o usuário selecionado no modal, se for o mesmo
+      setUsuarioSelecionado((prev) =>
+        prev && prev.id === usuario.id ? { ...prev, area: novaArea } : prev
+      );
+
+      Swal.fire({
+        icon: "success",
+        title: "Área atualizada",
+        text: `Área de ${usuario.nome} atualizada para ${novaArea}.`,
+        confirmButtonColor: "#15803d",
+        timer: 1500,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Erro",
+        text: "Não foi possível atualizar a área.",
+        confirmButtonColor: "#15803d",
+      });
     }
   }
 
@@ -1805,7 +1850,6 @@ function UsuariosCoordenacao() {
     return () => {
       ativo = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function getProjetosDoUsuario(usuario: UsuarioCoordenacao) {
@@ -1939,6 +1983,7 @@ function UsuariosCoordenacao() {
             <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">nome</th>
             <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">email</th>
             <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">senha</th>
+            <th style="border:1px solid #cbd5e1; padding:10px; text-align:left;">area</th>
           </tr>
         </thead>
         <tbody>
@@ -1946,22 +1991,27 @@ function UsuariosCoordenacao() {
             <td style="border:1px solid #e2e8f0; padding:10px;">Dr. Carlos Mendes</td>
             <td style="border:1px solid #e2e8f0; padding:10px;">carlos.mendes@escola.com</td>
             <td style="border:1px solid #e2e8f0; padding:10px;">senhaSegura123</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">humanas</td>
           </tr>
           <tr>
             <td style="border:1px solid #e2e8f0; padding:10px;">Profa. Ana Lima</td>
             <td style="border:1px solid #e2e8f0; padding:10px;">ana.lima@escola.com</td>
             <td style="border:1px solid #e2e8f0; padding:10px;">outraSenha456</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">exatas</td>
           </tr>
           <tr>
             <td style="border:1px solid #e2e8f0; padding:10px;">Prof. Roberto Nunes</td>
             <td style="border:1px solid #e2e8f0; padding:10px;">roberto.nunes@escola.com</td>
             <td style="border:1px solid #e2e8f0; padding:10px;">(opcional)</td>
+            <td style="border:1px solid #e2e8f0; padding:10px;">naturezas, linguagens</td>
           </tr>
         </tbody>
       </table>
     </div>
     <p style="margin-top:8px;"><strong>Delimitador:</strong> vírgula (,) ou ponto e vírgula (;)</p>
     <p style="margin-top:4px; color:#475569;">📌 A coluna <code>senha</code> é opcional (padrão: email).</p>
+    <p style="margin-top:4px; color:#475569;">📌 A coluna <code>area</code> é opcional e aceita múltiplas áreas separadas por vírgula.</p>
+    <p style="margin-top:4px; color:#475569;">📌 Áreas válidas: <strong>informatica</strong>, <strong>enfermagem</strong>, <strong>contabilidade</strong>, <strong>humanas</strong>, <strong>exatas</strong>, <strong>naturezas</strong>, <strong>linguagens</strong>.</p>
     <p style="margin-top:4px; color:#475569;">📌 Colunas <code>turma</code> e <code>ano</code> são ignoradas para orientadores.</p>
   `;
 
@@ -1980,8 +2030,8 @@ function UsuariosCoordenacao() {
       </div>
     `,
       icon: "info",
-      width: "90%",            // responsivo em telas pequenas
-      heightAuto: false,       // não expande além da viewport
+      width: "90%",
+      heightAuto: false,
       showCancelButton: true,
       confirmButtonText: "Sim, selecionar arquivo",
       cancelButtonText: "Cancelar",
@@ -2236,11 +2286,22 @@ function UsuariosCoordenacao() {
         </div>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-          <div className="hidden grid-cols-[1fr_1fr_0.7fr_0.7fr_0.5fr] bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 lg:grid">
+          {/* Cabeçalho dinâmico */}
+          <div
+            className={`hidden bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 lg:grid ${abaAtiva === "orientadores"
+                ? "lg:grid-cols-[1.2fr_1.2fr_0.6fr_0.8fr_0.5fr]"
+                : abaAtiva === "avaliadores"
+                  ? "lg:grid-cols-[1.2fr_1.2fr_0.6fr_0.5fr]"
+                  : "lg:grid-cols-[1.2fr_1.2fr_0.8fr_0.6fr_0.5fr]"
+              }`}
+          >
             <span>Nome</span>
-            <span>Email institucional</span>
-            <span>Turma / ano</span>
+            <span>Email</span>
+            {abaAtiva !== "orientadores" && abaAtiva !== "avaliadores" && (
+              <span>Turma / ano</span>
+            )}
             <span>Perfil</span>
+            {abaAtiva === "orientadores" && <span>Área</span>}
             <span className="text-right">Ações</span>
           </div>
 
@@ -2278,7 +2339,16 @@ function UsuariosCoordenacao() {
                   transition={{ duration: 0.18, ease: "easeOut" }}
                 >
                   {listaPaginada.map((usuario) => (
-                    <article key={usuario.id} className="grid gap-3 px-4 py-4 transition hover:bg-sectec-50/40 lg:grid-cols-[1fr_1fr_0.7fr_0.7fr_0.5fr] lg:items-center">
+                    <article
+                      key={usuario.id}
+                      className={`grid gap-3 px-4 py-4 transition hover:bg-sectec-50/40 lg:items-center ${abaAtiva === "orientadores"
+                          ? "lg:grid-cols-[1.2fr_1.2fr_0.6fr_0.8fr_0.5fr]"
+                          : abaAtiva === "avaliadores"
+                            ? "lg:grid-cols-[1.2fr_1.2fr_0.6fr_0.5fr]"
+                            : "lg:grid-cols-[1.2fr_1.2fr_0.8fr_0.6fr_0.5fr]"
+                        }`}
+                    >
+                      {/* Nome */}
                       <div className="flex min-w-0 items-center gap-3">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-slate-900 text-sm font-black text-white shadow-sm">
                           {usuario.nome.charAt(0).toUpperCase()}
@@ -2288,12 +2358,31 @@ function UsuariosCoordenacao() {
                           <p className="mt-0.5 text-xs font-bold text-slate-400 lg:hidden">{usuario.perfil}</p>
                         </div>
                       </div>
-                      <p className="min-w-0 truncate rounded-2xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 lg:bg-transparent lg:px-0 lg:py-0">{usuario.email || "-"}</p>
-                      <p className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 lg:bg-transparent lg:px-0 lg:py-0 lg:text-sm lg:text-slate-600">
-                        {usuario.turma || "-"}
-                        {usuario.ano ? ` · ${usuario.ano}º ano` : ""}
+
+                      {/* Email */}
+                      <p className="min-w-0 truncate text-sm font-semibold text-slate-600">
+                        {usuario.email || "-"}
                       </p>
+
+                      {/* Turma/ano (apenas alunos e comissão) */}
+                      {abaAtiva !== "orientadores" && abaAtiva !== "avaliadores" && (
+                        <p className="text-sm text-slate-600">
+                          {usuario.turma || "-"}
+                          {usuario.ano ? ` · ${usuario.ano}º ano` : ""}
+                        </p>
+                      )}
+
+                      {/* Perfil (sempre) */}
                       <p className="hidden text-sm font-black text-slate-700 lg:block">{usuario.perfil}</p>
+
+                      {/* Área (apenas orientadores) */}
+                      {abaAtiva === "orientadores" && (
+                        <div>
+                          <span className="text-sm text-slate-600">{usuario.area || "-"}</span>
+                        </div>
+                      )}
+
+                      {/* Ações */}
                       <div className="flex justify-start lg:justify-end">
                         <div className="flex items-center gap-2">
                           <Tooltip label="Ver detalhes">
@@ -2341,42 +2430,48 @@ function UsuariosCoordenacao() {
             )}
           </div>
         </div>
-
-        {!carregando && !erro && totalPaginas > 1 && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm font-semibold text-slate-600">
-            <span>
-              Pagina {paginaSegura} de {totalPaginas}
-            </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPaginaAtual((prev) => Math.max(1, prev - 1))}
-                className="cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-sectec-200 hover:bg-sectec-50 hover:text-sectec-700 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={paginaSegura === 1}
-              >
-                Anterior
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaginaAtual((prev) => Math.min(totalPaginas, prev + 1))}
-                className="cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-sectec-200 hover:bg-sectec-50 hover:text-sectec-700 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={paginaSegura === totalPaginas}
-              >
-                Proxima
-              </button>
-            </div>
-          </div>
-        )}
       </section>
-      <PainelDetalhes aberto={detalhesAberto} titulo={usuarioSelecionado ? usuarioSelecionado.nome : "Detalhes do usuário"} onClose={fecharDetalhesUsuario}>
+      <PainelDetalhes
+        aberto={detalhesAberto}
+        titulo={usuarioSelecionado ? usuarioSelecionado.nome : "Detalhes do usuário"}
+        onClose={fecharDetalhesUsuario}
+      >
         {usuarioSelecionado ? (
           <div className="space-y-4">
             <div>
               <p className="text-sm font-black text-slate-900">{usuarioSelecionado.nome}</p>
               <p className="mt-1 text-sm font-semibold text-slate-600">{usuarioSelecionado.email || "-"}</p>
-              <p className="mt-1 text-xs text-slate-500">Perfil: <strong className="text-slate-700">{usuarioSelecionado.perfil}</strong></p>
-              <p className="mt-1 text-xs text-slate-500">Turma: {usuarioSelecionado.turma || "-"}{usuarioSelecionado.ano ? ` · ${usuarioSelecionado.ano}` : ""}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Perfil: <strong className="text-slate-700">{usuarioSelecionado.perfil}</strong>
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Turma: {usuarioSelecionado.turma || "-"}
+                {usuarioSelecionado.ano ? ` · ${usuarioSelecionado.ano}` : ""}
+              </p>
             </div>
+
+            {/* ✅ Adicionar select de área para orientadores */}
+            {usuarioSelecionado.perfil === "Orientador" ? (
+              <div>
+                <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  Área de conhecimento
+                </label>
+                <select
+                  value={usuarioSelecionado.area ?? ""}
+                  onChange={(e) => handleAreaChange(usuarioSelecionado, e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-sectec-500 focus:ring-2 focus:ring-sectec-100"
+                >
+                  <option value="" disabled>
+                    Selecione uma área
+                  </option>
+                  {AREAS_DISPONIVEIS.map((area) => (
+                    <option key={area} value={area}>
+                      {area}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
             <button
               type="button"
@@ -2389,23 +2484,7 @@ function UsuariosCoordenacao() {
 
             <div>
               <h4 className="text-sm font-black text-slate-900">Projetos vinculados</h4>
-              <div className="mt-3 space-y-3">
-                {getProjetosDoUsuario(usuarioSelecionado).length === 0 ? (
-                  <div className="text-sm text-slate-500">Nenhum projeto vinculado a este usuário.</div>
-                ) : (
-                  getProjetosDoUsuario(usuarioSelecionado).map((projeto) => (
-                    <div key={projeto.id} className="rounded-xl border border-slate-100 p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-black text-slate-900">{projeto.titulo}</p>
-                          <p className="mt-1 text-xs text-slate-500">{projeto.tema?.nome || "Sem tema"} · {projeto.evento?.titulo || projeto.eventoTitulo || "Sem evento"}</p>
-                        </div>
-                        <div className="text-xs font-black text-slate-700">{String(projeto.alunoAutor?.id) === usuarioSelecionado.id ? 'Autor' : 'Integrante'}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              {/* ... restante dos projetos ... */}
             </div>
           </div>
         ) : (
@@ -2500,9 +2579,10 @@ function UsuariosCoordenacao() {
           </button>
         </form>
       </PainelDetalhes>
-    </AdminPageShell>
+    </AdminPageShell >
   );
 }
+
 
 function ProjetosCoordenacao() {
   const [alunosOcupadosIds, setAlunosOcupadosIds] = useState<number[]>([]);

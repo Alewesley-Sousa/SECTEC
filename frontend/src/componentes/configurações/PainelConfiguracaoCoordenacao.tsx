@@ -5,18 +5,31 @@ import Swal from "sweetalert2";
 import { MainLayout } from "../SideBarUniversal";
 import { API_BASE_URL } from "../../lib/api";
 
+// ✅ Valores do enum UserArea do backend
+const AREAS_DISPONIVEIS = [
+  "informatica",
+  "enfermagem",
+  "contabilidade",
+  "humanas",
+  "exatas",
+  "naturezas",
+  "linguagens",
+] as const;
+
 export default function PainelConfiguracaoCoordenacao() {
   const [minProjetos, setMinProjetos] = useState<number | string>(1);
   const [maxProjetos, setMaxProjetos] = useState<number | string>(3);
+  const [areasPermitidas, setAreasPermitidas] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
+  // Carregar configurações atuais
   useEffect(() => {
     async function carregarConfiguracoes() {
       const token = localStorage.getItem("token");
       try {
         const response = await fetch(`${API_BASE_URL}/avaliador/configuracao/limites`, {
-          method: "POST",
+          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -24,9 +37,9 @@ export default function PainelConfiguracaoCoordenacao() {
 
         if (response.ok) {
           const data = await response.json();
-          // Usa ?? para não sobrescrever com padrão se o valor for 0
-          setMinProjetos(data.min_projetos_por_avaliador ?? 1);
-          setMaxProjetos(data.max_projetos_por_avaliador ?? 3);
+          setMinProjetos(data.minAvaliacoes ?? 1);
+          setMaxProjetos(data.maxProjetosPorAvaliador ?? 3);
+          setAreasPermitidas(data.areasPermitidas ?? []);
         }
       } catch (err) {
         console.error("Erro ao carregar configurações:", err);
@@ -43,7 +56,6 @@ export default function PainelConfiguracaoCoordenacao() {
     const minNum = Number(minProjetos);
     const maxNum = Number(maxProjetos);
 
-    // Validação de intervalo permitido (1 a 20)
     if (minNum < 1 || maxNum > 20) {
       Swal.fire({
         icon: "error",
@@ -77,6 +89,7 @@ export default function PainelConfiguracaoCoordenacao() {
         body: JSON.stringify({
           minAvaliacoes: minNum,
           maxProjetosPorAvaliador: maxNum,
+          areasPermitidas,
         }),
       });
 
@@ -138,6 +151,11 @@ export default function PainelConfiguracaoCoordenacao() {
               <p className="text-xs text-slate-500">
                 Hoje o sistema está configurado para <strong>{minProjetos} a {maxProjetos} projetos por avaliador</strong>.
               </p>
+              {areasPermitidas.length > 0 && (
+                <p className="text-xs text-slate-500">
+                  Áreas permitidas: <strong>{areasPermitidas.join(", ")}</strong>
+                </p>
+              )}
             </div>
           </section>
 
@@ -159,7 +177,7 @@ export default function PainelConfiguracaoCoordenacao() {
                     className="mt-1 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-sectec-500"
                     required
                   />
-                  <p className="mt-1 text-xs text-slate-400">Valor entre 1 e 3</p>
+                  <p className="mt-1 text-xs text-slate-400">Valor entre 1 e 20</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-slate-700">
@@ -174,9 +192,44 @@ export default function PainelConfiguracaoCoordenacao() {
                     className="mt-1 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-sectec-500"
                     required
                   />
-                  <p className="mt-1 text-xs text-slate-400">Valor entre 1 e 3</p>
+                  <p className="mt-1 text-xs text-slate-400">Valor entre 1 e 20</p>
                 </div>
               </div>
+
+              {/* Seleção de áreas permitidas */}
+              <div>
+                <label className="text-sm font-medium text-slate-700">
+                  Áreas permitidas para distribuição
+                </label>
+                <p className="text-xs text-slate-400 mt-1">
+                  Marque as áreas cujos projetos podem ser sorteados. Se nenhuma for marcada, todos os projetos serão considerados.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-4">
+                  {AREAS_DISPONIVEIS.map((area) => (
+                    <label
+                      key={area}
+                      className="flex items-center gap-2 cursor-pointer rounded-xl border border-slate-200 px-4 py-2 hover:bg-slate-50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={areasPermitidas.includes(area)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAreasPermitidas((prev) => [...prev, area]);
+                          } else {
+                            setAreasPermitidas((prev) =>
+                              prev.filter((a) => a !== area)
+                            );
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-sectec-600 focus:ring-sectec-500"
+                      />
+                      <span className="text-sm text-slate-700">{area}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <button
                 disabled={loading}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-sectec-700 py-3 font-bold text-white hover:bg-sectec-800 disabled:opacity-50"

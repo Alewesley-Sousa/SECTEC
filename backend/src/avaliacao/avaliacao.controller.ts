@@ -24,6 +24,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class AvaliacaoController {
   constructor(private readonly avaliacaoService: AvaliacaoService) { }
 
+
+
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Obtém os limites atuais de avaliação' })
+  @Get('configuracao/limites')
+  async obterLimites() {
+    return this.avaliacaoService.getLimitesAtuais();
+  }
+
+
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Submete a avaliação de um projeto com cálculo da média e validação do prazo' })
   @Post()

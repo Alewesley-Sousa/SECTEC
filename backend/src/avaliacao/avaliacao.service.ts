@@ -15,13 +15,29 @@ import { AvaliacaoCriterio } from './entities/avaliacao-criterio.entity';
 import { LimitesAvaliacaoDto } from './dto/limites-avaliacao.dto';
 import { CreateAvaliacaoDto } from './dto/avaliacao.dto';
 import { Evento, EventoStatus } from '../evento/entities/evento.entity';
+
+const AREAS_DISPONIVEIS = [
+  "informatica",
+  "enfermagem",
+  "contabilidade",
+  "humanas",
+  "exatas",
+  "naturezas",
+  "linguagens",
+] as const;
+
 @Injectable()
 export class AvaliacaoService {
   private limitesAtuais = {
     minAvaliacoes: 1,
     maxProjetosPorAvaliador: 5,
     maxAvaliadoresPorProjeto: 3,
+    areasPermitidas: [] as string[], // inicialmente vazio (todas as áreas)
   };
+
+  getLimitesAtuais() {
+    return this.limitesAtuais;
+  }
 
   constructor(
     @InjectRepository(Projeto)
@@ -46,7 +62,7 @@ export class AvaliacaoService {
       throw new BadRequestException(`${campo} deve seguir o passo de 0,5.`);
     }
   }
-  
+
   async validarProjetoDesignado(avaliadorId: number, projetoId: number) {
     // Busca a atribuição, se existir
     const atribuicao = await this.avaliadorProjetoRepository.findOne({
@@ -94,9 +110,11 @@ export class AvaliacaoService {
   }
 
   async listarProjetosDesignados(avaliadorId: number) {
-    // Busca todas as atribuições do avaliador
+    const eventoAtual = await this.buscarEventoAtivoDoAno();
+    if (!eventoAtual) return { projetos: [] };
+
     const atribuicoes = await this.avaliadorProjetoRepository.find({
-      where: { avaliadorId },
+      where: { avaliadorId, projeto: { eventoId: eventoAtual.id } },
       relations: [
         'projeto',
         'projeto.evento',
@@ -148,6 +166,25 @@ export class AvaliacaoService {
 
     return { projetos };
   }
+
+
+  private async buscarEventoAtivoDoAno(): Promise<Evento | null> {
+    const anoAtual = new Date().getFullYear();
+    const inicio = new Date(`${anoAtual}-01-01T00:00:00`);
+    const fim = new Date(`${anoAtual}-12-31T23:59:59`);
+
+    return this.eventoRepository.findOne({
+      where: {
+        prazoInicial: Between(inicio, fim),
+        status: EventoStatus.ATIVO,
+      },
+    });
+  }
+
+
+
+
+
 
 
 
@@ -365,10 +402,45 @@ export class AvaliacaoService {
    * priorizando projetos com menos avaliadores (cobertura balanceada).
    */
   async gerarDistribuicao(avaliadorId: number) {
-    // 1. Busca projetos aprovados
-    const projetosAprovados = await this.projetoRepository.find({
-      where: { status: 'APROVADO' },
+    // 0. Busca o evento ativo do ano atual
+    const eventoAtual = await this.buscarEventoAtivoDoAno();
+    if (!eventoAtual) {
+      return {
+        mensagem: 'Nenhum evento ativo encontrado para o ano atual.',
+        projetos: [],
+      };
+    }
+
+    // 1. Busca projetos aprovados do evento atual
+    let projetosAprovados = await this.projetoRepository.find({
+      where: { status: 'APROVADO', eventoId: eventoAtual.id },
+      relations: [
+        'orientadores',
+        'orientadores.orientador',
+        'orientadores.orientador.areas', // ✅ relação com a tabela orientador_areas
+      ],
     });
+
+    // ✅ Filtra por áreas permitidas, se configurado
+    const areasPermitidas = this.limitesAtuais.areasPermitidas ?? [];
+    if (areasPermitidas.length > 0) {
+      projetosAprovados = projetosAprovados.filter((projeto) => {
+        const orientadorAceito = projeto.orientadores?.find(
+          (po) => po.status === 'aceito',
+        );
+        if (!orientadorAceito || !orientadorAceito.orientador) return false;
+
+        // Verifica primeiro o campo direto `area`
+        const areaDireta = orientadorAceito.orientador.area;
+        if (areaDireta && areasPermitidas.includes(areaDireta)) {
+          return true;
+        }
+
+        // Verifica se alguma das áreas da relação `areas` está permitida
+        const areasDoOrientador = orientadorAceito.orientador.areas ?? [];
+        return areasDoOrientador.some((a) => areasPermitidas.includes(a.area));
+      });
+    }
 
     // 2. Busca todas as atribuições existentes
     const todasAtribuicoes = await this.avaliadorProjetoRepository.find();
@@ -484,10 +556,111 @@ export class AvaliacaoService {
    */
   async salvarLimites(dto: LimitesAvaliacaoDto) {
     this.limitesAtuais = { ...this.limitesAtuais, ...dto };
-
     return {
       mensagem: 'Limites atualizados com sucesso!',
       configuracao: this.limitesAtuais,
     };
   }
+
+  private async getAreaDoOrientadorAceito(projetoId: number): Promise<string | null> {
+    const projeto = await this.projetoRepository.findOne({
+      where: { id: projetoId },
+      relations: ['orientadores', 'orientadores.orientador', 'orientadores.orientador.areas'],
+    });
+
+    if (!projeto) return null;
+
+    const orientadorAceito = projeto.orientadores?.find(
+      (po) => po.status === 'aceito',
+    );
+
+    if (!orientadorAceito || !orientadorAceito.orientador) return null;
+
+    // Pega a primeira área (ou você pode ter regra para múltiplas)
+    const area = orientadorAceito.orientador.areas?.[0]?.area ?? null;
+    return area;
+  }
+  // Dentro da classe AvaliacaoService
+
+  /**
+   * Conta quantos projetos o avaliador já possui.
+   */
+  async contarProjetosDoAvaliador(avaliadorId: number): Promise<number> {
+    const eventoAtual = await this.buscarEventoAtivoDoAno();
+    if (!eventoAtual) return 0;
+
+    return this.avaliadorProjetoRepository.count({
+      where: { avaliadorId, projeto: { eventoId: eventoAtual.id } },
+    });
+  }
+
+  /**
+   * Lista projetos disponíveis para designação a um avaliador.
+   * Retorna projetos aprovados que ainda não foram designados a ele.
+   */
+  async listarProjetosDisponiveis(avaliadorId: number): Promise<Projeto[]> {
+    const eventoAtual = await this.buscarEventoAtivoDoAno();
+    if (!eventoAtual) return [];
+
+    const areasPermitidas = this.limitesAtuais.areasPermitidas;
+
+    const subQuery = this.avaliadorProjetoRepository
+      .createQueryBuilder('ap')
+      .select('ap.projetoId')
+      .where('ap.avaliadorId = :avaliadorId', { avaliadorId });
+
+    const query = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
+      .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
+      .leftJoinAndSelect('orientador.areas', 'area')
+      .where('projeto.status = :status', { status: 'APROVADO' })
+      .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id }) // ✅ evento atual
+      .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
+      .setParameters(subQuery.getParameters());
+
+    // Aplica filtro de áreas se necessário
+    if (areasPermitidas.length > 0) {
+      query.andWhere('(area.area IN (:...areasPermitidas) OR orientador.area IN (:...areasPermitidas))', {
+        areasPermitidas,
+      });
+    }
+
+    return query.getMany();
+  }
+
+  /**
+   * Designa uma lista de projetos a um avaliador.
+   */
+  async designarProjetos(avaliadorId: number, projetosIds: number[]): Promise<void> {
+    const novasAtribuicoes = projetosIds.map((projetoId) =>
+      this.avaliadorProjetoRepository.create({
+        avaliadorId,
+        projetoId,
+        status: 'pendente',
+      }),
+    );
+
+    await this.avaliadorProjetoRepository.save(novasAtribuicoes);
+  }
+
+  /**
+   * Remove projetos designados de um avaliador.
+   */
+  async removerProjetos(
+    avaliadorId: number,
+    projetosIds: number[],
+    removerTodos: boolean,
+  ): Promise<void> {
+    if (removerTodos) {
+      await this.avaliadorProjetoRepository.delete({ avaliadorId });
+    } else {
+      await this.avaliadorProjetoRepository.delete({
+        avaliadorId,
+        projetoId: In(projetosIds),
+      });
+    }
+  }
+
+
 }

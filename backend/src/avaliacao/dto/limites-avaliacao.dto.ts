@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsNotEmpty, Min } from 'class-validator';
+import { IsNumber, IsNotEmpty, Min, IsOptional, IsString, IsArray } from 'class-validator';
 
 export class LimitesAvaliacaoDto {
   @ApiProperty({
@@ -19,4 +19,9 @@ export class LimitesAvaliacaoDto {
   @IsNotEmpty()
   @Min(1)
   maxProjetosPorAvaliador: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  areasPermitidas?: string[];
 }

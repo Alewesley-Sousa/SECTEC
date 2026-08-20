@@ -50,6 +50,7 @@ export type UsuarioApi = {
   email_institucional?: string;
   turma?: string | null;
   ano?: number | string | null;
+   areas?: { area: string };  
   temasSelecionados?: Array<{ id: string | number; nome?: string }>;
 };
 

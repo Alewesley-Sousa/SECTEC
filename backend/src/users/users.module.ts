@@ -29,7 +29,7 @@ import { ComissaoEvento } from '../evento/entities/comissao-evento.entity';
     UsersImportService,
   ],
   exports: [
-    UsersService, 
+    UsersService,
   ],
 })
 export class UsersModule {}

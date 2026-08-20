@@ -9,6 +9,8 @@ import { Projeto } from '../projetos/entities/projeto.entity';
 import { AvaliadorProjeto } from './entities/avaliador-projeto.entity';
 import { Avaliacao } from './entities/avaliacao.entity';
 import { AvaliacaoCriterio } from './entities/avaliacao-criterio.entity';
+import { UsersModule } from 'src/users/users.module';
+import { AvaliadoresController } from './avaliadores.controller';
 
 @Module({
   imports: [
@@ -20,8 +22,9 @@ import { AvaliacaoCriterio } from './entities/avaliacao-criterio.entity';
       Avaliacao,
       AvaliacaoCriterio,
     ]),
+    UsersModule
   ],
-  controllers: [AvaliacaoController],
+  controllers: [AvaliacaoController, AvaliadoresController],
   providers: [AvaliacaoService],
 })
 export class AvaliacaoModule {}

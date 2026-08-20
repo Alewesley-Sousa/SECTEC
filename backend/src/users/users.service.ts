@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { UserArea } from './entities/user.entity'; // ✅ importar
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { parse } from 'csv-parse/sync';
@@ -60,12 +61,12 @@ export class UsersService {
   async findAllOrientadores() {
     return this.usersRepository.find({
       where: { role_cargo: UserRole.ORIENTADOR, ativo: true },
-      select: ['id', 'nome', 'email_institucional'],
-      relations: ['temasSelecionados'],
+      select: ['id', 'nome', 'email_institucional', 'area'],
+      relations: ['areas'], // ✅ carrega a relação de áreas
     });
   }
 
-    async findAllAvaliadores() {
+  async findAllAvaliadores() {
     return this.usersRepository.find({
       where: { role_cargo: UserRole.AVALIADOR, ativo: true },
       select: ['id', 'nome', 'email_institucional'],
@@ -76,7 +77,20 @@ export class UsersService {
   // ==================== MÉTODOS PRIVADOS AUXILIARES ====================
 
 
-  
+  async atualizarAreaOrientador(id: number, area: UserArea): Promise<User> {
+    const user = await this.usersRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`Usuário com ID ${id} não encontrado.`);
+    }
+
+    if (user.role_cargo !== UserRole.ORIENTADOR) {
+      throw new BadRequestException('Apenas orientadores podem ter área de conhecimento.');
+    }
+
+    user.area = area;
+    return this.usersRepository.save(user);
+  }
   /**
    * Centraliza a definição de senha, turma e ano conforme o perfil do usuário.
    */
