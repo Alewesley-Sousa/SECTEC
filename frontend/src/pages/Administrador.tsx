@@ -1455,7 +1455,6 @@ function UsuariosCoordenacao() {
   const [comissao, setComissao] = useState<UsuarioCoordenacao[]>([]);
   const [avaliadores, setAvaliadores] = useState<UsuarioCoordenacao[]>([]);
   const [menuImportacaoAberto, setMenuImportacaoAberto] = useState(false);
-  const [projetosCoordenacao, setProjetosCoordenacao] = useState<ProjetoCoordenacaoListagem[]>([]);
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<UsuarioCoordenacao | null>(null);
   const [detalhesAberto, setDetalhesAberto] = useState(false);
   const [carregando, setCarregando] = useState(false);
@@ -1515,23 +1514,6 @@ function UsuariosCoordenacao() {
       setErroTecnico(erro.tecnico);
     } finally {
       setCarregando(false);
-    }
-  }
-
-  async function carregarProjetos() {
-    try {
-      const dados = await apiRequest<unknown>("/projetos");
-      const flatten = extrairProjetosDaResposta(dados).map((projeto) => ({
-        ...projeto,
-        evento:
-          projeto.evento ??
-          (projeto.eventoId && projeto.eventoTitulo
-            ? { id: projeto.eventoId, titulo: projeto.eventoTitulo }
-            : undefined),
-      }));
-      setProjetosCoordenacao(flatten);
-    } catch {
-      setProjetosCoordenacao([]);
     }
   }
 
@@ -1842,7 +1824,7 @@ function UsuariosCoordenacao() {
 
     async function carregar() {
       if (!ativo) return;
-      await Promise.all([carregarUsuarios(), carregarProjetos()]);
+      await Promise.all([carregarUsuarios()]);
     }
 
     carregar();
