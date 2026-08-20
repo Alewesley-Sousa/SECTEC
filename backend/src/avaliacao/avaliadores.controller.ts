@@ -70,7 +70,11 @@ export class AvaliadoresController {
   @ApiOperation({ summary: 'Lista projetos disponíveis para designar ao avaliador' })
   async projetosDisponiveis(@Param('id', ParseIntPipe) id: number) {
     const projetos = await this.avaliacaoService.listarProjetosDisponiveis(id);
-    return projetos.map((p) => ({ id: p.id, titulo: p.titulo }));
+    return projetos.map((p: any) => ({
+      id: p.id,
+      titulo: p.titulo,
+      qtd_avaliadores: p.qtdAvaliadores ?? 0,
+    }));
   }
 
   @Post(':id/projetos')

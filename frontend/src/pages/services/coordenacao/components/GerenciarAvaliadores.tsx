@@ -17,6 +17,7 @@ interface Avaliador {
 interface Projeto {
   id: number;
   titulo: string;
+  qtd_avaliadores?: number; // ✅ nova propriedade
 }
 
 export default function GerenciarAvaliadores() {
@@ -25,7 +26,6 @@ export default function GerenciarAvaliadores() {
   const [fetching, setFetching] = useState(true);
   const [loadingAction, setLoadingAction] = useState(false);
 
-  // ✅ Estados de paginação
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
 
@@ -41,7 +41,6 @@ export default function GerenciarAvaliadores() {
   const [buscaAtuais, setBuscaAtuais] = useState("");
   const [buscaDisponiveis, setBuscaDisponiveis] = useState("");
 
-  // ✅ Estados do relatório de projetos sem avaliadores
   const [modalSemAvaliadoresAberto, setModalSemAvaliadoresAberto] = useState(false);
   const [projetosSemAvaliadores, setProjetosSemAvaliadores] = useState<Projeto[]>([]);
   const [carregandoSemAvaliadores, setCarregandoSemAvaliadores] = useState(false);
@@ -204,13 +203,11 @@ export default function GerenciarAvaliadores() {
     }
   };
 
-  // ✅ Paginação
   const totalAvaliadores = avaliadores.length;
   const totalPaginas = Math.max(1, Math.ceil(totalAvaliadores / limit));
   const inicio = (page - 1) * limit;
   const avaliadoresPaginados = avaliadores.slice(inicio, inicio + limit);
 
-  // ✅ Filtros do modal
   const projetosAtuaisFiltrados = projetosAtuais.filter((p) =>
     p.titulo.toLowerCase().includes(buscaAtuais.toLowerCase())
   );
@@ -330,7 +327,6 @@ export default function GerenciarAvaliadores() {
                   </table>
                 </div>
 
-                {/* Paginação universal */}
                 {!fetching && totalAvaliadores > limit && (
                   <Pagination
                     page={page}
@@ -394,6 +390,9 @@ export default function GerenciarAvaliadores() {
                             onChange={() => toggleCheck(p.id, projetosParaRemover, setProjetosParaRemover)}
                           />
                           <span className="text-sm font-medium text-slate-700">{p.titulo}</span>
+                          <span className="ml-auto text-xs text-slate-400">
+                            {p.qtd_avaliadores ?? 0} avaliador(es)
+                          </span>
                         </label>
                       ))
                     )}
@@ -448,6 +447,9 @@ export default function GerenciarAvaliadores() {
                             onChange={() => toggleCheck(p.id, projetosParaAdicionar, setProjetosParaAdicionar)}
                           />
                           <span className="text-sm font-medium text-slate-700">{p.titulo}</span>
+                          <span className="ml-auto text-xs text-slate-400">
+                            {p.qtd_avaliadores ?? 0} avaliador(es)
+                          </span>
                         </label>
                       ))
                     )}

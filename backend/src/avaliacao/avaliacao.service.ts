@@ -539,39 +539,39 @@ export class AvaliacaoService {
     return resultado;
   }
 
-/**
- * Lista projetos do evento atual que não possuem nenhum avaliador designado.
- */
-async listarProjetosSemAvaliadores(): Promise<Projeto[]> {
-  const eventoAtual = await this.buscarEventoAtivoDoAno();
-  if (!eventoAtual) return [];
+  /**
+   * Lista projetos do evento atual que não possuem nenhum avaliador designado.
+   */
+  async listarProjetosSemAvaliadores(): Promise<Projeto[]> {
+    const eventoAtual = await this.buscarEventoAtivoDoAno();
+    if (!eventoAtual) return [];
 
-  // Projetos que já possuem ao menos um avaliador designado
-  const subQuery = this.avaliadorProjetoRepository
-    .createQueryBuilder('ap')
-    .select('ap.projetoId')
-    .where('ap.projetoId IS NOT NULL');
+    // Projetos que já possuem ao menos um avaliador designado
+    const subQuery = this.avaliadorProjetoRepository
+      .createQueryBuilder('ap')
+      .select('ap.projetoId')
+      .where('ap.projetoId IS NOT NULL');
 
-  const query = this.projetoRepository
-    .createQueryBuilder('projeto')
-    .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
-    .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-    .leftJoinAndSelect('orientador.areas', 'area')
-    .where('projeto.status = :status', { status: 'APROVADO' })
-    .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
-    .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
-    .setParameters(subQuery.getParameters());
+    const query = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
+      .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
+      .leftJoinAndSelect('orientador.areas', 'area')
+      .where('projeto.status = :status', { status: 'APROVADO' })
+      .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
+      .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
+      .setParameters(subQuery.getParameters());
 
-  // Aplica filtro de áreas permitidas, se configurado
-  if (this.limitesAtuais.areasPermitidas.length > 0) {
-    query.andWhere(
-      '(orientador.area IN (:...areasPermitidas) OR area.area IN (:...areasPermitidas))',
-      { areasPermitidas: this.limitesAtuais.areasPermitidas },
-    );
+    // Aplica filtro de áreas permitidas, se configurado
+    if (this.limitesAtuais.areasPermitidas.length > 0) {
+      query.andWhere(
+        '(orientador.area IN (:...areasPermitidas) OR area.area IN (:...areasPermitidas))',
+        { areasPermitidas: this.limitesAtuais.areasPermitidas },
+      );
+    }
+
+    return query.getMany();
   }
-
-  return query.getMany();
-}
 
 
   /**
@@ -633,7 +633,7 @@ async listarProjetosSemAvaliadores(): Promise<Projeto[]> {
    * Lista projetos disponíveis para designação a um avaliador.
    * Retorna projetos aprovados que ainda não foram designados a ele.
    */
-  async listarProjetosDisponiveis(avaliadorId: number): Promise<Projeto[]> {
+  async listarProjetosDisponiveis(avaliadorId: number): Promise<(Projeto & { qtdAvaliadores: number })[]> {
     const eventoAtual = await this.buscarEventoAtivoDoAno();
     if (!eventoAtual) return [];
 
@@ -650,18 +650,38 @@ async listarProjetosSemAvaliadores(): Promise<Projeto[]> {
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
       .leftJoinAndSelect('orientador.areas', 'area')
       .where('projeto.status = :status', { status: 'APROVADO' })
-      .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id }) // ✅ evento atual
+      .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
       .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
       .setParameters(subQuery.getParameters());
 
-    // Aplica filtro de áreas se necessário
     if (areasPermitidas.length > 0) {
       query.andWhere('(area.area IN (:...areasPermitidas) OR orientador.area IN (:...areasPermitidas))', {
         areasPermitidas,
       });
     }
 
-    return query.getMany();
+    const projetos = await query.getMany();
+
+    if (projetos.length === 0) return [];
+
+    const projetosIds = projetos.map((p) => p.id);
+
+    const contagem = await this.avaliadorProjetoRepository
+      .createQueryBuilder('ap')
+      .select('ap.projetoId', 'projetoId')
+      .addSelect('COUNT(ap.avaliadorId)', 'qtd')
+      .where('ap.projetoId IN (:...projetosIds)', { projetosIds })
+      .groupBy('ap.projetoId')
+      .getRawMany();
+
+    const mapaContagem = new Map<number, number>(
+      contagem.map((c) => [Number(c.projetoId), Number(c.qtd)])
+    );
+
+    return projetos.map((p) => ({
+      ...p,
+      qtdAvaliadores: mapaContagem.get(p.id) ?? 0,
+    }));
   }
 
   /**
