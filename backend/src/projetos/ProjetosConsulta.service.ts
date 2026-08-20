@@ -210,6 +210,7 @@ export class ProjetosConsultaService {
     evento?: string;
     eixo_tematico?: string;
     orientador?: string;
+    areasPermitidas?: string[]; // ✅ novas áreas
   }): Promise<{ projetos: any[]; total: number; page: number; limit: number }> {
     const page = Number(filtros.page) > 0 ? Number(filtros.page) : 1;
     const limit = Number(filtros.limit) > 0 ? Number(filtros.limit) : 20;
@@ -225,16 +226,10 @@ export class ProjetosConsultaService {
         "projetoOrientador.status = 'aceito'",
       )
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-      .where((qbSub) => {
-        const sub = qbSub
-          .subQuery()
-          .select('1')
-          .from('projeto_materiais', 'material')
-          .where('material.projeto_id = projeto.id')
-          .andWhere("material.status = 'aprovado'")
-          .getQuery();
-        return `EXISTS (${sub})`;
-      });
+      .leftJoinAndSelect('orientador.areas', 'areasOrientador'); // ✅ relação de áreas do orientador
+
+    // ❌ Removido o filtro de material aprovado (EXISTS)
+    // Agora TODOS os projetos são considerados
 
     if (filtros.search?.trim()) {
       const termo = filtros.search.trim();
@@ -262,6 +257,14 @@ export class ProjetosConsultaService {
       if (nomes.length > 0) {
         qb.andWhere('orientador.nome IN (:...nomes)', { nomes });
       }
+    }
+
+    // ✅ Filtro por áreas permitidas
+    if (filtros.areasPermitidas && filtros.areasPermitidas.length > 0) {
+      qb.andWhere(
+        '(orientador.area IN (:...areasPermitidas) OR areasOrientador.area IN (:...areasPermitidas))',
+        { areasPermitidas: filtros.areasPermitidas },
+      );
     }
 
     qb.orderBy('projeto.id', 'DESC')

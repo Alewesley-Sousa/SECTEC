@@ -1431,7 +1431,7 @@ type UsuarioCoordenacao = {
   perfil: "Aluno" | "Orientador" | "Comissão" | "Avaliador";
   turma?: string;
   ano?: number;
-    area?: string; // ✅ nova propriedade
+  area?: string; // ✅ nova propriedade
 };
 
 type CadastroUsuarioForm = {
@@ -2399,6 +2399,18 @@ function UsuariosCoordenacao() {
             )}
           </div>
         </div>
+
+        {/* Paginação universal */}
+        {!carregando && !erro && totalPaginas > 1 && (
+          <Pagination
+            page={paginaSegura}
+            totalPages={totalPaginas}
+            onPageChange={setPaginaAtual}
+            total={listaFiltrada.length}
+            limit={itensPorPagina}
+            showInfo
+          />
+        )}
       </section>
       <PainelDetalhes
         aberto={detalhesAberto}

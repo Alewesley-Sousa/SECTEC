@@ -12,6 +12,7 @@ import { EnviarSolicitacaoDto } from './dto/enviar-solicitacao.dto';
 import { AddIntegrantesProjetoDto } from './dto/add-integrantes-projeto.dto';
 import { GerenciarOrientadorProjetoDto } from './dto/gerenciar-orientador-projeto.dto';
 import { TransferirAutoriaDto } from './dto/transferir-autoria.dto';
+import { AvaliacaoService } from '../avaliacao/avaliacao.service';
 
 // Auth & Guards
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -33,6 +34,7 @@ export class ProjetosController {
     private readonly orientadorService: ProjetosOrientadorService,
     private readonly consultaService: ProjetosConsultaService,
     private readonly pdfService: ProjetosPdfService,
+    private readonly avaliacaoService: AvaliacaoService,
   ) { }
 
   @Get('com-materiais-aprovados')
@@ -55,13 +57,16 @@ export class ProjetosController {
     @Query('eixo_tematico') eixo_tematico?: string,
     @Query('orientador') orientador?: string,
   ) {
+    const areasPermitidas = this.avaliacaoService.getLimitesAtuais().areasPermitidas ?? [];
     return this.consultaService.findComMateriaisAprovados({
+      
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
       evento,
       eixo_tematico,
       orientador,
+      areasPermitidas,
     });
   }
 
