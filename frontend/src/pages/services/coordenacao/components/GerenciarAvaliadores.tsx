@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Users, Search, Settings2, X, CheckCircle2, Loader2, Trash2, PlusCircle, FileWarning } from "lucide-react";
 import Swal from "sweetalert2";
 import { MainLayout } from "../../../../componentes/SideBarUniversal";
 import { Pagination } from "../../../../componentes/PaginationUniversal";
 import { API_BASE_URL } from "../../../../lib/api";
-
+import { Users, Search, Settings2, X, CheckCircle2, Loader2, Trash2, PlusCircle, FileWarning, List } from "lucide-react";
 interface Avaliador {
   id: number;
   nome: string;
@@ -17,10 +16,15 @@ interface Avaliador {
 interface Projeto {
   id: number;
   titulo: string;
-  qtd_avaliadores?: number; // ✅ nova propriedade
+  qtd_avaliadores?: number;
+  status?: string;
 }
 
 export default function GerenciarAvaliadores() {
+  const [modalProjetosAberto, setModalProjetosAberto] = useState(false);
+  const [projetosDoAvaliador, setProjetosDoAvaliador] = useState<Projeto[]>([]);
+  const [avaliadorParaProjetos, setAvaliadorParaProjetos] = useState<Avaliador | null>(null);
+  const [carregandoProjetos, setCarregandoProjetos] = useState(false);
   const [avaliadores, setAvaliadores] = useState<Avaliador[]>([]);
   const [busca, setBusca] = useState("");
   const [fetching, setFetching] = useState(true);
@@ -44,7 +48,27 @@ export default function GerenciarAvaliadores() {
   const [modalSemAvaliadoresAberto, setModalSemAvaliadoresAberto] = useState(false);
   const [projetosSemAvaliadores, setProjetosSemAvaliadores] = useState<Projeto[]>([]);
   const [carregandoSemAvaliadores, setCarregandoSemAvaliadores] = useState(false);
+  const carregarProjetosDoAvaliador = async (avaliador: Avaliador) => {
+    setAvaliadorParaProjetos(avaliador);
+    setModalProjetosAberto(true);
+    setCarregandoProjetos(true);
 
+    const token = localStorage.getItem("token");
+    try {
+      const response = await fetch(`${API_BASE_URL}/avaliadores/${avaliador.id}/projetos`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProjetosDoAvaliador(data);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar projetos do avaliador:", err);
+    } finally {
+      setCarregandoProjetos(false);
+    }
+  };
   const carregarAvaliadores = async () => {
     setFetching(true);
     const token = localStorage.getItem("token");
@@ -312,13 +336,23 @@ export default function GerenciarAvaliadores() {
                               )}
                             </td>
                             <td className="px-6 py-4 text-center">
-                              <button
-                                onClick={() => abrirModal(av)}
-                                className="inline-flex items-center gap-2 rounded-lg bg-sectec-50 px-3 py-2 text-sm font-semibold text-sectec-700 hover:bg-sectec-100 transition-colors"
-                              >
-                                <Settings2 size={16} />
-                                Gerenciar
-                              </button>
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => carregarProjetosDoAvaliador(av)}
+                                  className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors"
+                                >
+                                  <List size={16} />
+                                  Ver projetos
+                                </button>
+
+                                <button
+                                  onClick={() => abrirModal(av)}
+                                  className="inline-flex items-center gap-2 rounded-lg bg-sectec-50 px-3 py-2 text-sm font-semibold text-sectec-700 hover:bg-sectec-100 transition-colors"
+                                >
+                                  <Settings2 size={16} />
+                                  Gerenciar
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -510,6 +544,63 @@ export default function GerenciarAvaliadores() {
                       <p className="font-semibold text-slate-800">
                         #{projeto.id} — {projeto.titulo}
                       </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalProjetosAberto && avaliadorParaProjetos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between bg-[#0b4d2c] px-6 py-5 text-white">
+              <div>
+                <h3 className="text-lg font-bold">Projetos de {avaliadorParaProjetos.nome}</h3>
+                <p className="text-xs text-white/70 mt-1">
+                  {avaliadorParaProjetos.qtd_projetos} projeto(s) designado(s)
+                </p>
+              </div>
+              <button
+                onClick={() => setModalProjetosAberto(false)}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 bg-slate-50">
+              {carregandoProjetos ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-sectec-700" />
+                </div>
+              ) : projetosDoAvaliador.length === 0 ? (
+                <p className="text-center text-sm text-slate-500 py-10">
+                  Nenhum projeto designado.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {projetosDoAvaliador.map((projeto) => (
+                    <div
+                      key={projeto.id}
+                      className={`rounded-xl border p-3 shadow-sm flex items-center justify-between ${projeto.status === 'Avaliado'
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-yellow-50 border-yellow-200'
+                        }`}
+                    >
+                      <p className="font-semibold text-slate-800">
+                        #{projeto.id} — {projeto.titulo}
+                      </p>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-bold ${projeto.status === 'Avaliado'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                          }`}
+                      >
+                        {projeto.status}
+                      </span>
                     </div>
                   ))}
                 </div>

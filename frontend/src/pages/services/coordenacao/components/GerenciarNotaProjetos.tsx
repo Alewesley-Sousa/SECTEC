@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays, Eye, X } from 'lucide-react';
+import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays, Eye, X, Users } from 'lucide-react';
 import { MainLayout } from '../../../../componentes/SideBarUniversal';
 import { Pagination } from '../../../../componentes/PaginationUniversal';
 import { apiRequest, API_BASE_URL, ApiError } from '../../../../lib/api';
@@ -12,7 +12,12 @@ type MediaProjeto = {
   mediaFinal: number;
   quantidadeAvaliacoes: number;
 };
-
+type AvaliadorStatus = {
+  avaliadorId: number;
+  nome: string;
+  email: string;
+  status: 'Avaliado' | 'Pendente';
+};
 type Evento = {
   id: number;
   titulo: string;
@@ -34,6 +39,10 @@ type DetalheAvaliacao = {
 };
 
 export default function GerenciarNotaProjetos() {
+  const [modalAvaliadoresAberto, setModalAvaliadoresAberto] = useState(false);
+  const [avaliadoresStatus, setAvaliadoresStatus] = useState<AvaliadorStatus[]>([]);
+  const [projetoParaAvaliadores, setProjetoParaAvaliadores] = useState<MediaProjeto | null>(null);
+  const [carregandoAvaliadores, setCarregandoAvaliadores] = useState(false);
   const userRole = (localStorage.getItem('role') as UserRole) || 'coordenador';
   const [projetos, setProjetos] = useState<MediaProjeto[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -49,7 +58,24 @@ export default function GerenciarNotaProjetos() {
   const [projetoDetalhes, setProjetoDetalhes] = useState<MediaProjeto | null>(null);
   const [avaliacoesDetalhes, setAvaliacoesDetalhes] = useState<DetalheAvaliacao[]>([]);
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
+  const abrirAvaliadores = async (projeto: MediaProjeto) => {
+    setProjetoParaAvaliadores(projeto);
+    setModalAvaliadoresAberto(true);
+    setCarregandoAvaliadores(true);
+    setAvaliadoresStatus([]);
 
+    try {
+      const data = await apiRequest<{ avaliadores: AvaliadorStatus[] }>(
+        `/avaliacao/projetos/${projeto.id}/avaliadores-status`
+      );
+      setAvaliadoresStatus(data.avaliadores ?? []);
+    } catch (err) {
+      setAvaliadoresStatus([]);
+      console.error('Erro ao carregar avaliadores do projeto:', err);
+    } finally {
+      setCarregandoAvaliadores(false);
+    }
+  };
   const fetchMedias = async () => {
     setCarregando(true);
     setErro(null);
@@ -309,14 +335,24 @@ export default function GerenciarNotaProjetos() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => abrirDetalhes(projeto)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                        >
-                          <Eye size={14} />
-                          Ver detalhes
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => abrirAvaliadores(projeto)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <Users size={14} />
+                            Avaliadores
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => abrirDetalhes(projeto)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <Eye size={14} />
+                            Ver detalhes
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -402,6 +438,65 @@ export default function GerenciarNotaProjetos() {
           </div>
         </div>
       )}
+
+      {modalAvaliadoresAberto && projetoParaAvaliadores && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between bg-[#0b4d2c] px-6 py-5 text-white">
+              <div>
+                <h3 className="text-lg font-bold">Avaliadores do projeto</h3>
+                <p className="text-xs text-white/70 mt-1">
+                  {projetoParaAvaliadores.titulo}
+                </p>
+              </div>
+              <button
+                onClick={() => setModalAvaliadoresAberto(false)}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 bg-slate-50">
+              {carregandoAvaliadores ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-sectec-700" />
+                </div>
+              ) : avaliadoresStatus.length === 0 ? (
+                <p className="text-center text-sm text-slate-500 py-10">
+                  Nenhum avaliador designado para este projeto.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {avaliadoresStatus.map((avaliador) => (
+                    <div
+                      key={avaliador.avaliadorId}
+                      className={`rounded-xl border p-3 shadow-sm flex items-center justify-between ${avaliador.status === 'Avaliado'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-yellow-50 border-yellow-200'
+                        }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-800">{avaliador.nome}</p>
+                        <p className="text-xs text-slate-500">{avaliador.email}</p>
+                      </div>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-bold ${avaliador.status === 'Avaliado'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                          }`}
+                      >
+                        {avaliador.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </MainLayout>
   );
 }

@@ -139,11 +139,10 @@ function TabsTrigger({
     <button
       type="button"
       onClick={() => setActiveTab(value)}
-      className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition ${
-        isActive
+      className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition ${isActive
           ? 'bg-[#15803d]/10 text-[#0b4d2c]'
           : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-      } ${className}`}
+        } ${className}`}
     >
       {children}
     </button>
@@ -186,7 +185,7 @@ function QrCodeScannerModal({
             .catch(console.error);
           onSuccessRef.current(decodedText);
         },
-        () => {},
+        () => { },
       )
       .catch((err) => {
         setError('Não foi possível acessar a câmera. Verifique as permissões.');
@@ -482,8 +481,15 @@ export function DashboardPage() {
                 {visibleProjects.map((project) => (
                   <Card
                     key={project.id}
-                    className="border-0 shadow-sm bg-white cursor-pointer transition hover:shadow-md hover:border-sectec-200"
-                    onClick={() => navigate(`/dashboard/avaliador/avaliacao/${project.id}`)}
+                    className={`border-0 shadow-sm bg-white ${project.status === 'Pendente'
+                        ? 'cursor-pointer transition hover:shadow-md hover:border-sectec-200'
+                        : ''
+                      }`}
+                    onClick={
+                      project.status === 'Pendente'
+                        ? () => navigate(`/dashboard/avaliador/avaliacao/${project.id}`)
+                        : undefined
+                    }
                   >
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start mb-2">

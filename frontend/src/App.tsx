@@ -60,7 +60,7 @@ function App() {
         clearSession();
         // ✅ Garante que o estado seja atualizado antes de redirecionar
         window.dispatchEvent(new Event('auth-change'));
-        window.location.href = '/login';
+        setAuth({ token: null, role: null });
       }
     };
 

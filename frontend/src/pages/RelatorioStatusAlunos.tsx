@@ -12,10 +12,18 @@ import {
   RefreshCw,
   Search,
   UsersRound,
+  Trophy,
+  Star
 } from "lucide-react";
 import { MainLayout } from "../componentes/SideBarUniversal";
 import { apiRequest } from "../lib/api";
-
+type RankingOrientadorResponse = {
+  orientadorId: number;
+  orientadorNome: string;
+  email: string;
+  mediaGeral: number;
+  totalProjetos: number;
+}[];
 type AlunoRelatorio = {
   id: number;
   nome: string;
@@ -72,7 +80,8 @@ type ReportKey =
   | "comissao-por-evento"
   | "eixos-tematicos"
   | "projetos-por-orientador"
-  | "projetos-por-turma";
+  | "projetos-por-turma"
+  | "ranking-orientadores";
 
 type ReportState<T> = {
   data: T | null;
@@ -94,6 +103,7 @@ const realReports = {
   "eixos-tematicos": "/relatorio/eixos-tematicos",
   "projetos-por-orientador": "/relatorio/projetos-por-orientador",
   "projetos-por-turma": "/relatorio/projetos-por-turma",
+  "ranking-orientadores": "/avaliacao/projetos/ranking-orientadores",
 } as const;
 
 const tabs: { id: ReportKey; label: string; icon: ReactNode }[] = [
@@ -103,6 +113,7 @@ const tabs: { id: ReportKey; label: string; icon: ReactNode }[] = [
   { id: "eixos-tematicos", label: "Eixos temáticos", icon: <BookOpenCheck size={17} /> },
   { id: "projetos-por-orientador", label: "Projetos por orientador", icon: <UsersRound size={17} /> },
   { id: "projetos-por-turma", label: "Projetos por turma", icon: <Building2 size={17} /> },
+  { id: "ranking-orientadores", label: "Ranking de orientadores", icon: <Trophy size={17} /> },
 ];
 
 const emptyState = <T,>(): ReportState<T> => ({
@@ -278,13 +289,12 @@ function abrirPdfImpressao(dados: ExportData) {
     document.body.removeChild(iframe);
     return;
   }
-
   documento.open();
   const dataGeracao = new Date().toLocaleString("pt-BR");
   const linhasTabela = dados.rows.length
     ? dados.rows
-        .map((row) => `<tr>${row.map((cell) => `<td>${escaparHtml(cell)}</td>`).join("")}</tr>`)
-        .join("")
+      .map((row) => `<tr>${row.map((cell) => `<td>${escaparHtml(cell)}</td>`).join("")}</tr>`)
+      .join("")
     : `<tr><td colspan="${dados.headers.length || 1}">Nenhum dado disponível para exportação.</td></tr>`;
 
   documento.write(`
@@ -387,7 +397,7 @@ function RelatorioStatusAlunos() {
   const [eixosTematicos, setEixosTematicos] = useState<ReportState<EixosPorEventoResponse>>(emptyState);
   const [projetosPorOrientador, setProjetosPorOrientador] = useState<ReportState<ProjetosPorOrientadorResponse>>(emptyState);
   const [projetosPorTurma, setProjetosPorTurma] = useState<ReportState<ProjetosPorTurmaResponse>>(emptyState);
-
+  const [rankingOrientadores, setRankingOrientadores] = useState<ReportState<RankingOrientadorResponse>>(emptyState);
   useEffect(() => {
     if (abaUrl && tabs.some((tab) => tab.id === abaUrl)) setAbaAtiva(abaUrl);
   }, [abaUrl]);
@@ -422,6 +432,7 @@ function RelatorioStatusAlunos() {
     void carregar(realReports["eixos-tematicos"], setEixosTematicos);
     void carregar(realReports["projetos-por-orientador"], setProjetosPorOrientador);
     void carregar(realReports["projetos-por-turma"], setProjetosPorTurma);
+    void carregar(realReports["ranking-orientadores"], setRankingOrientadores);
   }
 
   useEffect(() => {
@@ -441,22 +452,25 @@ function RelatorioStatusAlunos() {
     if (abaAtiva === "eixos-tematicos") return void carregar(realReports[abaAtiva], setEixosTematicos);
     if (abaAtiva === "projetos-por-orientador") return void carregar(realReports[abaAtiva], setProjetosPorOrientador);
     if (abaAtiva === "projetos-por-turma") return void carregar(realReports[abaAtiva], setProjetosPorTurma);
+    if (abaAtiva === "ranking-orientadores") return void carregar(realReports[abaAtiva], setRankingOrientadores);
   }
 
   const loadingAtual =
     abaAtiva === "visao-geral"
       ? alunosSemProjeto.loading || comissaoPorEvento.loading || eixosTematicos.loading || projetosPorOrientador.loading || projetosPorTurma.loading
       : abaAtiva === "alunos-sem-projeto"
-      ? alunosSemProjeto.loading
-      : abaAtiva === "comissao-por-evento"
-      ? comissaoPorEvento.loading
-      : abaAtiva === "eixos-tematicos"
-      ? eixosTematicos.loading
-      : abaAtiva === "projetos-por-orientador"
-      ? projetosPorOrientador.loading
-      : abaAtiva === "projetos-por-turma"
-      ? projetosPorTurma.loading
-      : false;
+        ? alunosSemProjeto.loading
+        : abaAtiva === "comissao-por-evento"
+          ? comissaoPorEvento.loading
+          : abaAtiva === "eixos-tematicos"
+            ? eixosTematicos.loading
+            : abaAtiva === "projetos-por-orientador"
+              ? projetosPorOrientador.loading
+              : abaAtiva === "projetos-por-turma"
+                ? projetosPorTurma.loading
+                : abaAtiva === "ranking-orientadores"
+                  ? rankingOrientadores.loading
+                  : false;
 
   const alunosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -618,6 +632,20 @@ function RelatorioStatusAlunos() {
       };
     }
 
+    if (abaAtiva === "ranking-orientadores") {
+      const rows = rankingOrientadores.data?.map((o) => [
+        o.orientadorNome,
+        o.email,
+        o.mediaGeral,
+        o.totalProjetos,
+      ]) ?? [];
+      return {
+        titulo: "Ranking de orientadores",
+        headers: ["Orientador", "Email", "Média geral", "Projetos avaliados"],
+        rows,
+      };
+    }
+
     const linhas = [
       ["Alunos sem projeto", somaAlunosSemProjeto(alunosSemProjeto.data)],
       ["Eventos com comissão", Object.keys(comissaoPorEvento.data ?? {}).length],
@@ -644,7 +672,42 @@ function RelatorioStatusAlunos() {
     const dados = dadosExportacaoAtual();
     abrirPdfImpressao(dados);
   }
+  function renderRanking() {
+    if (rankingOrientadores.loading) return <Skeleton />;
+    if (rankingOrientadores.error) return <ErrorBox state={rankingOrientadores} onRetry={() => carregar(realReports["ranking-orientadores"], setRankingOrientadores)} />;
+    if (!rankingOrientadores.data?.length) return <Empty message="Nenhum orientador com avaliação encontrado." />;
 
+    const pagina = paginar(rankingOrientadores.data ?? []);
+
+    return (
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {pagina.items.map((orientador, index) => (
+            <Card key={orientador.orientadorId}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">#{index + 1}</p>
+                  <h2 className="mt-2 text-lg font-black text-slate-950">{orientador.orientadorNome}</h2>
+                  <p className="text-sm font-semibold text-slate-500">{orientador.email}</p>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                  {orientador.totalProjetos} projeto(s)
+                </span>
+              </div>
+              <div className="mt-4 flex items-center gap-2">
+                <Star size={16} className="text-emerald-600" />
+                <span className="text-2xl font-black text-emerald-800">
+                  {orientador.mediaGeral.toFixed(2).replace('.', ',')}
+                </span>
+                <span className="text-sm font-bold text-slate-400">média geral</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+        <Pagination page={pagina.page} totalPages={pagina.totalPages} onPageChange={setPaginaRelatorio} />
+      </div>
+    );
+  }
   function renderVisaoGeral() {
     return (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1003,6 +1066,7 @@ function RelatorioStatusAlunos() {
     if (abaAtiva === "comissao-por-evento") return renderComissao();
     if (abaAtiva === "eixos-tematicos") return renderEixos();
     if (abaAtiva === "projetos-por-orientador") return renderOrientadores();
+    if (abaAtiva === "ranking-orientadores") return renderRanking();
     return renderTurmas();
   }
 
@@ -1060,9 +1124,8 @@ function RelatorioStatusAlunos() {
                 key={tab.id}
                 type="button"
                 onClick={() => trocarAba(tab.id)}
-                className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${
-                  abaAtiva === tab.id ? "bg-emerald-700 text-white shadow-sm" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-800"
-                }`}
+                className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${abaAtiva === tab.id ? "bg-emerald-700 text-white shadow-sm" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-800"
+                  }`}
               >
                 {tab.icon}
                 {tab.label}

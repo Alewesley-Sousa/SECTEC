@@ -136,11 +136,12 @@ export class AvaliacaoService {
     const avaliacoesExistentes = await this.avaliacaoRepository.find({
       where: {
         avaliadorId,
-        projeto: In(projetosIds),
+        projeto: { id: In(projetosIds) }, // ✅ relação com id
       },
+      relations: ['projeto'],
     });
 
-    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projeto));
+    const avaliadosSet = new Set(avaliacoesExistentes.map((av) => av.projeto.id)); // ✅ id
 
     // Mapeia para o formato esperado pelo frontend
     const projetos = atribuicoes.map((atribuicao) => {
@@ -156,7 +157,9 @@ export class AvaliacaoService {
         id: projeto.id,
         titulo: projeto.titulo,
         descricao: projeto.descricao,
-        local: projeto.evento?.local ?? 'Local não informado', // ajuste se houver campo
+        local: projeto.alunoAutor
+          ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
+          : 'Sem turma/ano',
         autores,
         tag: projeto.tema?.nome ?? 'Sem tema',
         status: avaliadosSet.has(projeto.id) ? 'Avaliado' : 'Pendente',
@@ -192,13 +195,14 @@ export class AvaliacaoService {
   async criarAvaliacao(dto: CreateAvaliacaoDto & { avaliadorId: number }) {
     const { avaliadorId, projetoId, apresentacao, metodologia, conteudo, resultado } = dto;
 
+    console.log('📥 [criarAvaliacao] Dados recebidos:', { avaliadorId, projetoId });
+
     this.validarNota(apresentacao, 'Apresentação');
     this.validarNota(metodologia, 'Metodologia');
     this.validarNota(conteudo, 'Conteúdo');
     this.validarNota(resultado, 'Resultado');
 
     try {
-      // ===== INÍCIO DA TRANSAÇÃO =====
       return await this.dataSource.transaction(async (manager) => {
         const projeto = await manager.findOne(Projeto, {
           where: { id: projetoId },
@@ -208,12 +212,13 @@ export class AvaliacaoService {
           throw new NotFoundException(`Projeto ${projetoId} não encontrado.`);
         }
 
+        console.log('✅ [criarAvaliacao] Projeto encontrado:', { id: projeto.id, titulo: projeto.titulo });
+
         const evento = await manager.findOne(Evento, {
           where: { id: projeto.eventoId },
         });
 
         const agora = new Date();
-
         if (evento?.avaliacao) {
           const inicio = evento.avaliacao.inicio ? new Date(evento.avaliacao.inicio) : null;
           const fim = evento.avaliacao.fim ? new Date(evento.avaliacao.fim) : null;
@@ -221,7 +226,6 @@ export class AvaliacaoService {
           if (inicio && agora < inicio) {
             throw new BadRequestException('O período de avaliação ainda não começou.');
           }
-
           if (fim && agora > fim) {
             throw new BadRequestException('O prazo de avaliação do evento já foi encerrado.');
           }
@@ -238,6 +242,7 @@ export class AvaliacaoService {
         const media = Number(
           ((apresentacao + metodologia + conteudo + resultado) / 4).toFixed(1),
         );
+        console.log('🧮 [criarAvaliacao] Média calculada:', media);
 
         // Salva avaliação
         const avaliacaoSalva = await manager.save(Avaliacao, {
@@ -245,6 +250,8 @@ export class AvaliacaoService {
           projeto: { id: projetoId },
           nota: media,
         });
+
+        console.log('💾 [criarAvaliacao] Avaliação salva com ID:', avaliacaoSalva.id);
 
         // Salva critérios
         await manager.save(AvaliacaoCriterio, [
@@ -270,12 +277,28 @@ export class AvaliacaoService {
           },
         ]);
 
+        console.log('✅ [criarAvaliacao] Critérios salvos com sucesso.');
+
+        // ⚠️ Verifica se a atribuição existe antes de atualizar
+        const atribuicao = await manager.findOne(AvaliadorProjeto, {
+          where: { avaliadorId, projetoId },
+        });
+
+        console.log('🔍 [criarAvaliacao] Atribuição encontrada antes do update:', atribuicao);
+
+        if (!atribuicao) {
+          console.error('❌ [criarAvaliacao] Nenhuma atribuição encontrada para atualizar.');
+          throw new BadRequestException('Este projeto não está designado ao avaliador.');
+        }
+
         // Atualiza a atribuição para 'avaliado'
-        await manager.update(
+        const updateResult = await manager.update(
           AvaliadorProjeto,
-          { avaliadorId, projeto: { id: projetoId } },
+          { avaliadorId, projetoId },
           { status: 'avaliado' },
         );
+
+        console.log('🔄 [criarAvaliacao] Resultado do update:', updateResult);
 
         return {
           message: 'Avaliação registrada com sucesso.',
@@ -293,10 +316,9 @@ export class AvaliacaoService {
           },
         };
       });
-      // ===== FIM DA TRANSAÇÃO =====
     } catch (error) {
-      console.error('❌ Erro ao criar avaliação:', error);
-      throw error; // relança para o NestJS tratar a resposta
+      console.error('❌ [criarAvaliacao] Erro capturado:', error);
+      throw error;
     }
   }
 
@@ -770,5 +792,64 @@ export class AvaliacaoService {
     };
   }
 
+
+  async listarAvaliadoresDesignadosComStatus(projetoId: number) {
+    const atribuicoes = await this.avaliadorProjetoRepository.find({
+      where: { projetoId },
+      relations: ['avaliador'],
+    });
+
+    if (atribuicoes.length === 0) {
+      return { avaliadores: [] };
+    }
+
+    const avaliadores = atribuicoes.map((atrib) => ({
+      avaliadorId: atrib.avaliadorId,
+      nome: atrib.avaliador?.nome ?? 'Avaliador',
+      email: atrib.avaliador?.email_institucional ?? '',
+      status: atrib.status === 'avaliado' ? 'Avaliado' : 'Pendente',
+    }));
+
+    return { avaliadores };
+  }
+
+  async listarRankingOrientadores(eventoId?: number): Promise<any[]> {
+    // Ajuste para usar as relações corretas
+    const query = this.projetoRepository
+      .createQueryBuilder('projeto')
+      .leftJoinAndSelect('projeto.avaliacoes', 'avaliacao')
+      .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
+      .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
+      .select([
+        'orientador.id AS orientadorId',
+        'orientador.nome AS orientadorNome',
+        'orientador.email_institucional AS email',
+        'AVG(avaliacao.nota) AS mediaGeral',
+        'COUNT(DISTINCT projeto.id) AS totalProjetos',
+      ])
+      .groupBy('orientador.id')
+      .addGroupBy('orientador.nome')
+      .addGroupBy('orientador.email_institucional')
+      .orderBy('mediaGeral', 'DESC');
+
+    if (eventoId) {
+      query.andWhere('projeto.eventoId = :eventoId', { eventoId });
+    } else {
+      // Se não informado, usa evento atual
+      const eventoAtual = await this.buscarEventoAtivoDoAno();
+      if (!eventoAtual) return [];
+      query.andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id });
+    }
+
+    const raw = await query.getRawMany();
+
+    return raw.map((item) => ({
+      orientadorId: Number(item.orientadorId),
+      orientadorNome: item.orientadorNome,
+      email: item.email,
+      mediaGeral: Number(Number(item.mediaGeral).toFixed(2)),
+      totalProjetos: Number(item.totalProjetos),
+    }));
+  }
 
 }

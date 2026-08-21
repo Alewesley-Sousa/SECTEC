@@ -74,6 +74,28 @@ export class AvaliacaoController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ranking de orientadores por média dos seus projetos' })
+  @Get('projetos/ranking-orientadores')
+  async rankingOrientadores(
+    @Query('eventoId') eventoId?: string,
+  ) {
+    return this.avaliacaoService.listarRankingOrientadores(
+      eventoId ? Number(eventoId) : undefined,
+    );
+  }
+
+
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Lista avaliadores designados de um projeto e seus status' })
+  @Get('projetos/:projetoId/avaliadores-status')
+  async listarAvaliadoresStatus(
+    @Param('projetoId', ParseIntPipe) projetoId: number,
+  ) {
+    return this.avaliacaoService.listarAvaliadoresDesignadosComStatus(projetoId);
+  }
+
+
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Lista todos os projetos com suas médias finais' })
   @Get('projetos/medias')
   async listarMediasProjetos(

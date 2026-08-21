@@ -63,7 +63,11 @@ export class AvaliadoresController {
   @ApiOperation({ summary: 'Lista projetos atuais do avaliador' })
   async projetosAtuais(@Param('id', ParseIntPipe) id: number) {
     const { projetos } = await this.avaliacaoService.listarProjetosDesignados(id);
-    return projetos.map((p) => ({ id: p.id, titulo: p.titulo }));
+    return projetos.map((p) => ({
+      id: p.id,
+      titulo: p.titulo,
+      status: p.status, // ✅ envia status
+    }));
   }
 
   @Get(':id/projetos-disponiveis')
