@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays, Eye, X, Users } from 'lucide-react';
+import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays, Eye, X, Users, Trash2 } from 'lucide-react';
 import { MainLayout } from '../../../../componentes/SideBarUniversal';
 import { Pagination } from '../../../../componentes/PaginationUniversal';
 import { apiRequest, API_BASE_URL, ApiError } from '../../../../lib/api';
 import type { UserRole } from '../../../../helpes/InteligenciaSideBar';
+import Swal from 'sweetalert2';
 
 type MediaProjeto = {
   id: number;
@@ -25,6 +26,7 @@ type Evento = {
 };
 
 type DetalheAvaliacao = {
+  id: number; // ✅ ADICIONE ESTA LINHA
   avaliador: {
     id: number;
     nome: string;
@@ -50,6 +52,44 @@ export default function GerenciarNotaProjetos() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [limit] = useState(5);
+
+  const excluirAvaliacao = async (avaliacaoId: number) => {
+    const confirmar = await Swal.fire({
+      title: 'Excluir avaliação?',
+      text: 'Essa ação removerá a avaliação e o projeto voltará para "Pendente" para este avaliador.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Excluir',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+    });
+
+    if (!confirmar.isConfirmed) return;
+
+    try {
+      await apiRequest(`/avaliacao/${avaliacaoId}`, { method: 'DELETE' });
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Avaliação excluída',
+        text: 'O status do projeto foi revertido para pendente.',
+        confirmButtonColor: '#15803d',
+      });
+
+      // Recarrega os detalhes para refletir a remoção
+      if (projetoDetalhes) {
+        await abrirDetalhes(projetoDetalhes);
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro',
+        text: 'Não foi possível excluir a avaliação.',
+        confirmButtonColor: '#15803d',
+      });
+    }
+  };
 
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [eventoSelecionado, setEventoSelecionado] = useState<number | ''>('');
@@ -412,10 +452,20 @@ export default function GerenciarNotaProjetos() {
                           <p className="font-black text-slate-900">{avaliacao.avaliador.nome}</p>
                           <p className="text-xs text-slate-500">{avaliacao.avaliador.email}</p>
                         </div>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-700">
-                          <Star size={12} />
-                          {avaliacao.nota.toFixed(2).replace('.', ',')}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-700">
+                            <Star size={12} />
+                            {avaliacao.nota.toFixed(2).replace('.', ',')}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => excluirAvaliacao(avaliacao.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100"
+                            title="Excluir avaliação"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
 
                       {avaliacao.criterios.length > 0 && (

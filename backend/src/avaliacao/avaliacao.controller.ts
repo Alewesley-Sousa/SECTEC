@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   BadRequestException,
   Query,
+  Delete
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { StreamableFile } from '@nestjs/common';
@@ -71,6 +72,15 @@ export class AvaliacaoController {
     }
 
     return this.avaliacaoService.validarProjetoDesignado(avaliadorId, projetoId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Deleta uma avaliação pelo ID e reverte status para pendente' })
+  @Delete(':id')
+  async deletarAvaliacao(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.avaliacaoService.deletarAvaliacao(id);
   }
 
   @UseGuards(JwtAuthGuard)

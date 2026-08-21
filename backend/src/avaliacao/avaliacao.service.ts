@@ -770,6 +770,7 @@ export class AvaliacaoService {
     return {
       projetoId,
       avaliacoes: avaliacoes.map((avaliacao) => ({
+        id: avaliacao.id, // ✅ ADICIONE ESTA LINHA
         avaliador: {
           id: avaliacao.avaliadorId,
           nome: mapaUsuarios.get(avaliacao.avaliadorId)?.nome ?? 'Avaliador',
@@ -843,6 +844,43 @@ export class AvaliacaoService {
       mediaGeral: Number(Number(item.mediaGeral).toFixed(2)),
       totalProjetos: Number(item.totalProjetos),
     }));
+  }
+
+  /**
+   * Deleta uma avaliação e seus critérios, revertendo o status da atribuição para 'pendente'.
+   */
+  async deletarAvaliacao(avaliacaoId: number): Promise<{ message: string }> {
+    const avaliacao = await this.avaliacaoRepository.findOne({
+      where: { id: avaliacaoId },
+      relations: ['projeto'], // ✅ já está presente, garante que projeto seja carregado
+    });
+
+    if (!avaliacao) {
+      throw new NotFoundException(`Avaliação #${avaliacaoId} não encontrada.`);
+    }
+
+    const avaliadorId = avaliacao.avaliadorId;
+    const projetoId = avaliacao.projeto?.id;
+
+    if (!projetoId) {
+      throw new BadRequestException('Avaliação sem projeto associado.');
+    }
+
+    // 1. Remove os critérios vinculados
+    await this.avaliacaoCriterioRepository.delete({
+      avaliacao: { id: avaliacaoId },
+    });
+
+    // 2. Remove a avaliação
+    await this.avaliacaoRepository.delete({ id: avaliacaoId });
+
+    // 3. Atualiza a atribuição para pendente
+    await this.avaliadorProjetoRepository.update(
+      { avaliadorId, projetoId },
+      { status: 'pendente' },
+    );
+
+    return { message: 'Avaliação excluída com sucesso.' };
   }
 
 }
