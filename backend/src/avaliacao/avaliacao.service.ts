@@ -284,13 +284,6 @@ export class AvaliacaoService {
           where: { avaliadorId, projetoId },
         });
 
-        console.log('🔍 [criarAvaliacao] Atribuição encontrada antes do update:', atribuicao);
-
-        if (!atribuicao) {
-          console.error('❌ [criarAvaliacao] Nenhuma atribuição encontrada para atualizar.');
-          throw new BadRequestException('Este projeto não está designado ao avaliador.');
-        }
-
         // Atualiza a atribuição para 'avaliado'
         const updateResult = await manager.update(
           AvaliadorProjeto,
