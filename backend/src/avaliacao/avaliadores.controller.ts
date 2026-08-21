@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   UseGuards,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -57,6 +58,18 @@ export class AvaliadoresController {
     }
 
     return resultado;
+  }
+
+
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Exporta relatório CSV com médias dos projetos' })
+  @Get('projetos/medias/export')
+  async exportarMediasProjetosCsv(
+    @Query('eventoId') eventoId?: string,
+  ): Promise<StreamableFile> {
+    return this.avaliacaoService.exportarMediasProjetosCsv(
+      eventoId ? Number(eventoId) : undefined,
+    );
   }
 
   @Get(':id/projetos')
