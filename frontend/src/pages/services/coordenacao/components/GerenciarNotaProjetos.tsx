@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays, Eye, X, Users, Trash2 } from 'lucide-react';
+import { Loader2, FileDown, Search, Star, BarChart3, CalendarDays, Eye, X, Users, Trash2, ChevronDown, GraduationCap } from 'lucide-react';
 import { MainLayout } from '../../../../componentes/SideBarUniversal';
 import { Pagination } from '../../../../componentes/PaginationUniversal';
-import { apiRequest, API_BASE_URL, ApiError } from '../../../../lib/api';
+import { apiRequest, ApiError, type UsuarioApi } from '../../../../lib/api';
 import type { UserRole } from '../../../../helpes/InteligenciaSideBar';
 import Swal from 'sweetalert2';
 
@@ -24,6 +24,37 @@ type Evento = {
   titulo: string;
   vigente?: boolean;
 };
+
+type ProjetoComAlunos = {
+  id: number;
+  alunoAutor?: { id: number | string } | null;
+  projetoAlunos?: Array<{ aluno?: { id: number | string } | null }>;
+};
+
+type EventoComProjetos = {
+  id: number;
+  projetos?: ProjetoComAlunos[];
+};
+
+function csvCell(value: string | number | null | undefined) {
+  return `"${String(value ?? '-').replace(/"/g, '""')}"`;
+}
+
+function linhasParaCsv(headers: string[], rows: (string | number | null | undefined)[][]) {
+  return [headers, ...rows].map((row) => row.map(csvCell).join(';')).join('\n');
+}
+
+function baixarArquivo(conteudo: BlobPart[], filename: string, type: string) {
+  const blob = new Blob(conteudo, { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 type DetalheAvaliacao = {
   id: number; // ✅ ADICIONE ESTA LINHA
@@ -52,6 +83,7 @@ export default function GerenciarNotaProjetos() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [limit] = useState(5);
+  const [menuExportacaoAberto, setMenuExportacaoAberto] = useState(false);
 
   const excluirAvaliacao = async (avaliacaoId: number) => {
     const confirmar = await Swal.fire({
@@ -237,35 +269,54 @@ export default function GerenciarNotaProjetos() {
     [projetos]
   );
 
-  const exportarCsv = async () => {
-    const token = localStorage.getItem('token');
+  const exportarCsv = () => {
+    const headers = ['Projeto', 'Orientador', 'Média Final', 'Avaliações'];
+    const rows = projetos.map((projeto) => [
+      projeto.titulo,
+      projeto.orientador || 'Sem orientador',
+      projeto.quantidadeAvaliacoes ? projeto.mediaFinal : 'Sem Nota',
+      projeto.quantidadeAvaliacoes,
+    ]);
 
+    baixarArquivo(['\ufeff', linhasParaCsv(headers, rows)], 'medias-projetos.csv', 'text/csv;charset=utf-8');
+  };
+
+  const exportarCsvAlunos = async () => {
     try {
       const params = new URLSearchParams();
-      if (eventoSelecionado !== '') {
-        params.set('eventoId', String(eventoSelecionado));
-      }
+      if (eventoSelecionado !== '') params.set('eventoId', String(eventoSelecionado));
 
-      const response = await fetch(
-        `${API_BASE_URL}/avaliacao/projetos/medias/export?${params.toString()}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        }
-      );
+      const [alunos, eventosComProjetos, medias] = await Promise.all([
+        apiRequest<UsuarioApi[]>('/users/alunos'),
+        apiRequest<EventoComProjetos[]>('/projetos'),
+        apiRequest<MediaProjeto[]>(`/avaliacao/projetos/medias?${params.toString()}`),
+      ]);
+      const projetosPorAluno = new Map<string, number>();
+      const eventosFiltrados = eventoSelecionado === ''
+        ? eventosComProjetos
+        : eventosComProjetos.filter((evento) => evento.id === eventoSelecionado);
 
-      if (!response.ok) {
-        throw new Error('Erro ao exportar CSV.');
-      }
+      eventosFiltrados.flatMap((evento) => evento.projetos ?? []).forEach((projeto) => {
+        if (projeto.alunoAutor?.id != null) projetosPorAluno.set(String(projeto.alunoAutor.id), projeto.id);
+        projeto.projetoAlunos?.forEach(({ aluno }) => {
+          if (aluno?.id != null) projetosPorAluno.set(String(aluno.id), projeto.id);
+        });
+      });
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'medias-projetos.csv';
-      a.click();
-      URL.revokeObjectURL(url);
+      const mediasPorProjeto = new Map(medias.map((media) => [media.id, media]));
+      const rows = alunos.map((aluno) => {
+        const projetoId = projetosPorAluno.get(String(aluno.id));
+        const media = projetoId == null ? undefined : mediasPorProjeto.get(projetoId);
+        const mediaFinal = projetoId == null
+          ? 'Sem Projeto'
+          : media?.quantidadeAvaliacoes ? media.mediaFinal : 'Sem Nota';
+
+        return [aluno.nome, aluno.turma || 'Não informada', aluno.ano?.toString() || 'Não informado', mediaFinal];
+      });
+
+      baixarArquivo(['\ufeff', linhasParaCsv(['Aluno', 'Turma', 'Ano', 'Média Final'], rows)], 'medias_alunos.csv', 'text/csv;charset=utf-8');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Falha ao exportar CSV.');
+      alert(err instanceof Error ? err.message : 'Falha ao exportar médias dos alunos.');
     }
   };
 
@@ -314,13 +365,47 @@ export default function GerenciarNotaProjetos() {
               </div>
             </div>
 
-            <button
-              onClick={exportarCsv}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-800"
-            >
-              <FileDown size={16} />
-              Exportar CSV
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuExportacaoAberto((aberto) => !aberto)}
+                aria-expanded={menuExportacaoAberto}
+                aria-haspopup="menu"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-800 sm:w-auto"
+              >
+                <FileDown size={16} />
+                Exportar CSV
+                <ChevronDown size={16} className={`transition ${menuExportacaoAberto ? 'rotate-180' : ''}`} />
+              </button>
+              {menuExportacaoAberto ? (
+                <div role="menu" className="absolute right-0 z-20 mt-2 w-full min-w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl sm:w-80">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      exportarCsv();
+                      setMenuExportacaoAberto(false);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-black text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <FileDown size={16} className="text-emerald-600" />
+                    Exportar Projetos (CSV)
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      void exportarCsvAlunos();
+                      setMenuExportacaoAberto(false);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-black text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <GraduationCap size={16} className="text-emerald-600" />
+                    Exportar Médias dos Alunos (CSV)
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </section>
 
