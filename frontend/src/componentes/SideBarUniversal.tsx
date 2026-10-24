@@ -18,6 +18,7 @@ import {
   FileText,
   QrCode,
   Star,
+  BookOpen, // <-- Ícone adicionado para a tela de Áreas
 } from "lucide-react";
 
 import type { UserRole, NavItem } from "../helpes/InteligenciaSideBar";
@@ -347,6 +348,7 @@ export function MainLayout({
     [`${dashboardPrefix}/usuarios`]: "Usuários",
     [`${dashboardPrefix}/eventos`]: "Eventos",
     [`${dashboardPrefix}/projetos`]: "Projetos",
+    [`${dashboardPrefix}/areas`]: "Áreas", // <-- Título adicionado
     [`${dashboardPrefix}/relatorio-alunos`]: "Status dos Alunos",
     [`${dashboardPrefix}/gestao-relatorio-alunos`]: "Gestão de Relatórios",
     [`${dashboardPrefix}/configuracoes`]: "Configurações",
@@ -441,7 +443,16 @@ export function MainLayout({
       isActive: location.pathname === `${dashboardPrefix}/projetos`,
       roles: ["coordenador", "comissao"],
     },
-
+   
+    {
+      id: "coordenacao-areas",
+      label: "Áreas",
+      icon: <BookOpen size={20} />,
+      href: `${dashboardPrefix}/areas`,
+      isActive: location.pathname === `${dashboardPrefix}/areas`,
+      roles: ["coordenador"],
+    },
+    
     {
       id: "coordenacao-qrcode",
       label: "QR Code",
@@ -465,7 +476,6 @@ export function MainLayout({
         },
       ],
     },
-
     {
       id: "coordenacao-usuarios",
       label: "Usuários",
@@ -490,7 +500,6 @@ export function MainLayout({
       isActive: location.pathname === `${dashboardPrefix}/gestao-relatorio-alunos`,
       roles: ["coordenador"],
     },
-
     {
       id: "coordenacao-avaliacoes",
       label: "Avaliações",
@@ -514,7 +523,6 @@ export function MainLayout({
         },
       ],
     },
-
     {
       id: "coordenacao-config",
       label: "Configurações",
