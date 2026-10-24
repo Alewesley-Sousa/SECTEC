@@ -1,4 +1,3 @@
-// frontend/src/pages/services/aluno/Dashboard.tsx
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Plus, FlaskConical, Users, ChevronRight, X, Search, UserPlus, UserMinus, ChevronDown, Upload, Video, FileText, Lock, TriangleAlert, Calendar, Pencil, Trash2 } from "lucide-react";
@@ -321,7 +320,7 @@ function mapProjetoApiToProjeto(projeto: ProjetoApi, temasDisponiveis: TemaApi[]
   const temaNome =
     projeto.tema?.nome ??
     temasDisponiveis.find((item) => Number(item.id) === temaId)?.nome ??
-    (temaId ? `Eixo #${temaId}` : "Eixo não informado");
+    (temaId ? `Área #${temaId}` : "Área não informada");
   return {
     id: String(projeto.id),
     titulo: projeto.titulo,
@@ -606,7 +605,6 @@ function Dashboard() {
   const passwordChangedKey = `passwordChangedAt:${localStorage.getItem("userId") ?? "me"}`;
   const deveMostrarAvisoSenha = !localStorage.getItem(passwordChangedKey) && !avisoSenhaDispensado;
 
-  // NOVO: hook do relatório – busca dados apenas quando o aluno não tem projeto e as inscrições estão encerradas
   const exibirRelatorio = !projeto && !inscricaoAberta && statusInscricao === "Encerrado";
   const {
     dadosRelatorio,
@@ -619,11 +617,12 @@ function Dashboard() {
     pdfOpiniao,
     carregarDados: carregarDadosRelatorio,
   } = useRelatorioAluno(exibirRelatorio);
-  // FIM NOVO
 
+  // Validação restaurada para exigir a escolha da área
   const podeAvancarEtapa1 = editandoProjeto
     ? titulo.trim().length > 0 && descricao.trim().length >= 30
     : titulo.trim().length > 0 && descricao.trim().length >= 30 && eixo !== "";
+    
   const podeAvancarEtapa2 = solicitacoes.length > 0;
 
   function dispensarAvisoSenha() {
@@ -647,6 +646,7 @@ function Dashboard() {
     setBuscaAluno(""); setFiltrSala("todas"); setFiltrTurma("todas");
   }
 
+  // Função restaurada para permitir a troca de área
   function handleEixoChange(eixoId: string) {
     setEixo(eixoId);
     const proximoEixo = eixosDisponiveis.find((item) => String(item.id) === eixoId);
@@ -770,8 +770,8 @@ function Dashboard() {
       if (!eixo || !Number.isFinite(temaId)) {
         Swal.fire({
           icon: "warning",
-          title: "Eixo obrigatório",
-          text: "Selecione um eixo temático antes de solicitar novos orientadores.",
+          title: "Área obrigatória",
+          text: "Selecione uma área antes de solicitar novos orientadores.",
           confirmButtonColor: "#15803d",
         });
         return;
@@ -816,7 +816,6 @@ function Dashboard() {
       return;
     }
 
-    // Validações de equipe apenas se não for edição de projeto aceito
     if (!(editandoProjeto && projeto?.status === "Aceito")) {
       const membrosForaDaTurma = getMembrosForaDaTurma(membros);
       if (membrosForaDaTurma.length > 0) {
@@ -859,8 +858,8 @@ function Dashboard() {
     if (!editandoProjeto && !Number.isFinite(temaId)) {
       Swal.fire({
         icon: "warning",
-        title: "Eixo obrigatório",
-        text: "Selecione um eixo temático cadastrado no evento atual.",
+        title: "Área obrigatória",
+        text: "Selecione uma área cadastrada no evento atual.",
         confirmButtonColor: "#15803d",
       });
       return;
@@ -871,7 +870,6 @@ function Dashboard() {
       let projetoSalvo: ProjetoApi;
       if (editandoProjeto && projeto) {
         const body: any = { titulo, descricao };
-        // Só envia alunosIds se o projeto não estiver aceito
         if (projeto.status !== "Aceito") {
           const alunosIds = membros
             .filter((membro) => membro.id !== ALUNO_LOGADO.id)
@@ -931,7 +929,7 @@ function Dashboard() {
 
   const descricaoLonga = (projeto?.descricao.length ?? 0) > 110;
   const STEP_LABELS = reenviandoOrientadores
-    ? ["Eixo e Orientador"]
+    ? ["Área e Orientador"]
     : editandoProjeto
       ? (projeto?.status === "Aceito" ? ["Projeto"] : ["Projeto", "Equipe"])
       : ["Projeto", "Orientador", "Equipe"];
@@ -991,7 +989,6 @@ function Dashboard() {
             {!projeto && (
               <>
                 {exibirRelatorio ? (
-                  // 👇 Se o aluno ainda não viu a explicação, mostra ela primeiro
                   !avisoRelatorioDispensado ? (
                     <div className="flex flex-col items-center justify-center py-10 sm:py-16 border-2 border-dashed border-slate-200 rounded-2xl bg-white text-center px-4 max-w-2xl mx-auto">
                       <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
@@ -1029,7 +1026,6 @@ function Dashboard() {
                       </button>
                     </div>
                   ) : (
-                    // Após dispensar o aviso, mostra o card do relatório
                     <RelatorioAlunoCard
                       dadosRelatorio={dadosRelatorio}
                       projetosRelatorio={projetosRelatorio}
@@ -1156,7 +1152,6 @@ function Dashboard() {
                               </button>
                             )}
                           </div>
-                          <p className="text-xs text-slate-400 mb-1">{projeto.eixo}</p>
                           <p className={`text-xs sm:text-sm text-slate-500 ${descricaoExpandida ? "break-words" : "line-clamp-2"}`}>
                             {projeto.descricao}
                           </p>
@@ -1198,45 +1193,8 @@ function Dashboard() {
                           ))}
                         </div>
                       </div>
-
-                      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
-                        <h3 className="text-sm font-semibold text-slate-700 mb-3">Orientador</h3>
-                        {orientadorExibicao ? (
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-700 text-sm font-semibold flex items-center justify-center shrink-0">
-                              {orientadorExibicao.nome.split(" ").at(-1)?.[0] || orientadorExibicao.nome[0]}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-slate-700 truncate">{orientadorExibicao.nome}</p>
-                            </div>
-                          </div>
-                        ) : projeto.status === "Recusado" ? (
-                          <div className="space-y-3">
-                            <div className="flex gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-                              <TriangleAlert size={14} className="text-red-500 mt-0.5 shrink-0" />
-                              <p className="text-xs text-red-700">Todos os orientadores recusaram. Solicite novos orientadores.</p>
-                            </div>
-                            {ehAutor && (
-                              <button
-                                type="button"
-                                onClick={abrirSolicitacaoNovosOrientadores}
-                                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-white bg-sectec-700 rounded-lg hover:bg-sectec-800 transition-colors"
-                              >
-                                <Plus size={13} />
-                                Solicitar novos orientadores
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-slate-400">Nenhum orientador aceitou ainda.</p>
-                        )}
-                        {submissaoAberta && projetoAceito && (
-                          <button onClick={() => setAba("submissao")}
-                            className="mt-4 w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-sectec-700 bg-sectec-50 rounded-lg hover:bg-sectec-100 transition-colors">
-                            Ir para Submissão <ChevronRight size={13} />
-                          </button>
-                        )}
-                      </div>
+                      
+                      {/* Aqui estava o card do orientador, que foi removido conforme a tarefa */}
                     </div>
                   </div>
                 )}
@@ -1560,7 +1518,7 @@ function Dashboard() {
                   {reenviandoOrientadores ? "Solicitar novos orientadores" : editandoProjeto ? "Editar Projeto Científico" : "Novo Projeto Científico"}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
-                  {reenviandoOrientadores && "Escolha o eixo temático e novos orientadores para este projeto"}
+                  {reenviandoOrientadores && "Escolha a área e novos orientadores para este projeto"}
                   {etapa === 1 && (editandoProjeto
                     ? (projeto?.status === "Aceito"
                       ? "Apenas título e descrição podem ser alterados"
@@ -1643,13 +1601,13 @@ function Dashboard() {
                     />
                   </div>
 
-                  {/* Eixo Temático: bloqueado em edição, editável em criação */}
+                  {/* Área do projeto (Select Restaurado) */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Eixo Temático *</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Área *</label>
                     {editandoProjeto ? (
                       <div className="w-full flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm text-slate-400 cursor-not-allowed">
                         <Lock size={13} className="shrink-0 text-slate-300" />
-                        <span>{eixoSelecionado?.nome ?? "Eixo não informado"}</span>
+                        <span>{eixoSelecionado?.nome ?? "Área não informada"}</span>
                       </div>
                     ) : (
                       <div className="relative">
@@ -1658,7 +1616,7 @@ function Dashboard() {
                           onChange={(e) => handleEixoChange(e.target.value)}
                           className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 pr-9 text-sm transition focus:border-sectec-600 focus:outline-none focus:ring-2 focus:ring-sectec-100"
                         >
-                          <option value="">Selecione um eixo</option>
+                          <option value="">Selecione uma área</option>
                           {eixosDisponiveis.map((e) => <option key={String(e.id)} value={String(e.id)}>{e.nome}</option>)}
                         </select>
                         <ChevronDown size={13} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" />
@@ -1673,7 +1631,7 @@ function Dashboard() {
                       <span>
                         {projeto?.status === "Aceito"
                           ? "Com o projeto aceito, apenas título e descrição podem ser alterados."
-                          : "Ao editar, só é possível alterar título, descrição e integrantes. O eixo temático e os orientadores permanecem fixos."}
+                          : "Ao editar, só é possível alterar título, descrição e integrantes. A área e os orientadores permanecem fixos."}
                       </span>
                     </div>
                   )}
@@ -1682,8 +1640,8 @@ function Dashboard() {
                     <div className="flex items-start gap-2 rounded-xl bg-sectec-50 border border-sectec-100 px-3 py-2.5 text-xs text-sectec-700">
                       <FlaskConical size={13} className="mt-0.5 shrink-0" />
                       <span>
-                        Eixo selecionado: <strong>{eixoSelecionado?.nome ?? "não informado"}</strong>. No próximo passo você verá apenas orientadores disponíveis para este eixo.
-                        {orientadoresDisponiveisParaSolicitacao.length === 0 && " Nenhum orientador escolheu este eixo ainda."}
+                        Área selecionada: <strong>{eixoSelecionado?.nome ?? "não informada"}</strong>. No próximo passo você verá apenas orientadores disponíveis para esta área.
+                        {orientadoresDisponiveisParaSolicitacao.length === 0 && " Nenhum orientador escolheu esta área ainda."}
                       </span>
                     </div>
                   )}
@@ -1692,10 +1650,9 @@ function Dashboard() {
 
               {etapa === 2 && !editandoProjeto && (
                 <div className="space-y-4">
-                  {/* ... conteúdo existente da etapa 2 ... */}
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-slate-500">
-                      Orientadores disponíveis para <strong className="text-sectec-700">{eixoSelecionado?.nome ?? "este eixo"}</strong>
+                      Orientadores disponíveis para <strong className="text-sectec-700">{eixoSelecionado?.nome ?? "esta área"}</strong>
                     </p>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
                       ${solicitacoes.length === 0 ? "bg-slate-100 text-slate-500"
@@ -1706,14 +1663,14 @@ function Dashboard() {
                   </div>
                   {reenviandoOrientadores && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Eixo Temático *</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Área *</label>
                       <div className="relative">
                         <select
                           value={eixo}
                           onChange={(event) => handleEixoChange(event.target.value)}
                           className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 pr-9 text-sm transition focus:border-sectec-600 focus:outline-none focus:ring-2 focus:ring-sectec-100"
                         >
-                          <option value="">Selecione um eixo</option>
+                          <option value="">Selecione uma área</option>
                           {eixosDisponiveis.map((item) => (
                             <option key={String(item.id)} value={String(item.id)}>{item.nome}</option>
                           ))}
@@ -1725,7 +1682,7 @@ function Dashboard() {
                   {reenviandoOrientadores && (
                     <div className="flex items-start gap-2 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-xs text-blue-700">
                       <Lock size={12} className="mt-0.5 shrink-0" />
-                      <span>Nesta etapa só é possível alterar o eixo temático e escolher novos orientadores. Título, descrição e equipe permanecem iguais.</span>
+                      <span>Nesta etapa só é possível alterar a área e escolher novos orientadores. Título, descrição e equipe permanecem iguais.</span>
                     </div>
                   )}
                   {carregandoDados ? (
@@ -1737,7 +1694,7 @@ function Dashboard() {
                       </div>
                       <p className="text-sm font-medium text-slate-600">Nenhum orientador disponível</p>
                       <p className="text-xs text-slate-400 mt-1">
-                        {reenviandoOrientadores ? "Todos os orientadores deste eixo já foram solicitados." : "Não há orientadores vinculados a este eixo temático."}
+                        {reenviandoOrientadores ? "Todos os orientadores desta área já foram solicitados." : "Não há orientadores vinculados a esta área."}
                       </p>
                     </div>
                   ) : (

@@ -27,6 +27,9 @@ import { DashboardPage as PainelAvaliador } from './pages/DashboardAvaliador';
 import PainelConfiguracaoCoordenacao from './componentes/configurações/PainelConfiguracaoCoordenacao';
 import FichaAvaliacao from './pages/FichaAvaliacao';
 
+// 👇 IMPORT DA SUA TELA DE ÁREAS (F01) 👇
+import GerenciarAreas from './pages/services/coordenacao/components/GerenciarAreas';
+
 function App() {
   const [auth, setAuth] = useState(() => ({
     token: localStorage.getItem('token'),
@@ -72,7 +75,7 @@ function App() {
 
   const { token, role } = auth;
   const isBackendRole = (value: string | null): value is BackendRole =>
-    value === 'aluno' || value === 'orientador' || value === 'coordenador' || value === 'comissao';
+    value === 'aluno' || value === 'orientador' || value === 'coordenador' || value === 'comissao' || value === 'avaliador';
   const backendRole = isBackendRole(role) ? role : null;
   const isLoggedIn = Boolean(token && backendRole);
 
@@ -211,6 +214,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
+        {/* 👇 ROTA DA SUA TELA DE ÁREAS (F01) 👇 */}
+        <Route
+          path="/dashboard/coordenacao/areas"
+          element={
+            <ProtectedRoute allowedRoles={["coordenador"]}>
+              <GerenciarAreas />
+            </ProtectedRoute>
+          }
+        />
+        {/* 👆 FIM DA ROTA DE ÁREAS 👆 */}
+
         <Route
           path="/dashboard/coordenacao/configuracoes"
           element={
