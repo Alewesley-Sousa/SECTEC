@@ -18,6 +18,16 @@ import { AvaliadorProjeto } from '../../avaliacao/entities/avaliador-projeto.ent
 import { ProjetoAluno } from './projeto-aluno.entity';
 import { Avaliacao } from '../../avaliacao/entities/avaliacao.entity';
 
+/**
+ * Tipo do registro em `projetos`.
+ * - PROJETO: projeto científico normal (pode ser avaliado).
+ * - OFICINA: oficina do 3º ano (não entra em avaliações, médias nem rankings).
+ */
+export enum TipoProjeto {
+  PROJETO = 'projeto',
+  OFICINA = 'oficina',
+}
+
 @Entity('projetos')
 @Index(['alunoAutorId', 'eventoId'], { unique: true })
 export class Projeto {
@@ -47,6 +57,9 @@ export class Projeto {
 
   @Column({ type: 'varchar', length: 20, default: 'APROVADO' })
   status!: string;
+
+  @Column({ type: 'enum', enum: TipoProjeto, default: TipoProjeto.PROJETO })
+  tipo!: TipoProjeto;
 
   @CreateDateColumn({ name: 'criado_em' })
   criadoEm!: Date;
