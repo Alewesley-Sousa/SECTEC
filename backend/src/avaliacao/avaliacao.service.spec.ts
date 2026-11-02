@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { Repository, DataSource } from 'typeorm';
-import { AvaliacaoService, calcularMedia, validarNota } from './avaliacao.service';
+import { AvaliacaoService, calcularMedia, validarNota, validarPeriodoAvaliacao } from './avaliacao.service';
 import { Projeto, TipoProjeto } from '../projetos/entities/projeto.entity';
 import { AvaliadorProjeto } from './entities/avaliador-projeto.entity';
 import { Avaliacao } from './entities/avaliacao.entity';
@@ -22,6 +22,7 @@ function criarServico() {
   // Gerenciador da transação: findOne/save/update usados em criarAvaliacao
   const manager = {
     findOne: jest.fn(),
+    find: jest.fn(),
     save: jest.fn(async (_entidade: unknown, dados: any) => (Array.isArray(dados) ? dados : { id: 99, ...dados })),
     update: jest.fn(async () => ({ affected: 1 })),
   };
@@ -213,6 +214,166 @@ describe('AvaliacaoController — rotas', () => {
   });
 });
 
+describe('AvaliacaoService — B06 Edição de avaliação', () => {
+  const avaliacaoBase = {
+    id: 7,
+    avaliadorId: 10,
+    nota: 7.5,
+    createdAt: new Date('2026-06-10T10:00:00'),
+    projeto: { id: 5, eventoId: 1 },
+  };
+  const linhasCompletas = () => [
+    { id: 1, criterio: 'apresentacao', nota: 8 },
+    { id: 2, criterio: 'metodologia', nota: 7 },
+    { id: 3, criterio: 'conteudo', nota: 9 },
+    { id: 4, criterio: 'resultado', nota: 6 },
+  ];
+  const eventoAberto = { avaliacao: { inicio: new Date('2020-01-01'), fim: new Date('2099-12-31') } };
+  const eventoEncerrado = { avaliacao: { inicio: new Date('2020-01-01'), fim: new Date('2020-12-31') } };
+  const autor = { userId: 10, role: 'avaliador' };
+  const coordenacao = { userId: 1, role: 'coordenador' };
+
+  /** Prepara o fluxo transacional: avaliação, evento e critérios existentes. */
+  function preparar({ avaliacao = avaliacaoBase as any, evento = eventoAberto as any, linhas = linhasCompletas() as any[] } = {}) {
+    const ctx = criarServico();
+    ctx.manager.findOne.mockResolvedValueOnce(avaliacao).mockResolvedValueOnce(evento);
+    ctx.manager.find.mockResolvedValue(linhas);
+    return ctx;
+  }
+
+  describe('obterAvaliacao (GET)', () => {
+    it('retorna a avaliação com as notas por critério', async () => {
+      const { service, avaliacaoRepo, criterioRepo } = criarServico();
+      avaliacaoRepo.findOne.mockResolvedValue(avaliacaoBase);
+      criterioRepo.find.mockResolvedValue(linhasCompletas());
+
+      await expect(service.obterAvaliacao(7)).resolves.toEqual({
+        id: 7,
+        projetoId: 5,
+        avaliadorId: 10,
+        nota: 7.5,
+        criterios: { apresentacao: 8, metodologia: 7, conteudo: 9, resultado: 6 },
+        createdAt: avaliacaoBase.createdAt,
+      });
+    });
+
+    it('lança 404 quando a avaliação não existe', async () => {
+      const { service, avaliacaoRepo } = criarServico();
+      avaliacaoRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.obterAvaliacao(999)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('atualizarAvaliacao (PATCH)', () => {
+    it('autor atualiza uma nota e a média é recalculada', async () => {
+      const { service, manager, avaliacaoRepo, criterioRepo } = preparar();
+      // Após a atualização, a leitura final devolve o estado novo
+      avaliacaoRepo.findOne.mockResolvedValue({ ...avaliacaoBase, nota: 7.8 });
+      criterioRepo.find.mockResolvedValue([...linhasCompletas().slice(0, 2), { id: 3, criterio: 'conteudo', nota: 10 }, linhasCompletas()[3]]);
+
+      const resultado = await service.atualizarAvaliacao(7, { conteudo: 10 }, autor);
+
+      expect(manager.update).toHaveBeenCalledWith(AvaliacaoCriterio, { id: 3 }, { nota: 10 });
+      // (8 + 7 + 10 + 6) / 4 = 7.75 -> 7.8
+      expect(manager.update).toHaveBeenCalledWith(Avaliacao, { id: 7 }, { nota: 7.8 });
+      expect(resultado.nota).toBe(7.8);
+      expect(resultado.criterios.conteudo).toBe(10);
+    });
+
+    it('atualiza várias notas de uma vez', async () => {
+      const { service, manager, avaliacaoRepo, criterioRepo } = preparar();
+      avaliacaoRepo.findOne.mockResolvedValue({ ...avaliacaoBase, nota: 8 });
+      criterioRepo.find.mockResolvedValue([]);
+
+      await service.atualizarAvaliacao(7, { apresentacao: 10, resultado: 6 }, autor);
+
+      // (10 + 7 + 9 + 6) / 4 = 8
+      expect(manager.update).toHaveBeenCalledWith(Avaliacao, { id: 7 }, { nota: 8 });
+      expect(manager.update).toHaveBeenCalledWith(AvaliacaoCriterio, { id: 1 }, { nota: 10 });
+    });
+
+    it('coordenação edita avaliação de outro avaliador, mesmo fora do período', async () => {
+      const { service, manager, avaliacaoRepo, criterioRepo } = preparar({ evento: eventoEncerrado as any });
+      avaliacaoRepo.findOne.mockResolvedValue(avaliacaoBase);
+      criterioRepo.find.mockResolvedValue(linhasCompletas());
+
+      await expect(service.atualizarAvaliacao(7, { metodologia: 8 }, coordenacao)).resolves.toBeDefined();
+      expect(manager.update).toHaveBeenCalledWith(AvaliacaoCriterio, { id: 2 }, { nota: 8 });
+    });
+
+    it('outro avaliador (não autor) não pode editar', async () => {
+      const { service, manager } = preparar();
+
+      await expect(
+        service.atualizarAvaliacao(7, { conteudo: 10 }, { userId: 99, role: 'avaliador' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('autor não pode editar depois do fim do período do evento', async () => {
+      const { service, manager } = preparar({ evento: eventoEncerrado as any });
+
+      await expect(service.atualizarAvaliacao(7, { conteudo: 10 }, autor)).rejects.toThrow(
+        'O prazo de avaliação do evento já foi encerrado.',
+      );
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('rejeita nota fora do passo de 0,5 sem abrir transação', async () => {
+      const { service, dataSource } = criarServico();
+
+      await expect(service.atualizarAvaliacao(7, { resultado: 6.3 }, autor)).rejects.toThrow(
+        'Resultado deve seguir o passo de 0,5.',
+      );
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejeita atualização sem nenhuma nota', async () => {
+      const { service, dataSource } = criarServico();
+
+      await expect(service.atualizarAvaliacao(7, {}, autor)).rejects.toBeInstanceOf(BadRequestException);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('lança 404 quando a avaliação não existe', async () => {
+      const { service, manager } = criarServico();
+      manager.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.atualizarAvaliacao(999, { conteudo: 10 }, autor)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('avaliação incompleta (legado) não aceita atualização parcial', async () => {
+      const incompleta = linhasCompletas().filter((l) => l.criterio !== 'resultado');
+      const { service, manager } = preparar({ linhas: incompleta as any });
+
+      await expect(service.atualizarAvaliacao(7, { conteudo: 10 }, autor)).rejects.toThrow(
+        'falta a nota de Resultado',
+      );
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('avaliação incompleta (legado) é completada quando a nota faltante é enviada', async () => {
+      const incompleta = linhasCompletas().filter((l) => l.criterio !== 'resultado');
+      const { service, manager, avaliacaoRepo, criterioRepo } = preparar({ linhas: incompleta as any });
+      avaliacaoRepo.findOne.mockResolvedValue(avaliacaoBase);
+      criterioRepo.find.mockResolvedValue(linhasCompletas());
+
+      await service.atualizarAvaliacao(
+        7,
+        { apresentacao: 8, metodologia: 7, conteudo: 9, resultado: 6 },
+        autor,
+      );
+
+      expect(manager.save).toHaveBeenCalledWith(AvaliacaoCriterio, {
+        avaliacao: { id: 7 },
+        criterio: 'resultado',
+        nota: 6,
+      });
+    });
+  });
+});
+
 describe('nota.util', () => {
   describe('validarNota', () => {
     it.each([0, 0.5, 7, 9.5, 10])('aceita %p', (nota) => {
@@ -246,3 +407,33 @@ describe('nota.util', () => {
     });
   });
 });
+
+const agora = new Date('2026-06-15T12:00:00');
+const ontem = new Date('2026-06-14T12:00:00');
+const amanha = new Date('2026-06-16T12:00:00');
+
+describe('validarPeriodoAvaliacao', () => {
+  it('não bloqueia quando o evento não tem período', () => {
+    expect(() => validarPeriodoAvaliacao(null, agora)).not.toThrow();
+    expect(() => validarPeriodoAvaliacao({ avaliacao: undefined as any }, agora)).not.toThrow();
+  });
+
+  it('não bloqueia dentro do período', () => {
+    expect(() =>
+      validarPeriodoAvaliacao({ avaliacao: { inicio: ontem, fim: amanha } } as any, agora),
+    ).not.toThrow();
+  });
+
+  it('bloqueia antes do início', () => {
+    expect(() =>
+      validarPeriodoAvaliacao({ avaliacao: { inicio: amanha, fim: null } } as any, agora),
+    ).toThrow(new BadRequestException('O período de avaliação ainda não começou.'));
+  });
+
+  it('bloqueia depois do fim', () => {
+    expect(() =>
+      validarPeriodoAvaliacao({ avaliacao: { inicio: null, fim: ontem } } as any, agora),
+    ).toThrow(new BadRequestException('O prazo de avaliação do evento já foi encerrado.'));
+  });
+});
+

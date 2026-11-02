@@ -10,13 +10,15 @@ import {
   ParseIntPipe,
   BadRequestException,
   Query,
-  Delete
+  Delete,
+  Patch,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { StreamableFile } from '@nestjs/common';
 import { AvaliacaoService } from './avaliacao.service';
 import { LimitesAvaliacaoDto } from './dto/limites-avaliacao.dto';
 import { CreateAvaliacaoDto } from './dto/avaliacao.dto';
+import { AtualizarAvaliacaoDto } from './dto/atualizar-avaliacao.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Avaliação')
@@ -152,5 +154,27 @@ export class AvaliacaoController {
       throw new ConflictException('Avaliador não identificado.');
     }
     return this.avaliacaoService.listarProjetosDesignados(avaliadorId);
+  }
+
+  // Rotas com :id ficam por último para não capturar as rotas de múltiplos segmentos acima.
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Busca uma avaliação com as notas por critério (contrato GET /avaliacoes/:id)' })
+  @Get(':id')
+  async obterAvaliacao(@Param('id', ParseIntPipe) id: number) {
+    return this.avaliacaoService.obterAvaliacao(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Atualiza notas e recalcula a média (autor no período, ou coordenação) (PATCH /avaliacoes/:id)' })
+  @Patch(':id')
+  async atualizarAvaliacao(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AtualizarAvaliacaoDto,
+    @Request() req,
+  ) {
+    return this.avaliacaoService.atualizarAvaliacao(id, dto, {
+      userId: Number(req.user?.userId ?? req.user?.id),
+      role: req.user?.role,
+    });
   }
 }
