@@ -20,11 +20,13 @@ import { RelatorioModule } from './relatorio/relatorio.module';
 import { RelatorioAlunoModule } from './relatorio-aluno/relatorio-aluno.module';
 import { AvaliacaoModule } from './avaliacao/avaliacao.module';
 import { BannersDownloadModule } from './pdf/banners-download.module';
+import { AreasModule } from './areas/areas.module';
 
 @Module({
   imports: [
     AvaliacaoModule,
     BannersDownloadModule,
+    AreasModule,
     ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mysql',

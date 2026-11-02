@@ -9,7 +9,6 @@ import {
 
 import { TemaEvento } from '../../evento/entities/tema-evento.entity';
 import { ProjetoOrientador } from '../../projetos/entities/projeto-orientador.entity';
-import { OrientadorArea } from './orientador-area.entity';
 
 export enum UserRole {
   ALUNO = 'aluno',
@@ -24,16 +23,6 @@ export enum UserTurma {
   INFORMATICA = 'informatica',
   ENFERMAGEM = 'enfermagem',
   CONTABILIDADE = 'contabilidade',
-}
-
-export enum UserArea{
-  INFORMATICA = 'informatica',
-  ENFERMAGEM = 'enfermagem',
-  CONTABILIDADE = 'contabilidade',
-  HUMANAS = 'humanas',
-  EXATAS = 'exatas',
-  NATUREZAS = 'naturezas',
-  LINGUAGENS = 'linguagens'
 }
 
 @Entity('usuarios')
@@ -66,14 +55,6 @@ export class User {
   @Column({ default: true })
   ativo!: boolean;
 
-  @Column({
-    type: 'enum',
-    enum: UserArea,
-    nullable: true,
-    default: null,
-  })
-  area: UserArea | null;
-
   @CreateDateColumn({ name: 'criado_em' })
   criado_em!: Date;
 
@@ -90,6 +71,4 @@ export class User {
   @ManyToMany(() => TemaEvento, (tema) => tema.orientadores)
   temasSelecionados!: TemaEvento[];
 
-  @OneToMany(() => OrientadorArea, (orientadorArea) => orientadorArea.user)
-  areas: OrientadorArea[];
 }

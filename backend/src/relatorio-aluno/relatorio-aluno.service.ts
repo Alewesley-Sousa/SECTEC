@@ -169,6 +169,7 @@ export class RelatorioAlunoService implements OnModuleInit {
             .leftJoinAndSelect('relatorio.aluno', 'aluno')
             .leftJoinAndSelect('relatorio.projetosAtribuidos', 'projetosAtribuidos')
             .leftJoinAndSelect('projetosAtribuidos.projeto', 'projeto')
+            .leftJoinAndSelect('projeto.area', 'area')
             .where('relatorio.evento_id = :eventoId', { eventoId: eventoAtual.id });
 
         if (status) query.andWhere('relatorio.status = :status', { status });
@@ -193,7 +194,7 @@ export class RelatorioAlunoService implements OnModuleInit {
             projetos_atribuidos: r.projetosAtribuidos?.map((pa) => ({
                 id: pa.projeto.id,
                 titulo: pa.projeto.titulo,
-                area: pa.projeto.tema,
+                area: pa.projeto.area,
                 visualizado: pa.visualizado,
                 data_atribuicao: pa.data_atribuicao,
             })) || [],
@@ -456,14 +457,14 @@ export class RelatorioAlunoService implements OnModuleInit {
 
         const projetosAtribuidos = await this.alunoRelatorioProjetosRepository.find({
             where: { aluno_relatorio_id: relatorio.id },
-            relations: ['projeto', 'projeto.alunoAutor', 'projeto.projetoAlunos', 'projeto.projetoAlunos.aluno'],
+            relations: ['projeto', 'projeto.area', 'projeto.alunoAutor', 'projeto.projetoAlunos', 'projeto.projetoAlunos.aluno'],
         });
 
         const projetos = projetosAtribuidos.map((pa) => ({
             id: pa.projeto.id,
             titulo: pa.projeto.titulo,
             descricao: pa.projeto.descricao,
-            area: pa.projeto.tema?.nome || 'Área não definida',
+            area: pa.projeto.area?.nome || 'Área não definida',
             autores: [
                 { id: pa.projeto.alunoAutor.id, nome: pa.projeto.alunoAutor.nome, turma: pa.projeto.alunoAutor.turma, tipo: 'autor_principal' },
                 ...(pa.projeto.projetoAlunos?.map((coautor) => ({
@@ -958,7 +959,7 @@ export class RelatorioAlunoService implements OnModuleInit {
         const query = this.projetoRepository
             .createQueryBuilder('projeto')
             .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
-            .leftJoinAndSelect('projeto.tema', 'tema')
+            .leftJoinAndSelect('projeto.area', 'area')
             .where('projeto.evento_id = :eventoId', { eventoId: relatorio.evento.id });
 
         if (idsAtribuidos.length) {

@@ -47,14 +47,14 @@ export class ProjetosController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'evento', required: false, type: String })
-  @ApiQuery({ name: 'eixo_tematico', required: false, type: String })
+  @ApiQuery({ name: 'area', required: false, type: String })
   @ApiQuery({ name: 'orientador', required: false, type: String })
   async findComMateriaisAprovados(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('evento') evento?: string,
-    @Query('eixo_tematico') eixo_tematico?: string,
+    @Query('area') area?: string,
     @Query('orientador') orientador?: string,
   ) {
     const areasPermitidas = this.avaliacaoService.getLimitesAtuais().areasPermitidas ?? [];
@@ -64,7 +64,7 @@ export class ProjetosController {
       limit: limit ? Number(limit) : undefined,
       search,
       evento,
-      eixo_tematico,
+      area,
       orientador,
       areasPermitidas,
     });
@@ -82,14 +82,14 @@ export class ProjetosController {
   @ApiResponse({ status: 200, description: 'Lista de projetos públicos.' })
   @ApiQuery({ name: 'search', required: false, description: 'Busca por título ou nome do aluno' })
   @ApiQuery({ name: 'curso', required: false, description: 'Filtro por curso (ex: informatica, contabilidade, enfermagem)' })
-  @ApiQuery({ name: 'eixo', required: false, description: 'Filtro por eixo temático (nome do tema)' })
+  @ApiQuery({ name: 'area', required: false, description: 'Filtro por área do projeto' })
   @ApiQuery({ name: 'evento', required: false, description: 'Filtro por título do evento' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número da página (padrão: 1)' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Limite por página (padrão: 8, máximo: 50)' })
   async findAllPublic(
     @Query('search') search?: string,
     @Query('curso') curso?: string,
-    @Query('eixo') eixo?: string,
+    @Query('area') area?: string,
     @Query('evento') evento?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
@@ -97,7 +97,7 @@ export class ProjetosController {
     const pageNum = page ? Number(page) : 1;
     const limitNum = limit ? Number(limit) : 8;
     return this.consultaService.findAllPublic(
-      { search, curso, eixo, evento },
+      { search, curso, area, evento },
       pageNum,
       limitNum,
     );
@@ -177,14 +177,14 @@ export class ProjetosController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'evento', required: false, type: String })
-  @ApiQuery({ name: 'eixo_tematico', required: false, type: String })
+  @ApiQuery({ name: 'area', required: false, type: String })
   @ApiQuery({ name: 'orientador', required: false, type: String })
   async findAllProjetos(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('evento') evento?: string,
-    @Query('eixo_tematico') eixo_tematico?: string,
+    @Query('area') area?: string,
     @Query('orientador') orientador?: string,
   ) {
     return this.consultaService.findAllProjetosComFiltros({
@@ -192,7 +192,7 @@ export class ProjetosController {
       limit: limit ? Number(limit) : undefined,
       search,
       evento,
-      eixo_tematico,
+      area,
       orientador,
     });
   }

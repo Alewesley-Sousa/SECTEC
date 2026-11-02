@@ -1,15 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource, Between } from 'typeorm';
 import { StreamableFile } from '@nestjs/common';
-import { User } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 
-import { Projeto } from '../projetos/entities/projeto.entity';
+import { Projeto, TipoProjeto } from '../projetos/entities/projeto.entity';
+import { AtualizarAvaliacaoDto } from './dto/atualizar-avaliacao.dto';
 import { AvaliadorProjeto } from './entities/avaliador-projeto.entity';
 import { Avaliacao } from './entities/avaliacao.entity';
 import { AvaliacaoCriterio } from './entities/avaliacao-criterio.entity';
@@ -26,6 +28,57 @@ const AREAS_DISPONIVEIS = [
   "naturezas",
   "linguagens",
 ] as const;
+
+/** Critérios que compõem uma avaliação (cada um vira uma linha em avaliacao_criterios). */
+export const CRITERIOS_AVALIACAO = ['apresentacao', 'metodologia', 'conteudo', 'resultado'] as const;
+export type CriterioAvaliacao = (typeof CRITERIOS_AVALIACAO)[number];
+
+/** Valida faixa (0 a 10) e passo de 0,5 de uma nota. Lança BadRequestException se inválida. */
+export function validarNota(nota: number, campo: string): void {
+  if (Number.isNaN(nota) || nota < 0 || nota > 10) {
+    throw new BadRequestException(`${campo} deve estar entre 0 e 10.`);
+  }
+
+  if ((nota * 10) % 5 !== 0) {
+    throw new BadRequestException(`${campo} deve seguir o passo de 0,5.`);
+  }
+}
+
+/** Média aritmética arredondada para 1 casa decimal (regra da nota final). */
+export function calcularMedia(notas: number[]): number {
+  const soma = notas.reduce((total, nota) => total + nota, 0);
+  return Number((soma / notas.length).toFixed(1));
+}
+
+/** Rótulo de cada critério, usado nas mensagens de erro. */
+export const ROTULO_CRITERIO: Record<CriterioAvaliacao, string> = {
+  apresentacao: 'Apresentação',
+  metodologia: 'Metodologia',
+  conteudo: 'Conteúdo',
+  resultado: 'Resultado',
+};
+
+/**
+ * Garante que o momento atual está dentro do período de avaliação do evento.
+ * Sem período configurado, não bloqueia.
+ */
+export function validarPeriodoAvaliacao(
+  evento: Pick<Evento, 'avaliacao'> | null | undefined,
+  agora: Date = new Date(),
+): void {
+  const periodo = evento?.avaliacao;
+  if (!periodo) return;
+
+  const inicio = periodo.inicio ? new Date(periodo.inicio) : null;
+  const fim = periodo.fim ? new Date(periodo.fim) : null;
+
+  if (inicio && agora < inicio) {
+    throw new BadRequestException('O período de avaliação ainda não começou.');
+  }
+  if (fim && agora > fim) {
+    throw new BadRequestException('O prazo de avaliação do evento já foi encerrado.');
+  }
+}
 
 @Injectable()
 export class AvaliacaoService {
@@ -54,16 +107,6 @@ export class AvaliacaoService {
     private readonly dataSource: DataSource,
   ) { }
 
-  private validarNota(nota: number, campo: string) {
-    if (Number.isNaN(nota) || nota < 0 || nota > 10) {
-      throw new BadRequestException(`${campo} deve estar entre 0 e 10.`);
-    }
-
-    if ((nota * 10) % 5 !== 0) {
-      throw new BadRequestException(`${campo} deve seguir o passo de 0,5.`);
-    }
-  }
-
   async validarProjetoDesignado(avaliadorId: number, projetoId: number) {
     // Busca a atribuição, se existir
     const atribuicao = await this.avaliadorProjetoRepository.findOne({
@@ -71,7 +114,7 @@ export class AvaliacaoService {
       relations: [
         'projeto',
         'projeto.evento',
-        'projeto.tema',
+        'projeto.area',
         'projeto.alunoAutor',
         'projeto.projetoAlunos',
         'projeto.projetoAlunos.aluno',
@@ -83,7 +126,7 @@ export class AvaliacaoService {
     if (!projeto) {
       projeto = await this.projetoRepository.findOne({
         where: { id: projetoId },
-        relations: ['evento', 'tema', 'alunoAutor', 'projetoAlunos', 'projetoAlunos.aluno'],
+        relations: ['evento', 'area', 'alunoAutor', 'projetoAlunos', 'projetoAlunos.aluno'],
       });
 
       if (!projeto) {
@@ -104,7 +147,7 @@ export class AvaliacaoService {
       descricao: projeto.descricao,
       local: `${projeto.alunoAutor?.turma ?? ''}${projeto.alunoAutor?.ano ? ` · ${projeto.alunoAutor.ano}º ano` : ''}`.trim() || 'Sem turma/ano',
       autores,
-      tag: projeto.tema?.nome ?? 'Sem tema',
+      tag: projeto.area?.nome ?? 'Sem área',
       status: atribuicao?.status ?? 'pendente',
       designado: !!atribuicao, // true se existe atribuição, false caso contrário
     };
@@ -115,11 +158,11 @@ export class AvaliacaoService {
     if (!eventoAtual) return { projetos: [] };
 
     const atribuicoes = await this.avaliadorProjetoRepository.find({
-      where: { avaliadorId, projeto: { eventoId: eventoAtual.id } },
+      where: { avaliadorId, projeto: { eventoId: eventoAtual.id, tipo: TipoProjeto.PROJETO } },
       relations: [
         'projeto',
         'projeto.evento',
-        'projeto.tema',
+        'projeto.area',
         'projeto.alunoAutor',
         'projeto.projetoAlunos',
         'projeto.projetoAlunos.aluno',
@@ -161,7 +204,7 @@ export class AvaliacaoService {
           ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
           : 'Sem turma/ano',
         autores,
-        tag: projeto.tema?.nome ?? 'Sem tema',
+        tag: projeto.area?.nome ?? 'Sem área',
         status: avaliadosSet.has(projeto.id) ? 'Avaliado' : 'Pendente',
         // Opcional: id da atribuição para ações futuras
         atribuicaoId: atribuicao.id,
@@ -197,10 +240,10 @@ export class AvaliacaoService {
 
     console.log('📥 [criarAvaliacao] Dados recebidos:', { avaliadorId, projetoId });
 
-    this.validarNota(apresentacao, 'Apresentação');
-    this.validarNota(metodologia, 'Metodologia');
-    this.validarNota(conteudo, 'Conteúdo');
-    this.validarNota(resultado, 'Resultado');
+    validarNota(apresentacao, 'Apresentação');
+    validarNota(metodologia, 'Metodologia');
+    validarNota(conteudo, 'Conteúdo');
+    validarNota(resultado, 'Resultado');
 
     try {
       return await this.dataSource.transaction(async (manager) => {
@@ -212,24 +255,17 @@ export class AvaliacaoService {
           throw new NotFoundException(`Projeto ${projetoId} não encontrado.`);
         }
 
+        if (projeto.tipo === TipoProjeto.OFICINA) {
+          throw new ForbiddenException('Oficinas não podem ser avaliadas.');
+        }
+
         console.log('✅ [criarAvaliacao] Projeto encontrado:', { id: projeto.id, titulo: projeto.titulo });
 
         const evento = await manager.findOne(Evento, {
           where: { id: projeto.eventoId },
         });
 
-        const agora = new Date();
-        if (evento?.avaliacao) {
-          const inicio = evento.avaliacao.inicio ? new Date(evento.avaliacao.inicio) : null;
-          const fim = evento.avaliacao.fim ? new Date(evento.avaliacao.fim) : null;
-
-          if (inicio && agora < inicio) {
-            throw new BadRequestException('O período de avaliação ainda não começou.');
-          }
-          if (fim && agora > fim) {
-            throw new BadRequestException('O prazo de avaliação do evento já foi encerrado.');
-          }
-        }
+        validarPeriodoAvaliacao(evento);
 
         const jaExiste = await manager.findOne(Avaliacao, {
           where: { avaliadorId, projeto: { id: projetoId } },
@@ -239,9 +275,7 @@ export class AvaliacaoService {
           throw new ConflictException('Este projeto já foi avaliado por este avaliador.');
         }
 
-        const media = Number(
-          ((apresentacao + metodologia + conteudo + resultado) / 4).toFixed(1),
-        );
+        const media = calcularMedia([apresentacao, metodologia, conteudo, resultado]);
         console.log('🧮 [criarAvaliacao] Média calculada:', media);
 
         // Salva avaliação
@@ -375,6 +409,8 @@ export class AvaliacaoService {
         console.log(`🎯 Evento atual selecionado: ${eventoAtual.id}`);
       }
 
+      where.tipo = TipoProjeto.PROJETO; // oficinas ficam fora das médias
+
       const projetos = await this.projetoRepository.find({
         where,
         relations: ['avaliacoes', 'orientadores', 'orientadores.orientador'],
@@ -431,9 +467,9 @@ export class AvaliacaoService {
     let projetosAprovados = await this.projetoRepository.find({
       where: { status: 'APROVADO', eventoId: eventoAtual.id },
       relations: [
+        'area',
         'orientadores',
         'orientadores.orientador',
-        'orientadores.orientador.areas', // ✅ relação com a tabela orientador_areas
       ],
     });
 
@@ -441,20 +477,7 @@ export class AvaliacaoService {
     const areasPermitidas = this.limitesAtuais.areasPermitidas ?? [];
     if (areasPermitidas.length > 0) {
       projetosAprovados = projetosAprovados.filter((projeto) => {
-        const orientadorAceito = projeto.orientadores?.find(
-          (po) => po.status === 'aceito',
-        );
-        if (!orientadorAceito || !orientadorAceito.orientador) return false;
-
-        // Verifica primeiro o campo direto `area`
-        const areaDireta = orientadorAceito.orientador.area;
-        if (areaDireta && areasPermitidas.includes(areaDireta)) {
-          return true;
-        }
-
-        // Verifica se alguma das áreas da relação `areas` está permitida
-        const areasDoOrientador = orientadorAceito.orientador.areas ?? [];
-        return areasDoOrientador.some((a) => areasPermitidas.includes(a.area));
+        return !!projeto.area && areasPermitidas.includes(projeto.area.nome);
       });
     }
 
@@ -572,7 +595,7 @@ export class AvaliacaoService {
       .createQueryBuilder('projeto')
       .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-      .leftJoinAndSelect('orientador.areas', 'area')
+      .leftJoinAndSelect('projeto.area', 'area')
       .where('projeto.status = :status', { status: 'APROVADO' })
       .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
       .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
@@ -581,7 +604,7 @@ export class AvaliacaoService {
     // Aplica filtro de áreas permitidas, se configurado
     if (this.limitesAtuais.areasPermitidas.length > 0) {
       query.andWhere(
-        '(orientador.area IN (:...areasPermitidas) OR area.area IN (:...areasPermitidas))',
+        'area.nome IN (:...areasPermitidas)',
         { areasPermitidas: this.limitesAtuais.areasPermitidas },
       );
     }
@@ -613,24 +636,6 @@ export class AvaliacaoService {
     };
   }
 
-  private async getAreaDoOrientadorAceito(projetoId: number): Promise<string | null> {
-    const projeto = await this.projetoRepository.findOne({
-      where: { id: projetoId },
-      relations: ['orientadores', 'orientadores.orientador', 'orientadores.orientador.areas'],
-    });
-
-    if (!projeto) return null;
-
-    const orientadorAceito = projeto.orientadores?.find(
-      (po) => po.status === 'aceito',
-    );
-
-    if (!orientadorAceito || !orientadorAceito.orientador) return null;
-
-    // Pega a primeira área (ou você pode ter regra para múltiplas)
-    const area = orientadorAceito.orientador.areas?.[0]?.area ?? null;
-    return area;
-  }
   // Dentro da classe AvaliacaoService
 
   /**
@@ -641,7 +646,7 @@ export class AvaliacaoService {
     if (!eventoAtual) return 0;
 
     return this.avaliadorProjetoRepository.count({
-      where: { avaliadorId, projeto: { eventoId: eventoAtual.id } },
+      where: { avaliadorId, projeto: { eventoId: eventoAtual.id, tipo: TipoProjeto.PROJETO } },
     });
   }
 
@@ -664,14 +669,14 @@ export class AvaliacaoService {
       .createQueryBuilder('projeto')
       .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-      .leftJoinAndSelect('orientador.areas', 'area')
+      .leftJoinAndSelect('projeto.area', 'area')
       .where('projeto.status = :status', { status: 'APROVADO' })
       .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
       .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
       .setParameters(subQuery.getParameters());
 
     if (areasPermitidas.length > 0) {
-      query.andWhere('(area.area IN (:...areasPermitidas) OR orientador.area IN (:...areasPermitidas))', {
+      query.andWhere('area.nome IN (:...areasPermitidas)', {
         areasPermitidas,
       });
     }
@@ -826,6 +831,8 @@ export class AvaliacaoService {
       .addGroupBy('orientador.email_institucional')
       .orderBy('mediaGeral', 'DESC');
 
+    query.andWhere('projeto.tipo = :tipo', { tipo: TipoProjeto.PROJETO });
+
     if (eventoId) {
       query.andWhere('projeto.eventoId = :eventoId', { eventoId });
     } else {
@@ -881,6 +888,123 @@ export class AvaliacaoService {
     );
 
     return { message: 'Avaliação excluída com sucesso.' };
+  }
+
+  /** Busca uma avaliação com as notas por critério (GET /avaliacoes/:id). */
+  async obterAvaliacao(avaliacaoId: number) {
+    const avaliacao = await this.avaliacaoRepository.findOne({
+      where: { id: avaliacaoId },
+      relations: ['projeto'],
+    });
+
+    if (!avaliacao) {
+      throw new NotFoundException(`Avaliação #${avaliacaoId} não encontrada.`);
+    }
+
+    const criterios = await this.avaliacaoCriterioRepository.find({
+      where: { avaliacao: { id: avaliacaoId } },
+    });
+
+    return this.formatarAvaliacao(avaliacao, criterios);
+  }
+
+  /**
+   * Atualiza uma ou mais notas de uma avaliação e recalcula a média (PATCH /avaliacoes/:id).
+   * - Autor (avaliador) só edita dentro do período do evento.
+   * - Coordenação edita qualquer avaliação, a qualquer momento.
+   */
+  async atualizarAvaliacao(
+    avaliacaoId: number,
+    dto: AtualizarAvaliacaoDto,
+    usuario: { userId: number; role?: string },
+  ) {
+    const informados = CRITERIOS_AVALIACAO.filter((criterio) => dto[criterio] !== undefined);
+    if (informados.length === 0) {
+      throw new BadRequestException('Informe ao menos uma nota para atualizar.');
+    }
+    for (const criterio of informados) {
+      validarNota(dto[criterio] as number, ROTULO_CRITERIO[criterio]);
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const avaliacao = await manager.findOne(Avaliacao, {
+        where: { id: avaliacaoId },
+        relations: ['projeto'],
+      });
+
+      if (!avaliacao) {
+        throw new NotFoundException(`Avaliação #${avaliacaoId} não encontrada.`);
+      }
+
+      const ehCoordenacao = usuario.role === UserRole.COORDENACAO;
+      const ehAutor = Number(usuario.userId) === avaliacao.avaliadorId;
+
+      if (!ehCoordenacao && !ehAutor) {
+        throw new ForbiddenException('Você só pode editar as suas próprias avaliações.');
+      }
+
+      if (!ehCoordenacao) {
+        const eventoId = avaliacao.projeto?.eventoId;
+        const evento = eventoId
+          ? await manager.findOne(Evento, { where: { id: eventoId } })
+          : null;
+        validarPeriodoAvaliacao(evento);
+      }
+
+      const linhas = await manager.find(AvaliacaoCriterio, {
+        where: { avaliacao: { id: avaliacaoId } },
+      });
+      const porCriterio = new Map(linhas.map((linha) => [linha.criterio, linha]));
+
+      // Avaliação incompleta (legado) só pode ser corrigida se todas as notas forem enviadas.
+      for (const criterio of CRITERIOS_AVALIACAO) {
+        if (dto[criterio] === undefined && !porCriterio.has(criterio)) {
+          throw new BadRequestException(
+            `Avaliação incompleta: falta a nota de ${ROTULO_CRITERIO[criterio]}. Informe-a para atualizar.`,
+          );
+        }
+      }
+
+      const notasFinais: number[] = [];
+      for (const criterio of CRITERIOS_AVALIACAO) {
+        const novaNota = dto[criterio];
+        const linha = porCriterio.get(criterio);
+
+        if (novaNota !== undefined) {
+          if (linha) {
+            await manager.update(AvaliacaoCriterio, { id: linha.id }, { nota: novaNota });
+          } else {
+            await manager.save(AvaliacaoCriterio, {
+              avaliacao: { id: avaliacaoId },
+              criterio,
+              nota: novaNota,
+            });
+          }
+          notasFinais.push(novaNota);
+        } else {
+          notasFinais.push(Number(linha!.nota));
+        }
+      }
+
+      await manager.update(Avaliacao, { id: avaliacaoId }, { nota: calcularMedia(notasFinais) });
+    });
+
+    return this.obterAvaliacao(avaliacaoId);
+  }
+
+  private formatarAvaliacao(avaliacao: Avaliacao, criterios: AvaliacaoCriterio[]) {
+    const notasPorCriterio = Object.fromEntries(
+      criterios.map((c) => [c.criterio, Number(c.nota)]),
+    );
+
+    return {
+      id: avaliacao.id,
+      projetoId: avaliacao.projeto?.id,
+      avaliadorId: avaliacao.avaliadorId,
+      nota: Number(avaliacao.nota),
+      criterios: notasPorCriterio, // { apresentacao, metodologia, conteudo, resultado }
+      createdAt: avaliacao.createdAt,
+    };
   }
 
 }

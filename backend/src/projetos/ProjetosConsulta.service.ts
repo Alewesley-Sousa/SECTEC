@@ -32,7 +32,7 @@ export class ProjetosConsultaService {
     filters: {
       search?: string;
       curso?: string;
-      eixo?: string;
+      area?: string;
       evento?: string;
     },
     page: number = 1,
@@ -43,7 +43,7 @@ export class ProjetosConsultaService {
       .leftJoinAndSelect('projeto.alunoAutor', 'autor')
       .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
       .leftJoinAndSelect('projetoAlunos.aluno', 'integrante')
-      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect('projeto.area', 'area')
       .leftJoinAndSelect('projeto.evento', 'evento')
       .leftJoinAndSelect('projeto.materiais', 'materiais');
 
@@ -61,9 +61,9 @@ export class ProjetosConsultaService {
       );
     }
 
-    if (filters.eixo) {
-      queryBuilder.andWhere('tema.nome LIKE :eixo', {
-        eixo: `%${filters.eixo}%`,
+    if (filters.area) {
+      queryBuilder.andWhere('area.nome LIKE :area', {
+        area: `%${filters.area}%`,
       });
     }
 
@@ -117,8 +117,8 @@ export class ProjetosConsultaService {
         id: projeto.id,
         titulo: projeto.titulo,
         descricao: projeto.descricao,
-        tema: projeto.tema
-          ? { id: projeto.tema.id, nome: projeto.tema.nome }
+        area: projeto.area
+          ? { id: projeto.area.id, nome: projeto.area.nome }
           : null,
         equipe,
         video,
@@ -142,15 +142,15 @@ export class ProjetosConsultaService {
     limit?: number;
     search?: string;
     evento?: string;
-    eixo_tematico?: string;
+    area?: string;
     orientador?: string;
   }) {
-    const { page = 1, limit = 10, search, evento, eixo_tematico, orientador } =
+    const { page = 1, limit = 10, search, evento, area, orientador } =
       filtros;
 
     const query = this.projetoRepository
       .createQueryBuilder('projeto')
-      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect('projeto.area', 'area')
       .leftJoinAndSelect('projeto.evento', 'evento')
       .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
       .leftJoinAndSelect('projeto.orientadores', 'orientadores')
@@ -168,8 +168,8 @@ export class ProjetosConsultaService {
       query.andWhere('evento.id = :evento', { evento });
     }
 
-    if (eixo_tematico) {
-      query.andWhere('tema.nome = :eixo_tematico', { eixo_tematico });
+    if (area) {
+      query.andWhere('area.nome = :area', { area });
     }
 
     if (orientador) {
@@ -208,7 +208,7 @@ export class ProjetosConsultaService {
     limit?: number;
     search?: string;
     evento?: string;
-    eixo_tematico?: string;
+    area?: string;
     orientador?: string;
     areasPermitidas?: string[]; // ✅ novas áreas
   }): Promise<{ projetos: any[]; total: number; page: number; limit: number }> {
@@ -219,14 +219,14 @@ export class ProjetosConsultaService {
       .createQueryBuilder('projeto')
       .leftJoinAndSelect('projeto.evento', 'evento')
       .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
-      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect('projeto.area', 'area')
       .leftJoinAndSelect(
         'projeto.orientadores',
         'projetoOrientador',
         "projetoOrientador.status = 'aceito'",
       )
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-      .leftJoinAndSelect('orientador.areas', 'areasOrientador'); // ✅ relação de áreas do orientador
+      ;
 
     // ❌ Removido o filtro de material aprovado (EXISTS)
     // Agora TODOS os projetos são considerados
@@ -245,8 +245,8 @@ export class ProjetosConsultaService {
       qb.andWhere('evento.id = :eventoId', { eventoId: Number(filtros.evento) });
     }
 
-    if (filtros.eixo_tematico?.trim()) {
-      qb.andWhere('tema.nome = :eixo', { eixo: filtros.eixo_tematico.trim() });
+    if (filtros.area?.trim()) {
+      qb.andWhere('area.nome = :area', { area: filtros.area.trim() });
     }
 
     if (filtros.orientador?.trim()) {
@@ -261,10 +261,7 @@ export class ProjetosConsultaService {
 
     // ✅ Filtro por áreas permitidas
     if (filtros.areasPermitidas && filtros.areasPermitidas.length > 0) {
-      qb.andWhere(
-        '(orientador.area IN (:...areasPermitidas) OR areasOrientador.area IN (:...areasPermitidas))',
-        { areasPermitidas: filtros.areasPermitidas },
-      );
+      qb.andWhere('area.nome IN (:...areasPermitidas)', { areasPermitidas: filtros.areasPermitidas });
     }
 
     qb.orderBy('projeto.id', 'DESC')
@@ -283,7 +280,7 @@ export class ProjetosConsultaService {
           : '',
         orientador: orientadorAceito?.nome ?? 'Sem orientador',
         qrcode: Boolean(projeto.qrcodeGerado),
-        eixo_tematico: projeto.tema?.nome ?? '',
+        area: projeto.area?.nome ?? '',
         evento: projeto.evento?.titulo ?? String(projeto.evento?.id ?? ''),
       };
     });
