@@ -35,7 +35,7 @@ export class OrientacoesService {
     .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
     .leftJoinAndSelect('projetoOrientador.projeto', 'projeto')
     .leftJoinAndSelect('projeto.evento', 'evento')
-    .leftJoinAndSelect('projeto.tema', 'tema')
+    .leftJoinAndSelect('projeto.area', 'area')
     .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
     .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
     .leftJoinAndSelect('projetoAlunos.aluno', 'aluno')
@@ -75,7 +75,7 @@ export class OrientacoesService {
       relations: [
         'projeto',
         'projeto.evento',
-        'projeto.tema',
+        'projeto.area',
         'projeto.alunoAutor',
         'projeto.projetoAlunos',
         'projeto.projetoAlunos.aluno',
@@ -95,7 +95,7 @@ export class OrientacoesService {
       relations: [
         'projeto',
         'projeto.evento',
-        'projeto.tema',
+        'projeto.area',
         'projeto.alunoAutor',
         'projeto.projetoAlunos',
         'projeto.projetoAlunos.aluno',

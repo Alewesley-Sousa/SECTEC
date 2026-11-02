@@ -6,7 +6,7 @@ import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
 import { Projeto } from 'src/projetos/entities/projeto.entity';
 import { ProjetoAluno } from 'src/projetos/entities/projeto-aluno.entity';
 import { ComissaoEvento } from 'src/evento/entities/comissao-evento.entity';
-import { TemaEvento } from 'src/evento/entities/tema-evento.entity'; // ajuste o caminho se necessário
+import { Area } from 'src/areas/entities/area.entity';
 export interface ProjetosPorTurma {
   [chaveTurma: string]: {
     turma: string;
@@ -80,8 +80,7 @@ export class RelatorioService {
         @InjectRepository(ComissaoEvento)
     private readonly comissaoRepository: Repository<ComissaoEvento>,
     
-    @InjectRepository(TemaEvento) private readonly temaRepository:
-    Repository<TemaEvento>,
+    @InjectRepository(Area) private readonly areaRepository: Repository<Area>,
     
       @InjectRepository(Projeto)
     private readonly projetoRepository: Repository<Projeto>,
@@ -202,21 +201,22 @@ export class RelatorioService {
   }
   
   async obterMetricasEixosTematicos(): Promise<EixosPorEvento> {
-    const resultados = await this.temaRepository
-      .createQueryBuilder('tema')
-      .innerJoin('tema.evento', 'evento')
+    const resultados = await this.areaRepository
+      .createQueryBuilder('area')
+      .innerJoin('area.projetos', 'projeto')
+      .innerJoin('projeto.evento', 'evento')
       .select([
-        'tema.id AS temaId',
-        'tema.nome AS temaNome',
+        'area.id AS temaId',
+        'area.nome AS temaNome',
         'evento.id AS eventoId',
         'evento.titulo AS eventoTitulo',
       ])
-      // Subquery: Total de projetos atrelados a este tema e a este evento específico
+      // Subquery: total de projetos vinculados à área e ao evento
       .addSelect((qb) => {
         return qb
           .select('COUNT(p.id)', 'total')
           .from(Projeto, 'p')
-          .where('p.tema_id = tema.id')
+          .where('p.area_id = area.id')
           .andWhere('p.evento_id = evento.id'); // 👈 Link dinâmico com o evento da linha
       }, 'totalProjetos')
       // Subquery: Projetos com solicitações pendentes de orientação
@@ -225,7 +225,7 @@ export class RelatorioService {
           .select('COUNT(DISTINCT p_pend.id)', 'pendentes')
           .from(Projeto, 'p_pend')
           .innerJoin('p_pend.orientadores', 'po_pend')
-          .where('p_pend.tema_id = tema.id')
+          .where('p_pend.area_id = area.id')
           .andWhere('p_pend.evento_id = evento.id') // 👈 Link dinâmico
           .andWhere('po_pend.status = :statusPendente', { statusPendente: 'pendente' });
       }, 'projetosPendentes')
@@ -235,12 +235,12 @@ export class RelatorioService {
           .select('COUNT(DISTINCT p_aceito.id)', 'aceitos')
           .from(Projeto, 'p_aceito')
           .innerJoin('p_aceito.orientadores', 'po_aceito')
-          .where('p_aceito.tema_id = tema.id')
+          .where('p_aceito.area_id = area.id')
           .andWhere('p_aceito.evento_id = evento.id') // 👈 Link dinâmico
           .andWhere('po_aceito.status = :statusAceito', { statusAceito: 'aceito' });
       }, 'projetosAceitos')
       .orderBy('evento.criado_em', 'DESC') // Eventos mais novos aparecem primeiro no topo
-      .addOrderBy('tema.nome', 'ASC')
+      .addOrderBy('area.nome', 'ASC')
       .getRawMany();
 
     const agrupado: EixosPorEvento = {};

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,7 +10,7 @@ import { Repository, In, DataSource, Between } from 'typeorm';
 import { StreamableFile } from '@nestjs/common';
 import { User } from '../users/entities/user.entity';
 
-import { Projeto } from '../projetos/entities/projeto.entity';
+import { Projeto, TipoProjeto } from '../projetos/entities/projeto.entity';
 import { AvaliadorProjeto } from './entities/avaliador-projeto.entity';
 import { Avaliacao } from './entities/avaliacao.entity';
 import { AvaliacaoCriterio } from './entities/avaliacao-criterio.entity';
@@ -71,7 +72,7 @@ export class AvaliacaoService {
       relations: [
         'projeto',
         'projeto.evento',
-        'projeto.tema',
+        'projeto.area',
         'projeto.alunoAutor',
         'projeto.projetoAlunos',
         'projeto.projetoAlunos.aluno',
@@ -83,7 +84,7 @@ export class AvaliacaoService {
     if (!projeto) {
       projeto = await this.projetoRepository.findOne({
         where: { id: projetoId },
-        relations: ['evento', 'tema', 'alunoAutor', 'projetoAlunos', 'projetoAlunos.aluno'],
+        relations: ['evento', 'area', 'alunoAutor', 'projetoAlunos', 'projetoAlunos.aluno'],
       });
 
       if (!projeto) {
@@ -104,7 +105,7 @@ export class AvaliacaoService {
       descricao: projeto.descricao,
       local: `${projeto.alunoAutor?.turma ?? ''}${projeto.alunoAutor?.ano ? ` · ${projeto.alunoAutor.ano}º ano` : ''}`.trim() || 'Sem turma/ano',
       autores,
-      tag: projeto.tema?.nome ?? 'Sem tema',
+      tag: projeto.area?.nome ?? 'Sem área',
       status: atribuicao?.status ?? 'pendente',
       designado: !!atribuicao, // true se existe atribuição, false caso contrário
     };
@@ -115,11 +116,11 @@ export class AvaliacaoService {
     if (!eventoAtual) return { projetos: [] };
 
     const atribuicoes = await this.avaliadorProjetoRepository.find({
-      where: { avaliadorId, projeto: { eventoId: eventoAtual.id } },
+      where: { avaliadorId, projeto: { eventoId: eventoAtual.id, tipo: TipoProjeto.PROJETO } },
       relations: [
         'projeto',
         'projeto.evento',
-        'projeto.tema',
+        'projeto.area',
         'projeto.alunoAutor',
         'projeto.projetoAlunos',
         'projeto.projetoAlunos.aluno',
@@ -161,7 +162,7 @@ export class AvaliacaoService {
           ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
           : 'Sem turma/ano',
         autores,
-        tag: projeto.tema?.nome ?? 'Sem tema',
+        tag: projeto.area?.nome ?? 'Sem área',
         status: avaliadosSet.has(projeto.id) ? 'Avaliado' : 'Pendente',
         // Opcional: id da atribuição para ações futuras
         atribuicaoId: atribuicao.id,
@@ -210,6 +211,10 @@ export class AvaliacaoService {
 
         if (!projeto) {
           throw new NotFoundException(`Projeto ${projetoId} não encontrado.`);
+        }
+
+        if (projeto.tipo === TipoProjeto.OFICINA) {
+          throw new ForbiddenException('Oficinas não podem ser avaliadas.');
         }
 
         console.log('✅ [criarAvaliacao] Projeto encontrado:', { id: projeto.id, titulo: projeto.titulo });
@@ -375,6 +380,8 @@ export class AvaliacaoService {
         console.log(`🎯 Evento atual selecionado: ${eventoAtual.id}`);
       }
 
+      where.tipo = TipoProjeto.PROJETO; // oficinas ficam fora das médias
+
       const projetos = await this.projetoRepository.find({
         where,
         relations: ['avaliacoes', 'orientadores', 'orientadores.orientador'],
@@ -431,9 +438,9 @@ export class AvaliacaoService {
     let projetosAprovados = await this.projetoRepository.find({
       where: { status: 'APROVADO', eventoId: eventoAtual.id },
       relations: [
+        'area',
         'orientadores',
         'orientadores.orientador',
-        'orientadores.orientador.areas', // ✅ relação com a tabela orientador_areas
       ],
     });
 
@@ -441,20 +448,7 @@ export class AvaliacaoService {
     const areasPermitidas = this.limitesAtuais.areasPermitidas ?? [];
     if (areasPermitidas.length > 0) {
       projetosAprovados = projetosAprovados.filter((projeto) => {
-        const orientadorAceito = projeto.orientadores?.find(
-          (po) => po.status === 'aceito',
-        );
-        if (!orientadorAceito || !orientadorAceito.orientador) return false;
-
-        // Verifica primeiro o campo direto `area`
-        const areaDireta = orientadorAceito.orientador.area;
-        if (areaDireta && areasPermitidas.includes(areaDireta)) {
-          return true;
-        }
-
-        // Verifica se alguma das áreas da relação `areas` está permitida
-        const areasDoOrientador = orientadorAceito.orientador.areas ?? [];
-        return areasDoOrientador.some((a) => areasPermitidas.includes(a.area));
+        return !!projeto.area && areasPermitidas.includes(projeto.area.nome);
       });
     }
 
@@ -572,7 +566,7 @@ export class AvaliacaoService {
       .createQueryBuilder('projeto')
       .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-      .leftJoinAndSelect('orientador.areas', 'area')
+      .leftJoinAndSelect('projeto.area', 'area')
       .where('projeto.status = :status', { status: 'APROVADO' })
       .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
       .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
@@ -581,7 +575,7 @@ export class AvaliacaoService {
     // Aplica filtro de áreas permitidas, se configurado
     if (this.limitesAtuais.areasPermitidas.length > 0) {
       query.andWhere(
-        '(orientador.area IN (:...areasPermitidas) OR area.area IN (:...areasPermitidas))',
+        'area.nome IN (:...areasPermitidas)',
         { areasPermitidas: this.limitesAtuais.areasPermitidas },
       );
     }
@@ -613,24 +607,6 @@ export class AvaliacaoService {
     };
   }
 
-  private async getAreaDoOrientadorAceito(projetoId: number): Promise<string | null> {
-    const projeto = await this.projetoRepository.findOne({
-      where: { id: projetoId },
-      relations: ['orientadores', 'orientadores.orientador', 'orientadores.orientador.areas'],
-    });
-
-    if (!projeto) return null;
-
-    const orientadorAceito = projeto.orientadores?.find(
-      (po) => po.status === 'aceito',
-    );
-
-    if (!orientadorAceito || !orientadorAceito.orientador) return null;
-
-    // Pega a primeira área (ou você pode ter regra para múltiplas)
-    const area = orientadorAceito.orientador.areas?.[0]?.area ?? null;
-    return area;
-  }
   // Dentro da classe AvaliacaoService
 
   /**
@@ -641,7 +617,7 @@ export class AvaliacaoService {
     if (!eventoAtual) return 0;
 
     return this.avaliadorProjetoRepository.count({
-      where: { avaliadorId, projeto: { eventoId: eventoAtual.id } },
+      where: { avaliadorId, projeto: { eventoId: eventoAtual.id, tipo: TipoProjeto.PROJETO } },
     });
   }
 
@@ -664,14 +640,14 @@ export class AvaliacaoService {
       .createQueryBuilder('projeto')
       .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador', "projetoOrientador.status = 'aceito'")
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
-      .leftJoinAndSelect('orientador.areas', 'area')
+      .leftJoinAndSelect('projeto.area', 'area')
       .where('projeto.status = :status', { status: 'APROVADO' })
       .andWhere('projeto.eventoId = :eventoId', { eventoId: eventoAtual.id })
       .andWhere(`projeto.id NOT IN (${subQuery.getQuery()})`)
       .setParameters(subQuery.getParameters());
 
     if (areasPermitidas.length > 0) {
-      query.andWhere('(area.area IN (:...areasPermitidas) OR orientador.area IN (:...areasPermitidas))', {
+      query.andWhere('area.nome IN (:...areasPermitidas)', {
         areasPermitidas,
       });
     }
@@ -825,6 +801,8 @@ export class AvaliacaoService {
       .addGroupBy('orientador.nome')
       .addGroupBy('orientador.email_institucional')
       .orderBy('mediaGeral', 'DESC');
+
+    query.andWhere('projeto.tipo = :tipo', { tipo: TipoProjeto.PROJETO });
 
     if (eventoId) {
       query.andWhere('projeto.eventoId = :eventoId', { eventoId });

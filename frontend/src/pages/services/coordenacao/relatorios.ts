@@ -186,7 +186,7 @@ export type ProjetoDisponivel = {
     id: number;
     titulo: string;
     descricao?: string;
-    tema?: { id: number; nome: string } | null;
+    area?: { id: number; nome: string } | null;
     alunoAutor?: {
         id: number;
         nome: string;

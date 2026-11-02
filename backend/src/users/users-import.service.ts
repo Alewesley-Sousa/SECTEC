@@ -9,7 +9,6 @@ import { Repository, In } from 'typeorm';
 import { parse } from 'csv-parse/sync';
 import { HashingProvider } from '../common/providers/hashing.provider';
 import { UsersService } from './users.service';
-import { OrientadorArea } from './entities/orientador-area.entity';
 import { User, UserRole, UserTurma } from './entities/user.entity';
 
 interface ICsvRow {
@@ -22,7 +21,6 @@ interface ICsvRow {
   areas?: string;
   [key: string]: any;
 }
-
 @Injectable()
 export class UsersImportService {
   private readonly logger = new Logger(UsersImportService.name);
@@ -30,8 +28,6 @@ export class UsersImportService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-    @InjectRepository(OrientadorArea)
-    private orientadorAreaRepository: Repository<OrientadorArea>,
     private usersService: UsersService,
     private hashingProvider: HashingProvider,
   ) { }
@@ -80,28 +76,7 @@ export class UsersImportService {
 
     try {
       // 1. Salva os usuários no banco e obtém as instâncias com os IDs gerados
-      const usuariosSalvos = await this.usersRepository.save(dadosFormatados);
-
-      // 2. Itera sobre os registros para salvar as áreas caso sejam orientadores
-      for (let i = 0; i < registrosFiltrados.length; i++) {
-        const reg = registrosFiltrados[i];
-        const usuarioSalvo = usuariosSalvos[i];
-
-        const areasBrutas = reg.area || reg.areas;
-        if (usuarioSalvo && usuarioSalvo.role_cargo === 'orientador' && areasBrutas) {
-          const listaAreas = String(areasBrutas).split(',');
-
-          for (const areaTexto of listaAreas) {
-            const areaNormalizada = normalizeArea(areaTexto);
-            if (areaNormalizada) {
-              await this.orientadorAreaRepository.save({
-                userId: usuarioSalvo.id,
-                area: areaNormalizada,
-              });
-            }
-          }
-        }
-      }
+      await this.usersRepository.save(dadosFormatados);
 
       return {
         filename: file.originalname,
@@ -301,13 +276,4 @@ export class UsersImportService {
       ano_progressao_processado: new Date().getFullYear(),
     };
   }
-}
-
-function normalizeArea(text: string): string {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
 }

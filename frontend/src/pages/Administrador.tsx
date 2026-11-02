@@ -176,11 +176,11 @@ type ProjetoCoordenacaoApi = {
     turma?: string | null;
     ano?: number | null;
   };
-  tema?: {
+  area?: {
     id: number;
     nome: string;
   } | null;
-  temaId?: number | null;
+  areaId?: number | null;
   projetoAlunos?: Array<{
     aluno?: {
       id: number;
@@ -609,8 +609,8 @@ function getEventoProjetoId(projeto: ProjetoCoordenacaoListagem) {
   return projeto.eventoId ?? projeto.evento?.id ?? null;
 }
 
-function getTemaProjetoId(projeto: ProjetoCoordenacaoListagem) {
-  return projeto.temaId ?? projeto.tema?.id ?? null;
+function getAreaProjetoId(projeto: ProjetoCoordenacaoListagem) {
+  return projeto.areaId ?? projeto.area?.id ?? null;
 }
 
 function getProjetoDescricaoCurta(projeto: ProjetoCoordenacaoListagem) {
@@ -1406,7 +1406,7 @@ function EventosCoordenacao() {
                       <div key={projeto.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                         <p className="font-black text-slate-900">{projeto.titulo}</p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {projeto.tema?.nome || "Sem tema"} · {projeto.alunoAutor?.nome || projeto.projetoAlunos?.[0]?.aluno?.nome || "Sem autor"}
+                          {projeto.area?.nome || "Sem área"} · {projeto.alunoAutor?.nome || projeto.projetoAlunos?.[0]?.aluno?.nome || "Sem autor"}
                         </p>
                       </div>
                     ))
@@ -2571,6 +2571,7 @@ function ProjetosCoordenacao() {
   const [anoFiltroEdicao, setAnoFiltroEdicao] = useState("todos");
   const [projetos, setProjetos] = useState<ProjetoCoordenacaoListagem[]>([]);
   const [eventos, setEventos] = useState<EventoApi[]>([]);
+  const [areas, setAreas] = useState<Array<{ id: number; nome: string }>>([]);
   const [alunos, setAlunos] = useState<UsuarioApi[]>([]);
   const [busca, setBusca] = useState("");
   const [eventoFiltro, setEventoFiltro] = useState("todos");
@@ -2592,7 +2593,7 @@ function ProjetosCoordenacao() {
   const [formProjeto, setFormProjeto] = useState({
     titulo: "",
     descricao: "",
-    temaId: "",
+    areaId: "",
     evento: "",
     alunosIds: [] as number[],
   });
@@ -2683,14 +2684,16 @@ function ProjetosCoordenacao() {
     setErro("");
     setErroTecnico("");
     try {
-      const [projetosResponse, eventosResponse, alunosResponse] = await Promise.all([
+      const [projetosResponse, eventosResponse, alunosResponse, areasResponse] = await Promise.all([
         apiRequest<unknown>("/projetos"),
         apiRequest<EventoApi[]>("/evento").catch(() => []),
         apiRequest<UsuarioApi[]>("/users/alunos").catch(() => []),
+        apiRequest<Array<{ id: number; nome: string }>>("/areas").catch(() => []),
       ]);
       setProjetos(extrairProjetosDaResposta(projetosResponse) as ProjetoCoordenacaoListagem[]);
       setEventos(eventosResponse);
       setAlunos(alunosResponse);
+      setAreas(areasResponse);
     } catch (error) {
       const erro = mensagemErroApi(error, "Não foi possível carregar os dados.");
       setErro(`${erro.amigavel} Tente novamente em alguns instantes.`);
@@ -2748,7 +2751,7 @@ function ProjetosCoordenacao() {
         !termo ||
         projeto.titulo.toLowerCase().includes(termo) ||
         projeto.descricao?.toLowerCase().includes(termo) ||
-        projeto.tema?.nome.toLowerCase().includes(termo) ||
+        projeto.area?.nome.toLowerCase().includes(termo) ||
         autor?.nome.toLowerCase().includes(termo) ||
         integrantes.some((aluno) => aluno?.nome.toLowerCase().includes(termo)) ||
         orientadores.some((item) => item.orientador?.nome.toLowerCase().includes(termo));
@@ -2773,9 +2776,6 @@ function ProjetosCoordenacao() {
   useEffect(() => {
     setPaginaAtual(1);
   }, [busca, eventoFiltro, turmaFiltro, statusOrientacaoFiltro]);
-
-  const eventoSelecionadoNoForm = eventos.find((evento) => String(evento.id) === formProjeto.evento);
-  const temasDoEventoSelecionado = eventoSelecionadoNoForm?.temas ?? [];
 
   async function carregarOrientadorAceito(projetoId: number | string) {
     setOrientadorAceito({ loading: true, data: null, error: "" });
@@ -2880,7 +2880,7 @@ function ProjetosCoordenacao() {
     setFormProjeto({
       titulo: projeto.titulo,
       descricao: projeto.descricao ?? "",
-      temaId: String(getTemaProjetoId(projeto) ?? ""),
+      areaId: String(getAreaProjetoId(projeto) ?? ""),
       evento: String(getEventoProjetoId(projeto) ?? ""),
       alunosIds,
     });
@@ -2904,7 +2904,7 @@ function ProjetosCoordenacao() {
     const autorId = projetoSelecionado.alunoAutor?.id ? Number(projetoSelecionado.alunoAutor.id) : null;
     const alunosIds = formProjeto.alunosIds.filter((id) => id !== autorId);
     const totalGrupo = alunosIds.length + 1;
-    if (!formProjeto.titulo.trim() || !formProjeto.descricao.trim() || !formProjeto.temaId || !formProjeto.evento) {
+    if (!formProjeto.titulo.trim() || !formProjeto.descricao.trim() || !formProjeto.areaId || !formProjeto.evento) {
       await Swal.fire({ icon: "warning", title: "Preencha os campos obrigatórios", confirmButtonColor: "#15803d" });
       return;
     }
@@ -2924,7 +2924,7 @@ function ProjetosCoordenacao() {
         body: {
           titulo: formProjeto.titulo.trim(),
           descricao: formProjeto.descricao.trim(),
-          temaId: Number(formProjeto.temaId),
+          areaId: Number(formProjeto.areaId),
           evento: Number(formProjeto.evento),
           alunosIds,
         },
@@ -3101,7 +3101,7 @@ function ProjetosCoordenacao() {
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-emerald-800">
-                            <strong>Tema:</strong> {projeto.tema?.nome ?? "Sem tema"}
+                            <strong>Área:</strong> {projeto.area?.nome ?? "Sem área"}
                           </div>
                           <div className="rounded-2xl bg-slate-50 px-3 py-2">
                             <strong className="text-slate-700">Criação:</strong> {getDataCriacaoProjeto(projeto)}
@@ -3165,7 +3165,7 @@ function ProjetosCoordenacao() {
               <h3 className="mt-2 text-lg font-black text-slate-900">{projetoSelecionado.titulo}</h3>
               <p className="mt-2 text-sm font-medium leading-6 text-slate-600">{projetoSelecionado.descricao || "Sem descrição"}</p>
               <p className="mt-3 text-xs text-slate-500">Evento: <strong className="text-slate-700">{projetoSelecionado.eventoTitulo ?? projetoSelecionado.evento?.titulo ?? "Sem evento"}</strong></p>
-              <p className="mt-1 text-xs text-slate-500">Tema: <strong className="text-slate-700">{projetoSelecionado.tema?.nome ?? "Sem tema"}</strong></p>
+              <p className="mt-1 text-xs text-slate-500">Área: <strong className="text-slate-700">{projetoSelecionado.area?.nome ?? "Sem área"}</strong></p>
               <p className="mt-1 text-xs text-slate-500">Criado em: <strong className="text-slate-700">{getDataCriacaoProjeto(projetoSelecionado)}</strong></p>
             </div>
 
@@ -3285,19 +3285,16 @@ function ProjetosCoordenacao() {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-xs font-black uppercase tracking-widest text-slate-500">
                 Evento
-                <select value={formProjeto.evento} onChange={(e) => setFormProjeto((prev) => ({ ...prev, evento: e.target.value, temaId: "" }))} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
+                <select value={formProjeto.evento} onChange={(e) => setFormProjeto((prev) => ({ ...prev, evento: e.target.value }))} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
                   <option value="">Selecione</option>
                   {eventos.map((evento) => <option key={evento.id} value={evento.id}>{evento.titulo}</option>)}
                 </select>
               </label>
               <label className="block text-xs font-black uppercase tracking-widest text-slate-500">
-                Tema
-                <select value={formProjeto.temaId} onChange={(e) => setFormProjeto((prev) => ({ ...prev, temaId: e.target.value }))} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
+                Área
+                <select value={formProjeto.areaId} onChange={(e) => setFormProjeto((prev) => ({ ...prev, areaId: e.target.value }))} className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-slate-600 outline-none focus:border-sectec-500 focus:bg-white focus:ring-2 focus:ring-sectec-100">
                   <option value="">Selecione</option>
-                  {projetoSelecionado.tema && !temasDoEventoSelecionado.some((tema) => tema.id === projetoSelecionado.tema?.id) && (
-                    <option value={projetoSelecionado.tema.id}>{projetoSelecionado.tema.nome}</option>
-                  )}
-                  {temasDoEventoSelecionado.map((tema) => <option key={tema.id} value={tema.id}>{tema.nome}</option>)}
+                  {areas.map((area) => <option key={area.id} value={area.id}>{area.nome}</option>)}
                 </select>
               </label>
             </div>

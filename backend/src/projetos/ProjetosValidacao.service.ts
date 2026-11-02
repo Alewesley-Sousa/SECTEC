@@ -6,7 +6,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, DataSource } from 'typeorm';
 import { Evento, EventoStatus } from 'src/evento/entities/evento.entity';
-import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
 import { User, UserRole } from 'src/users/entities/user.entity';
 
 @Injectable()
@@ -14,35 +13,14 @@ export class ProjetosValidacaoService {
   constructor(
     @InjectRepository(Evento)
     private readonly eventoRepository: Repository<Evento>,
-    @InjectRepository(TemaEvento)
-    private readonly temaEventoRepository: Repository<TemaEvento>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
   ) {}
 
   // --------------------------------------------------
-  // EVENTO E TEMA
+  // EVENTO
   // --------------------------------------------------
-
-  /**
-   * Valida se o evento existe, se o período de inscrição está aberto e se o tema pertence ao evento.
-   */
-  async validarEventoETema(eventoId: number, temaId: number): Promise<void> {
-    const evento = await this.eventoRepository.findOne({ where: { id: eventoId } });
-    if (!evento) {
-      throw new NotFoundException(`O evento #${eventoId} não existe.`);
-    }
-
-    this.validarPeriodoAberto(evento.inscricao, 'inscricao');
-
-    const temaValido = await this.temaEventoRepository.findOne({
-      where: { id: temaId, evento: { id: eventoId } },
-    });
-    if (!temaValido) {
-      throw new BadRequestException('O tema selecionado não pertence a este evento ou não existe.');
-    }
-  }
 
   /**
    * Retorna o evento ativo do ano corrente, ordenado por data de criação (o mais recente).

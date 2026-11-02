@@ -278,7 +278,7 @@ export class ProjetosPdfService {
     const anoTurma = projeto.alunoAutor
       ? `${projeto.alunoAutor.ano ?? ''}º ${projeto.alunoAutor.turma ?? ''}`.trim()
       : '';
-    const nomeTema = projeto.tema?.nome ?? '';
+    const nomeTema = projeto.area?.nome ?? '';
 
     const integrantes = [
       projeto.alunoAutor?.nome,

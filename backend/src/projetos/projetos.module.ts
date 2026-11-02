@@ -12,7 +12,7 @@ import { ProjetoAluno } from './entities/projeto-aluno.entity';
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
 
 // Entidades Externas (Relacionamentos com outros módulos)
-import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
+import { Area } from 'src/areas/entities/area.entity';
 import { Evento } from 'src/evento/entities/evento.entity';
 import { AuditoriaModule } from 'src/auditoria/auditoria.module';
 import { User } from 'src/users/entities/user.entity';
@@ -31,7 +31,7 @@ imports: [
     Projeto,
     ProjetoAluno,
     ProjetoOrientador,
-    TemaEvento,
+    Area,
     Evento,
     User,
     ProjetoMaterial,
@@ -52,4 +52,4 @@ imports: [
   ],
   exports: [ProjetosService],
 })
-export class ProjetosModule {}  
+export class ProjetosModule {}
