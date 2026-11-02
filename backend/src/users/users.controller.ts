@@ -16,7 +16,6 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UserArea } from './entities/user.entity';
 // Adicionei ApiProperty e ApiResponse
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags, ApiResponse } from '@nestjs/swagger';
 import { UserRole } from './entities/user.entity';
@@ -138,16 +137,6 @@ export class UsersController {
   async promote(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.promoteToComissao(id);
   }
-
-@Patch(':id/area')
-@ApiOperation({ summary: 'Atualiza a área de conhecimento do orientador' })
-@ApiBody({ schema: { properties: { area: { type: 'string', example: 'humanas' } } } })
-async atualizarArea(
-  @Param('id', ParseIntPipe) id: number,
-  @Body('area') area: UserArea,
-) {
-  return this.usersService.atualizarAreaOrientador(id, area);
-}
 
 @Post()
 @ApiOperation({ summary: 'Cadastrar um usuário individualmente (Aluno, Orientador ou Coordenador)' })

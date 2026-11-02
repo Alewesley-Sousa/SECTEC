@@ -10,7 +10,7 @@
 
   import { AuditoriaService } from 'src/auditoria/auditoria.service';
   import { Evento } from 'src/evento/entities/evento.entity';
-  import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
+  import { Area } from 'src/areas/entities/area.entity';
   import { User } from 'src/users/entities/user.entity';
   import { CreateProjetoDto } from './dto/create-projeto.dto';
   import { UpdateProjetoDto } from './dto/update-projeto.dto';
@@ -36,8 +36,8 @@
       @InjectRepository(ProjetoOrientador)
       private readonly projetoOrientadorRepository: Repository<ProjetoOrientador>,
 
-      @InjectRepository(TemaEvento)
-      private readonly temaEventoRepository: Repository<TemaEvento>,
+      @InjectRepository(Area)
+      private readonly areaRepository: Repository<Area>,
 
       @InjectRepository(Evento)
       private readonly eventoRepository: Repository<Evento>,
@@ -62,7 +62,7 @@
     async create(dto: CreateProjetoDto, userId: number): Promise<Projeto> {
       const ultimoEvento = await this.validacaoService.buscarUltimoEvento();
 
-      await this.validacaoService.validarEventoETema(ultimoEvento.id, dto.temaId);
+      await this.ensureAreaExists(dto.areaId);
       await this.validacaoService.validateGroupSize(dto.alunosIds);
       await this.validacaoService.ensureAlunosAreAvailable(ultimoEvento.id, [
         ...(dto.alunosIds || []),
@@ -219,18 +219,16 @@
         throw new ForbiddenException('Sem permissao para editar este projeto.');
       }
 
-      let eventoId = dto.evento || projeto.evento?.id;
+      let eventoId = role === 'coordenador'
+        ? dto.evento || projeto.evento?.id
+        : projeto.evento?.id;
 
       if (!eventoId) {
         const ultimo = await this.validacaoService.buscarUltimoEvento();
         eventoId = ultimo.id;
       }
 
-      if (role !== 'coordenador') {
-        if (dto.temaId) {
-          await this.validacaoService.validarEventoETema(eventoId, dto.temaId);
-        }
-      }
+      if (dto.areaId !== undefined) await this.ensureAreaExists(dto.areaId);
 
 
       if (dto.alunosIds) {
@@ -252,13 +250,10 @@
         const dadosAtualizados: Partial<Projeto> = {
           titulo: dto.titulo ?? projeto.titulo,
           descricao: dto.descricao ?? projeto.descricao,
-          evento: { id: eventoId } as Evento,
+          evento: { id: role === 'coordenador' ? eventoId : projeto.eventoId } as Evento,
           alunoAutor: { id: projeto.alunoAutor.id } as User,
+          areaId: dto.areaId ?? projeto.areaId,
         };
-
-        if (dto.temaId) {
-          dadosAtualizados.temaId = dto.temaId;
-        }
 
         this.projetoRepository.merge(projeto, dadosAtualizados);
         await queryRunner.manager.save(projeto);
@@ -407,7 +402,7 @@
       const projeto = qr.manager.create(Projeto, {
         titulo: dto.titulo,
         descricao: dto.descricao,
-        temaId: dto.temaId,
+        areaId: dto.areaId,
         evento: { id: eventoId } as Evento,
         alunoAutor: { id: autorId } as User,
       });
@@ -463,11 +458,16 @@
       return {
         evento: true,
         alunoAutor: true,
-        tema: true,
+        area: true,
         projetoAlunos: { aluno: true },
         orientadores: { orientador: true },
         materiais: true,
       } as const;
+    }
+
+    private async ensureAreaExists(areaId: number): Promise<void> {
+      const exists = await this.areaRepository.exists({ where: { id: areaId } });
+      if (!exists) throw new NotFoundException(`Área #${areaId} não encontrada.`);
     }
 
     private getProjetoSelectFields() {
@@ -475,10 +475,10 @@
         id: true,
         titulo: true,
         descricao: true,
-        temaId: true,
+        areaId: true,
         criadoEm: true,
         evento: { id: true, titulo: true },
-        tema: { id: true, nome: true },
+        area: { id: true, nome: true, descricao: true },
         alunoAutor: {
           id: true,
           nome: true,

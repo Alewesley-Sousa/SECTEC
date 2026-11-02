@@ -152,7 +152,7 @@ console.log('ID do Autor no Banco:', typeof material.projeto.alunoAutor.id, mate
       .leftJoinAndSelect('projeto.alunoAutor', 'alunoAutor')
       .leftJoinAndSelect('projeto.projetoAlunos', 'projetoAlunos')
       .leftJoinAndSelect('projetoAlunos.aluno', 'aluno')
-      .leftJoinAndSelect('projeto.tema', 'tema')
+      .leftJoinAndSelect('projeto.area', 'area')
       .leftJoinAndSelect('projeto.orientadores', 'projetoOrientador')
       .leftJoinAndSelect('projetoOrientador.orientador', 'orientador')
       .where('orientador.id = :orientadorId', { orientadorId })

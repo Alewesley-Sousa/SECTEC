@@ -7,7 +7,6 @@ import { CreateTemasDto } from './dto/create-tema.dto';
 import { Evento, EventoStatus } from './entities/evento.entity';
 import { TemaEvento } from './entities/tema-evento.entity';
 import { User, UserRole } from '../users/entities/user.entity';
-import { ProjetoOrientador } from '../projetos/entities/projeto-orientador.entity';
 
 @Injectable()
 export class EventoService {
@@ -18,8 +17,6 @@ export class EventoService {
     private readonly temaRepository: Repository<TemaEvento>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    @InjectRepository(ProjetoOrientador)
-    private readonly projetoOrientadorRepository: Repository<ProjetoOrientador>,
   ) {}
 
   // ──── CRUD Básico ──────────────────────────────────────────────
@@ -88,16 +85,6 @@ export class EventoService {
       );
     }
 
-    const projetoVinculado = await this.projetoOrientadorRepository.exists({
-      where: { projeto: { temaId } },
-    });
-
-    if (projetoVinculado) {
-      throw new BadRequestException(
-        'Não é possível excluir este tema porque existem projetos ou solicitações vinculadas a ele.',
-      );
-    }
-
     await this.temaRepository.delete(temaId);
     return { message: `Tema "${tema.nome}" removido com sucesso do evento.` };
   }
@@ -141,32 +128,6 @@ export class EventoService {
 
     if (!professor || professor.role_cargo !== UserRole.ORIENTADOR) {
       throw new BadRequestException('Orientador não encontrado ou cargo inválido.');
-    }
-
-    const temasAtuaisIds = professor.temasSelecionados.map((t) => t.id);
-    const temasSendoRemovidos = temasAtuaisIds.filter((id) => !temasIdsValidos.includes(id));
-
-    if (temasSendoRemovidos.length) {
-      const vinculosAtivos = await this.projetoOrientadorRepository.find({
-        where: {
-          orientador: { id: Number(professorId) },
-          status: In(['aceito', 'pendente']),
-          projeto: { temaId: In(temasSendoRemovidos) },
-        },
-        relations: ['projeto', 'projeto.tema'],
-      });
-
-      if (vinculosAtivos.length) {
-        const nomesTemasBloqueados = Array.from(
-          new Set(vinculosAtivos.map((v) => v.projeto?.tema?.nome || `ID: ${v.projeto?.temaId}`)),
-        )
-          .map((nome) => `"${nome}"`)
-          .join(', ');
-
-        throw new BadRequestException(
-          `Não é possível remover os seguintes temas pois existem solicitações pendentes ou projetos sob sua orientação vinculados a eles: ${nomesTemasBloqueados}`,
-        );
-      }
     }
 
     const novosTemas = await this.temaRepository.findBy({

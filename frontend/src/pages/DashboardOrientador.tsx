@@ -38,7 +38,7 @@ type FiltroSolicitacao = "pendentes" | "reprovadas" | "todas";
 
 type RegistroComEixo = {
   eixoSlug: EixoProjeto;
-  temaId?: number;
+  areaId?: number;
 };
 
 type Equipe = RegistroComEixo & {
@@ -95,8 +95,8 @@ type ProjetoApi = {
   id: number;
   titulo: string;
   descricao?: string;
-  temaId?: number;
-  tema?: TemaOrientadorApi;
+  areaId?: number;
+  area?: { id: number; nome: string };
   criadoEm?: string;
   evento?: {
     id: number;
@@ -164,17 +164,17 @@ function cx(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function eixoFromTemaId(temaId?: number): EixoProjeto {
-  if (!temaId || temaId < 1) return "tecnologia";
-  return eixosProjeto[(temaId - 1) % eixosProjeto.length];
+function eixoFromAreaId(areaId?: number): EixoProjeto {
+  if (!areaId || areaId < 1) return "tecnologia";
+  return eixosProjeto[(areaId - 1) % eixosProjeto.length];
 }
 
-function temaIdFromProjeto(projeto?: ProjetoApi) {
-  return projeto?.temaId ?? projeto?.tema?.id;
+function areaIdFromProjeto(projeto?: ProjetoApi) {
+  return projeto?.areaId ?? projeto?.area?.id;
 }
 
-function temaNomeFromProjeto(projeto?: ProjetoApi) {
-  return projeto?.tema?.nome ?? (temaIdFromProjeto(projeto) ? `Tema #${temaIdFromProjeto(projeto)}` : "Tema não informado");
+function areaNomeFromProjeto(projeto?: ProjetoApi) {
+  return projeto?.area?.nome ?? (areaIdFromProjeto(projeto) ? `Área #${areaIdFromProjeto(projeto)}` : "Área não informada");
 }
 
 function formatBackendDate(value?: string | null) {
@@ -264,8 +264,8 @@ function riscoFromOrientacao(status: OrientacaoApi["status"]): Risco {
 
 function mapOrientacaoToProjeto(orientacao: OrientacaoApi): Projeto {
   const projeto = orientacao.projeto;
-  const temaId = temaIdFromProjeto(projeto);
-  const eixoSlug = eixoFromTemaId(temaId);
+  const areaId = areaIdFromProjeto(projeto);
+  const eixoSlug = eixoFromAreaId(areaId);
 
   return {
     id: `orientacao-${orientacao.id}`,
@@ -278,7 +278,7 @@ function mapOrientacaoToProjeto(orientacao: OrientacaoApi): Projeto {
     status: statusProjetoFromOrientacao(orientacao.status),
     motivoRecusa: orientacao.motivoRecusa,
     eixoSlug,
-    temaId,
+    areaId,
   };
 }
 
@@ -319,8 +319,8 @@ function dedupeOrientacoes(orientacoes: OrientacaoApi[]) {
 
 function mapOrientacaoToEquipe(orientacao: OrientacaoApi): Equipe {
   const projeto = orientacao.projeto;
-  const temaId = temaIdFromProjeto(projeto);
-  const eixoSlug = eixoFromTemaId(temaId);
+  const areaId = areaIdFromProjeto(projeto);
+  const eixoSlug = eixoFromAreaId(areaId);
   const lider = liderFromProjeto(projeto);
 
   return {
@@ -330,7 +330,7 @@ function mapOrientacaoToEquipe(orientacao: OrientacaoApi): Equipe {
     turma: turmaFromProjeto(projeto),
     turmaNome: turmaNomeFromProjeto(projeto),
     ano: anoFromProjeto(projeto),
-    eixo: temaNomeFromProjeto(projeto),
+    eixo: areaNomeFromProjeto(projeto),
     eixoSlug,
     tema: projeto?.descricao ?? "Descrição não informada",
     lider,
@@ -342,7 +342,7 @@ function mapOrientacaoToEquipe(orientacao: OrientacaoApi): Equipe {
       dateWeight(orientacao.criadoEm),
       dateWeight(projeto?.criadoEm)
     ),
-    temaId,
+    areaId,
   };
 }
 
@@ -367,8 +367,8 @@ function materialArquivo(material: MaterialApi) {
 
 function mapMaterialToEntrega(material: MaterialApi, orientacao: OrientacaoApi): Entrega {
   const projeto = orientacao.projeto;
-  const temaId = temaIdFromProjeto(projeto);
-  const eixoSlug = eixoFromTemaId(temaId);
+  const areaId = areaIdFromProjeto(projeto);
+  const eixoSlug = eixoFromAreaId(areaId);
 
   return {
     id: `material-${material.id}`,
@@ -384,14 +384,14 @@ function mapMaterialToEntrega(material: MaterialApi, orientacao: OrientacaoApi):
     data: formatBackendDate(material.criadoEm),
     status: materialStatusToEntregaStatus(material.status),
     eixoSlug,
-    temaId,
+    areaId,
   };
 }
 
 function mapPdfToEntrega(pdf: PdfApi, orientacao: OrientacaoApi): Entrega {
   const projeto = orientacao.projeto;
-  const temaId = temaIdFromProjeto(projeto);
-  const eixoSlug = eixoFromTemaId(temaId);
+  const areaId = areaIdFromProjeto(projeto);
+  const eixoSlug = eixoFromAreaId(areaId);
 
   return {
     id: `pdf-${pdf.fileId}`,
@@ -406,7 +406,7 @@ function mapPdfToEntrega(pdf: PdfApi, orientacao: OrientacaoApi): Entrega {
     data: formatBackendDate(pdf.enviadoEm),
     status: pdf.status === "VALID" || pdf.status === "aprovado" ? "revisada" : "pendente",
     eixoSlug,
-    temaId,
+    areaId,
   };
 }
 
@@ -691,19 +691,13 @@ function useEntregasBackendData(orientacoes: OrientacaoApi[], orientacoesCarrega
   return { entregas, carregando, erro, revisarEntrega };
 }
 
-function filterByTemasSelecionados<T extends RegistroComEixo>(items: T[], temasIds: number[], totalTemas = temasIds.length) {
-  if (totalTemas > 0 && temasIds.length === 0) return [];
-  if (totalTemas > 0 && temasIds.length >= totalTemas) return items;
-  return items.filter((item) => item.temaId !== undefined && temasIds.includes(item.temaId));
-}
-
-function countByTema<T extends RegistroComEixo>(items: T[], temaId: number) {
-  return items.filter((item) => item.temaId === temaId).length;
+function countByTema<T extends RegistroComEixo>(items: T[], areaId: number) {
+  return items.filter((item) => item.areaId === areaId).length;
 }
 
 function filterByTemaAtivo<T extends RegistroComEixo>(items: T[], temaAtivoId: number | "todos") {
   if (temaAtivoId === "todos") return items;
-  return items.filter((item) => item.temaId === temaAtivoId);
+  return items.filter((item) => item.areaId === temaAtivoId);
 }
 
 const fadeUp = {
@@ -1398,20 +1392,9 @@ function DashboardOrientador() {
     [temasBackend.selecionadosIds, temasBackend.temas]
   );
 
-  useEffect(() => {
-    if (temaFiltro !== "todos" && !temasBackend.selecionadosIds.includes(temaFiltro)) {
-      setTemaFiltro("todos");
-    }
-  }, [temaFiltro, temasBackend.selecionadosIds]);
-
-  const equipesPorTemasSelecionados = useMemo(
-    () => filterByTemasSelecionados(equipesData, temasBackend.selecionadosIds, temasBackend.temas.length),
-    [equipesData, temasBackend.selecionadosIds, temasBackend.temas.length]
-  );
-  const projetosPorTemasSelecionados = useMemo(
-    () => filterByTemasSelecionados(projetosData, temasBackend.selecionadosIds, temasBackend.temas.length),
-    [projetosData, temasBackend.selecionadosIds, temasBackend.temas.length]
-  );
+  // Preferências de eixo do orientador já não filtram projetos; projetos são classificados por área.
+  const equipesPorTemasSelecionados = equipesData;
+  const projetosPorTemasSelecionados = projetosData;
   const equipesFiltradas = useMemo(
     () => filterByTemaAtivo(equipesPorTemasSelecionados, temaFiltro),
     [equipesPorTemasSelecionados, temaFiltro]
@@ -1842,7 +1825,7 @@ function DashboardOrientador() {
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-3.5">
                         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Tema</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-800">{temaNomeFromProjeto(projetoDetalhe)}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-800">{areaNomeFromProjeto(projetoDetalhe)}</p>
                       </div>
                     </div>
 
@@ -1956,7 +1939,7 @@ export function TurmasOrientador() {
   const temasDisponiveis = useMemo(() => {
     const mapa = new Map<number, string>();
     equipesData.forEach((equipe) => {
-      if (equipe.temaId) mapa.set(equipe.temaId, equipe.eixo);
+      if (equipe.areaId) mapa.set(equipe.areaId, equipe.eixo);
     });
     return Array.from(mapa.entries())
       .map(([id, nome]) => ({ id, nome }))
@@ -1975,7 +1958,7 @@ export function TurmasOrientador() {
   const equipesFiltradas = useMemo(
     () =>
       equipesData.filter((equipe) => {
-        const bateTema = temaFiltro === "todos" || equipe.temaId === temaFiltro;
+        const bateTema = temaFiltro === "todos" || equipe.areaId === temaFiltro;
         const bateTurma = turmaFiltro === "todas" || equipe.turmaNome === turmaFiltro;
         const bateAno = anoFiltro === "todos" || equipe.ano === anoFiltro;
         return bateTema && bateTurma && bateAno;

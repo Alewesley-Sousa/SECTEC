@@ -7,7 +7,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { AuditoriaService } from 'src/auditoria/auditoria.service';
-import { TemaEvento } from 'src/evento/entities/tema-evento.entity';
 import { User, UserRole } from 'src/users/entities/user.entity';
 import { Projeto } from './entities/projeto.entity';
 import { ProjetoOrientador } from './entities/projeto-orientador.entity';
@@ -20,9 +19,6 @@ export class ProjetosOrientadorService {
 
         @InjectRepository(ProjetoOrientador)
         private readonly projetoOrientadorRepository: Repository<ProjetoOrientador>,
-
-        @InjectRepository(TemaEvento)
-        private readonly temaEventoRepository: Repository<TemaEvento>,
 
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
@@ -261,8 +257,6 @@ export class ProjetosOrientadorService {
         userId: number,
         orientadorId: number,
     ): Promise<ProjetoOrientador> {
-        await this.validarTemaNoEvento(projeto.temaId, projeto.evento.id);
-        await this.validarOrientadorSelecionouTema(projeto.temaId, orientadorId);
         await this.validarSolicitacaoDuplicada(projeto.id, orientadorId);
 
         const novaSolicitacao = this.projetoOrientadorRepository.create({
@@ -281,40 +275,6 @@ export class ProjetosOrientadorService {
         );
 
         return solicitacao;
-    }
-
-    private async validarTemaNoEvento(temaId: number, eventoId: number) {
-        const existe = await this.temaEventoRepository.exists({
-            where: { id: temaId, evento: { id: eventoId } },
-        });
-
-        if (!existe) {
-            throw new BadRequestException(
-                'O tema do projeto não está disponível para este evento.',
-            );
-        }
-    }
-
-    private async validarOrientadorSelecionouTema(
-        temaId: number,
-        orientadorId: number,
-    ) {
-        const orientadorEscolheuTema = await this.temaEventoRepository
-            .createQueryBuilder('tema')
-            .innerJoin(
-                'tema.orientadores',
-                'orientador',
-                'orientador.id = :orientadorId',
-                { orientadorId },
-            )
-            .where('tema.id = :temaId', { temaId })
-            .getExists();
-
-        if (!orientadorEscolheuTema) {
-            throw new BadRequestException(
-                'Este orientador não selecionou o eixo temático do projeto.',
-            );
-        }
     }
 
     private async validarSolicitacaoDuplicada(
@@ -367,7 +327,7 @@ export class ProjetosOrientadorService {
         const projeto = await this.projetoRepository.findOne({
             where: { alunoAutor: { id: userId } },
             order: { criadoEm: 'DESC' },
-            relations: ['evento', 'tema'],
+            relations: ['evento', 'area'],
         });
 
         if (!projeto) {
