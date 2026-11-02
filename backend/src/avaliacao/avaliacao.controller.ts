@@ -21,7 +21,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Avaliação')
 @ApiBearerAuth()
-@Controller(['avaliacao', 'avaliador'])
+// 'avaliacoes' é o nome do contrato (GET/POST/PATCH /avaliacoes/:id); 'avaliacao' segue para o frontend atual
+@Controller(['avaliacao', 'avaliacoes', 'avaliador'])
 export class AvaliacaoController {
   constructor(private readonly avaliacaoService: AvaliacaoService) { }
 

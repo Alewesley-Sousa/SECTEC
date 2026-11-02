@@ -28,6 +28,27 @@ const AREAS_DISPONIVEIS = [
   "linguagens",
 ] as const;
 
+/** Critérios que compõem uma avaliação (cada um vira uma linha em avaliacao_criterios). */
+export const CRITERIOS_AVALIACAO = ['apresentacao', 'metodologia', 'conteudo', 'resultado'] as const;
+export type CriterioAvaliacao = (typeof CRITERIOS_AVALIACAO)[number];
+
+/** Valida faixa (0 a 10) e passo de 0,5 de uma nota. Lança BadRequestException se inválida. */
+export function validarNota(nota: number, campo: string): void {
+  if (Number.isNaN(nota) || nota < 0 || nota > 10) {
+    throw new BadRequestException(`${campo} deve estar entre 0 e 10.`);
+  }
+
+  if ((nota * 10) % 5 !== 0) {
+    throw new BadRequestException(`${campo} deve seguir o passo de 0,5.`);
+  }
+}
+
+/** Média aritmética arredondada para 1 casa decimal (regra da nota final). */
+export function calcularMedia(notas: number[]): number {
+  const soma = notas.reduce((total, nota) => total + nota, 0);
+  return Number((soma / notas.length).toFixed(1));
+}
+
 @Injectable()
 export class AvaliacaoService {
   private limitesAtuais = {
@@ -54,16 +75,6 @@ export class AvaliacaoService {
     private readonly eventoRepository: Repository<Evento>,
     private readonly dataSource: DataSource,
   ) { }
-
-  private validarNota(nota: number, campo: string) {
-    if (Number.isNaN(nota) || nota < 0 || nota > 10) {
-      throw new BadRequestException(`${campo} deve estar entre 0 e 10.`);
-    }
-
-    if ((nota * 10) % 5 !== 0) {
-      throw new BadRequestException(`${campo} deve seguir o passo de 0,5.`);
-    }
-  }
 
   async validarProjetoDesignado(avaliadorId: number, projetoId: number) {
     // Busca a atribuição, se existir
@@ -198,10 +209,10 @@ export class AvaliacaoService {
 
     console.log('📥 [criarAvaliacao] Dados recebidos:', { avaliadorId, projetoId });
 
-    this.validarNota(apresentacao, 'Apresentação');
-    this.validarNota(metodologia, 'Metodologia');
-    this.validarNota(conteudo, 'Conteúdo');
-    this.validarNota(resultado, 'Resultado');
+    validarNota(apresentacao, 'Apresentação');
+    validarNota(metodologia, 'Metodologia');
+    validarNota(conteudo, 'Conteúdo');
+    validarNota(resultado, 'Resultado');
 
     try {
       return await this.dataSource.transaction(async (manager) => {
@@ -244,9 +255,7 @@ export class AvaliacaoService {
           throw new ConflictException('Este projeto já foi avaliado por este avaliador.');
         }
 
-        const media = Number(
-          ((apresentacao + metodologia + conteudo + resultado) / 4).toFixed(1),
-        );
+        const media = calcularMedia([apresentacao, metodologia, conteudo, resultado]);
         console.log('🧮 [criarAvaliacao] Média calculada:', media);
 
         // Salva avaliação
